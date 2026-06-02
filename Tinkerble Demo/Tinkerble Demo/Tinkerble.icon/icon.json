@@ -1,0 +1,87 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : {
+        "automatic-gradient" : "display-p3:0.33705,0.57522,0.00000,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : "automatic"
+    }
+  ],
+  "groups" : [
+    {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
+          },
+          "image-name" : "bottom wings.svg",
+          "name" : "bottom wings",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              6.2265625,
+              193.7578125
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
+          },
+          "image-name" : "top wings.svg",
+          "name" : "top wings",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              6.453125,
+              -221.3671875
+            ]
+          }
+        },
+        {
+          "blend-mode" : "plus-lighter",
+          "fill" : {
+            "solid" : "srgb:0.80477,0.90889,1.00000,1.00000"
+          },
+          "hidden" : true,
+          "image-name" : "tinkerbell wing.svg",
+          "name" : "tinkerbell wing",
+          "position" : {
+            "scale" : 0.71,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "position" : {
+        "scale" : 0.74,
+        "translation-in-points" : [
+          -3.09375,
+          84.1328125
+        ]
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.42
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
