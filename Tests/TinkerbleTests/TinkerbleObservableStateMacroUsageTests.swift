@@ -117,6 +117,26 @@ final class TinkerbleObservableStateMacroUsageTests: XCTestCase {
 
         XCTAssertTrue(observedChange.value)
     }
+
+    func testMacroUnregistersObservableStateWhenOwnerDeallocates() async {
+        let transport = RecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+
+        var model: ObservableMacroDemoModel? = ObservableMacroDemoModel()
+        _ = model?.title
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Title"])
+        transport.sentMessages.removeAll()
+
+        model = nil
+
+        await waitUntil { Tinkerble.shared.registeredTweaks.isEmpty }
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertEqual(transport.sentMessages, [.unregister(id: "Title")])
+    }
     #endif
 
     private func waitUntil(

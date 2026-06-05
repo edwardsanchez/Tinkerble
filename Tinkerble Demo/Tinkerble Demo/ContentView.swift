@@ -62,6 +62,13 @@ struct ContentView: View {
                     header
                     sampleCards
                     observableExamples
+                    NavigationLink {
+                        LifetimeDemoView()
+                    } label: {
+                        Label("Registration Lifetime", systemImage: "rectangle.stack")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                     logButton
                 }
                 .padding(20)

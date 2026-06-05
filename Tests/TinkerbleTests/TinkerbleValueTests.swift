@@ -43,6 +43,15 @@ final class TinkerbleValueTests: XCTestCase {
         XCTAssertEqual(decoded, .register(tweak))
     }
 
+    func testRSocketPayloadCodecRoundTripsUnregisterMessages() throws {
+        let codec = TinkerbleRSocketPayloadCodec()
+
+        let payload = try codec.payload(for: .unregister(id: "Lifetime State/Message"))
+        let decoded = try codec.message(from: payload)
+
+        XCTAssertEqual(decoded, .unregister(id: "Lifetime State/Message"))
+    }
+
     func testRSocketPayloadCodecRoundTripsTextControlDescriptors() throws {
         let codec = TinkerbleRSocketPayloadCodec()
         let tweak = TinkerbleTweak(

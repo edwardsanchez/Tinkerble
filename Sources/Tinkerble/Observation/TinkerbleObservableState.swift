@@ -55,8 +55,17 @@ public final class TinkerbleObservableStateRegistration {
     private var id: String?
     private var isRegistered = false
     private var isApplyingRemoteValue = false
+    private var registrationToken: TinkerbleRegistrationToken?
 
     public init() {}
+
+    deinit {
+        if let registrationToken {
+            Task { @MainActor in
+                Tinkerble.shared.unregister(registrationToken)
+            }
+        }
+    }
 
     public func activate<Owner: AnyObject, Value: TinkerbleValueConvertible>(
         owner: Owner,
@@ -72,7 +81,7 @@ public final class TinkerbleObservableStateRegistration {
         self.id = id
         isRegistered = true
 
-        Tinkerble.shared.register(
+        registrationToken = Tinkerble.shared.register(
             id: id,
             category: category,
             name: name,

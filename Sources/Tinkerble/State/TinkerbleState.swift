@@ -9,12 +9,14 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
 
     @ObservationIgnored
     private let id: String
+    @ObservationIgnored
+    private var registrationToken: TinkerbleRegistrationToken?
 
     init(initialValue: Value, category: String?, name: String, control: TinkerbleControl<Value>) {
         self.value = initialValue
         self.id = Self.makeID(category: category, name: name)
 
-        Tinkerble.shared.register(
+        registrationToken = Tinkerble.shared.register(
             id: id,
             category: category,
             name: name,
@@ -24,6 +26,14 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
                 self?.value = newValue
             }
         )
+    }
+
+    deinit {
+        if let registrationToken {
+            Task { @MainActor in
+                Tinkerble.shared.unregister(registrationToken)
+            }
+        }
     }
 
     func set(_ newValue: Value) {

@@ -46,4 +46,29 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
 
         XCTAssertEqual(store.logs, [entry])
     }
+
+    func testCompanionRemovesTweaksWhenTheyUnregister() {
+        let store = TinkerbleCompanionStore()
+
+        store.handle(
+            .register(
+                TinkerbleTweak(
+                    id: "Lifetime State/Message",
+                    category: "Lifetime State",
+                    name: "Message",
+                    value: .string("Loaded"),
+                    valueKind: .string,
+                    control: .automatic
+                )
+            ),
+            outbound: nil
+        )
+
+        XCTAssertEqual(store.tweaks.map(\.id), ["Lifetime State/Message"])
+
+        store.handle(.unregister(id: "Lifetime State/Message"), outbound: nil)
+
+        XCTAssertTrue(store.tweaks.isEmpty)
+        XCTAssertTrue(store.groupedTweaks.isEmpty)
+    }
 }

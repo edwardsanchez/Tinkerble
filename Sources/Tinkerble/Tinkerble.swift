@@ -11,9 +11,7 @@ public final class Tinkerble {
     public private(set) var registeredTweaks: [TinkerbleTweak] = []
 
     @ObservationIgnored
-    private var tweaksByID: [String: TinkerbleTweak] = [:]
-    @ObservationIgnored
-    private var remoteAppliers: [String: (TinkerbleValue) -> Void] = [:]
+    private var liveRegistrationsByID: [String: LiveTweakRegistration] = [:]
     @ObservationIgnored
     private var transport: TinkerbleClientTransport
 
@@ -31,8 +29,7 @@ public final class Tinkerble {
     internal func resetForTesting(transport: TinkerbleClientTransport = TinkerbleRSocketClientTransport()) {
         self.transport.disconnect()
         self.transport = transport
-        tweaksByID.removeAll()
-        remoteAppliers.removeAll()
+        liveRegistrationsByID.removeAll()
         registeredTweaks.removeAll()
         connectionStatus = .disconnected
         bindTransport(transport)
@@ -46,6 +43,7 @@ public final class Tinkerble {
         transport.disconnect()
     }
 
+    @discardableResult
     internal func register<Value: TinkerbleValueConvertible>(
         id: String,
         category: String?,
@@ -53,7 +51,7 @@ public final class Tinkerble {
         value: Value,
         control: TinkerbleControl<Value>,
         applyRemoteValue: @escaping (Value) -> Void
-    ) {
+    ) -> TinkerbleRegistrationToken {
         let tweak = TinkerbleTweak(
             id: id,
             category: normalizedCategory(category),
@@ -63,15 +61,41 @@ public final class Tinkerble {
             control: control.descriptor,
             enumOptions: Value.tinkerbleEnumOptions ?? []
         )
-
-        tweaksByID[id] = tweak
-        remoteAppliers[id] = { incomingValue in
+        let token = TinkerbleRegistrationToken(tweakID: id)
+        let remoteApplier: (TinkerbleValue) -> Void = { incomingValue in
             guard let typedValue = Value.fromTinkerbleValue(incomingValue) else { return }
             applyRemoteValue(typedValue)
         }
 
+        if var liveRegistration = liveRegistrationsByID[id] {
+            let currentValue = liveRegistration.tweak.value
+            liveRegistration.remoteAppliers[token.instanceID] = remoteApplier
+            liveRegistrationsByID[id] = liveRegistration
+            remoteApplier(currentValue)
+            return token
+        }
+
+        liveRegistrationsByID[id] = LiveTweakRegistration(
+            tweak: tweak,
+            remoteAppliers: [token.instanceID: remoteApplier]
+        )
         publishTweaks()
         transport.send(.register(tweak))
+        return token
+    }
+
+    internal func unregister(_ token: TinkerbleRegistrationToken) {
+        guard var liveRegistration = liveRegistrationsByID[token.tweakID] else { return }
+
+        liveRegistration.remoteAppliers.removeValue(forKey: token.instanceID)
+        guard liveRegistration.remoteAppliers.isEmpty else {
+            liveRegistrationsByID[token.tweakID] = liveRegistration
+            return
+        }
+
+        liveRegistrationsByID.removeValue(forKey: token.tweakID)
+        publishTweaks()
+        transport.send(.unregister(id: token.tweakID))
     }
 
     internal func updateLocalValue<Value: TinkerbleValueConvertible>(id: String, value: Value) {
@@ -103,16 +127,19 @@ public final class Tinkerble {
         switch message {
         case let .update(id, value):
             updateStoredValue(id: id, value: value)
-            remoteAppliers[id]?(value)
-        case .hello, .snapshot, .register, .log:
+            let appliers = liveRegistrationsByID[id].map { Array($0.remoteAppliers.values) } ?? []
+            for applier in appliers {
+                applier(value)
+            }
+        case .hello, .snapshot, .register, .unregister, .log:
             break
         }
     }
 
     private func updateStoredValue(id: String, value: TinkerbleValue) {
-        guard var tweak = tweaksByID[id] else { return }
-        tweak.value = value
-        tweaksByID[id] = tweak
+        guard var liveRegistration = liveRegistrationsByID[id] else { return }
+        liveRegistration.tweak.value = value
+        liveRegistrationsByID[id] = liveRegistration
         publishTweaks()
     }
 
@@ -121,7 +148,7 @@ public final class Tinkerble {
     }
 
     private func sortedTweaks() -> [TinkerbleTweak] {
-        tweaksByID.values.sorted { left, right in
+        liveRegistrationsByID.values.map(\.tweak).sorted { left, right in
             switch (left.category, right.category) {
             case (nil, nil):
                 return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
@@ -145,5 +172,10 @@ public final class Tinkerble {
             return nil
         }
         return category
+    }
+
+    private struct LiveTweakRegistration {
+        var tweak: TinkerbleTweak
+        var remoteAppliers: [UUID: (TinkerbleValue) -> Void]
     }
 }

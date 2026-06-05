@@ -90,6 +90,9 @@ public final class TinkerbleCompanionStore {
         case let .register(tweak):
             tweaksByID[tweak.id] = tweak
             publishTweaks()
+        case let .unregister(id):
+            tweaksByID.removeValue(forKey: id)
+            publishTweaks()
         case let .update(id, value):
             updateStoredTweak(id: id, value: value)
         case let .log(entry):

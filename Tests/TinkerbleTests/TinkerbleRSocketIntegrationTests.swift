@@ -28,7 +28,7 @@ final class TinkerbleRSocketIntegrationTests: XCTestCase {
                 remoteTitle = newValue
             }
         )
-        client.register(
+        let opacityToken = client.register(
             id: "Layout/Opacity",
             category: "Layout",
             name: "Opacity",
@@ -54,6 +54,13 @@ final class TinkerbleRSocketIntegrationTests: XCTestCase {
 
         let appliedRemoteUpdate = await waitUntil { remoteTitle == "Updated from Mac" }
         XCTAssertTrue(appliedRemoteUpdate, "iOS-side state did not receive remote update")
+
+        client.unregister(opacityToken)
+
+        let removedUnregisteredTweak = await waitUntil {
+            companion.tweaks.map(\.id) == ["Title"]
+        }
+        XCTAssertTrue(removedUnregisteredTweak, "Companion did not remove unregistered tweak")
     }
 
     private func waitUntil(
