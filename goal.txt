@@ -247,7 +247,7 @@ Provide a practical development workflow so users can run both:
 
 Their iOS app debug scheme
 
-The Tinker macOS companion app
+The Tinkerble macOS companion app
 
 The package should include README instructions for creating an Xcode build scheme, run script, or helper command which launches both.
 
@@ -275,7 +275,7 @@ Write a detailed README for the package.
 
 The README should include:
 
-What Tinker is
+What Tinkerble is
 
 What problem it solves
 
@@ -323,7 +323,7 @@ Add an AGENTS.md file for future coding agents.
 
 It should explain:
 
-The purpose of Tinker
+The purpose of Tinkerble
 
 The package architecture
 

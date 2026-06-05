@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="${TINKERBLE_COMPANION_APP_NAME:-Tinkerble Companion}"
+APP_NAME="${TINKERBLE_COMPANION_APP_NAME:-Tinkerble}"
 EXECUTABLE_NAME="TinkerbleCompanion"
 BUNDLE_ID="${TINKERBLE_COMPANION_BUNDLE_ID:-app.amorfati.Tinkerble.Companion}"
 VERSION="${TINKERBLE_COMPANION_VERSION:-0.1.0}"
 BUILD_NUMBER="${TINKERBLE_COMPANION_BUILD:-1}"
 CONFIGURATION="${CONFIGURATION:-debug}"
-APP_BUNDLE="$ROOT_DIR/build/TinkerbleCompanion.app"
+APP_BUNDLE="$ROOT_DIR/build/Tinkerble.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"

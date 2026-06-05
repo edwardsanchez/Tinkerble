@@ -12,6 +12,7 @@ fail() {
 }
 
 [[ -d "$APP_BUNDLE" ]] || fail "missing app bundle at $APP_BUNDLE"
+[[ "$(basename "$APP_BUNDLE")" == "Tinkerble.app" ]] || fail "app bundle is $(basename "$APP_BUNDLE"), expected Tinkerble.app"
 [[ -x "$APP_BUNDLE/Contents/MacOS/TinkerbleCompanion" ]] || fail "missing executable"
 [[ -f "$RESOURCES_DIR/Assets.car" ]] || fail "missing compiled Icon Composer Assets.car"
 
@@ -22,6 +23,12 @@ fi
 
 ICON_NAME="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$INFO_PLIST")"
 [[ "$ICON_NAME" == "Tinkerble" ]] || fail "CFBundleIconName is $ICON_NAME, expected Tinkerble"
+
+DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$INFO_PLIST")"
+[[ "$DISPLAY_NAME" == "Tinkerble" ]] || fail "CFBundleDisplayName is $DISPLAY_NAME, expected Tinkerble"
+
+BUNDLE_NAME="$(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$INFO_PLIST")"
+[[ "$BUNDLE_NAME" == "Tinkerble" ]] || fail "CFBundleName is $BUNDLE_NAME, expected Tinkerble"
 
 if /usr/libexec/PlistBuddy -c "Print :CFBundleIconFile" "$INFO_PLIST" >/dev/null 2>&1; then
   fail "CFBundleIconFile should not be present for the macOS 26 Icon Composer path"

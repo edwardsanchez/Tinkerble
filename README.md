@@ -38,7 +38,7 @@ Then build and run `Tinkerble Demo` in Xcode, or run:
 
 The demo app connects to `127.0.0.1:7777`, which works for iOS Simulator. For a physical device, use the Mac's local network IP address.
 
-`Scripts/package-macos-companion.sh` builds `build/TinkerbleCompanion.app`, compiles `Tinkerble.icon` into `Contents/Resources/Assets.car` with Xcode 26 `actool`, writes `CFBundleIconName=Tinkerble`, removes legacy `.icns` sidecars, and ad-hoc signs the app for local development. `Scripts/launch-macos-companion.sh` packages that app and opens it as a normal macOS app.
+`Scripts/package-macos-companion.sh` builds `build/Tinkerble.app`, compiles `Tinkerble.icon` into `Contents/Resources/Assets.car` with Xcode 26 `actool`, writes the user-visible app name as `Tinkerble`, removes legacy `.icns` sidecars, and ad-hoc signs the app for local development. `Scripts/launch-macos-companion.sh` packages that app and opens it as a normal macOS app.
 
 ## Upstream RSocket Note
 
