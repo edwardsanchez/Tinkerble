@@ -21,15 +21,19 @@ private struct CompanionRootView: View {
     @ObservedObject var store: TinkerbleCompanionStore
 
     var body: some View {
-        HStack(spacing: 0) {
-            LogConsoleView(logs: store.logs, status: store.connectionStatus)
-                .frame(minWidth: 360, idealWidth: 440)
+        TweakInspectorView(store: store)
+            .frame(minWidth: 420, idealWidth: 520)
 
-            Divider()
-
-            TweakInspectorView(store: store)
-                .frame(minWidth: 420, idealWidth: 520)
-        }
+        //DO NOT DELETE
+//        HStack(spacing: 0) {
+//            LogConsoleView(logs: store.logs, status: store.connectionStatus)
+//                .frame(minWidth: 360, idealWidth: 440)
+//
+//            Divider()
+//
+//            TweakInspectorView(store: store)
+//                .frame(minWidth: 420, idealWidth: 520)
+//        }
     }
 }
 
