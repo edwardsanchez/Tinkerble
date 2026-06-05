@@ -2,7 +2,20 @@
   "fill-specializations" : [
     {
       "value" : {
-        "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+        "linear-gradient" : [
+          "display-p3:0.34510,0.74510,0.96471,1.00000",
+          "srgb:0.18431,0.43529,0.96471,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 0
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0.7
+          }
+        }
       }
     },
     {
@@ -76,6 +89,39 @@
       "translucency" : {
         "enabled" : true,
         "value" : 0.42
+      }
+    },
+    {
+      "blend-mode" : "screen",
+      "layers" : [
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : "none"
+            }
+          ],
+          "glass" : false,
+          "image-name" : "Stars.png",
+          "name" : "Stars",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name" : "Stars",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
       }
     }
   ],
