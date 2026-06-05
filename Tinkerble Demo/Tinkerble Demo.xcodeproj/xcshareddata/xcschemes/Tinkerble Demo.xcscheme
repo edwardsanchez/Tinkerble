@@ -6,6 +6,24 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       buildArchitectures = "Automatic">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Patch package checkouts"
+               scriptText = "set -euo pipefail&#10;&#10;ROOT_DIR=&quot;$(cd &quot;${SOURCE_ROOT}/..&quot; &amp;&amp; pwd)&quot;&#10;CHECKOUT_ROOT=&quot;$(cd &quot;${BUILD_DIR}/../..&quot; &amp;&amp; pwd)/SourcePackages/checkouts&quot;&#10;&#10;&quot;${ROOT_DIR}/Scripts/patch-rsocket-checkouts.sh&quot; &quot;${CHECKOUT_ROOT}&quot;&#10;&#10;CONFIG=&quot;${CONFIGURATION:-${BUILD_STYLE:-Debug}}&quot;&#10;if [[ &quot;${CONFIG}&quot; == &quot;Debug&quot; ]]; then&#10;  &quot;${ROOT_DIR}/Scripts/ensure-macos-companion-running.sh&quot;&#10;else&#10;  echo &quot;Skipping Tinkerble companion autolaunch for ${CONFIG} build.&quot;&#10;fi&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "6D24A8502FCF8D8F0035FF2F"
+                     BuildableName = "Tinkerble Demo.app"
+                     BlueprintName = "Tinkerble Demo"
+                     ReferencedContainer = "container:Tinkerble Demo.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"

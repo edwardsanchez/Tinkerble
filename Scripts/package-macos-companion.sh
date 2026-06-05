@@ -16,6 +16,20 @@ ICON_SOURCE="${TINKERBLE_ICON_SOURCE:-$ROOT_DIR/Tinkerble.icon}"
 ICON_ASSET_NAME="${TINKERBLE_ICON_ASSET_NAME:-$(basename "$ICON_SOURCE" .icon)}"
 SIGN_IDENTITY="${TINKERBLE_SIGN_IDENTITY:--}"
 
+swift_package() {
+  env \
+    -u SDKROOT \
+    -u SDK_NAME \
+    -u PLATFORM_NAME \
+    -u EFFECTIVE_PLATFORM_NAME \
+    -u SUPPORTED_PLATFORMS \
+    -u SWIFT_PLATFORM_TARGET_PREFIX \
+    -u SWIFT_TARGET_TRIPLE \
+    -u ARCHS \
+    -u VALID_ARCHS \
+    swift "$@"
+}
+
 if [[ ! -d "$ICON_SOURCE" ]]; then
   echo "Missing icon document: $ICON_SOURCE" >&2
   exit 1
@@ -27,21 +41,31 @@ if [[ ! -x "$ACTOOL" ]]; then
   exit 1
 fi
 
+case "$CONFIGURATION" in
+  Debug|debug)
+    CONFIGURATION=debug
+    ;;
+  Release|release)
+    CONFIGURATION=release
+    ;;
+  *)
+    echo "CONFIGURATION must be 'debug' or 'release'." >&2
+    exit 1
+    ;;
+esac
+
 SWIFT_BUILD_FLAGS=(--package-path "$ROOT_DIR" --product "$EXECUTABLE_NAME")
 if [[ "$CONFIGURATION" == "release" ]]; then
   SWIFT_BUILD_FLAGS+=(-c release)
-elif [[ "$CONFIGURATION" != "debug" ]]; then
-  echo "CONFIGURATION must be 'debug' or 'release'." >&2
-  exit 1
 fi
 
 "$ROOT_DIR/Scripts/patch-rsocket-checkouts.sh" "$ROOT_DIR/.build/checkouts" >&2 || true
-swift build "${SWIFT_BUILD_FLAGS[@]}" >&2
+swift_package build "${SWIFT_BUILD_FLAGS[@]}" >&2
 SHOW_BIN_PATH_FLAGS=(--package-path "$ROOT_DIR" --show-bin-path)
 if [[ "$CONFIGURATION" == "release" ]]; then
   SHOW_BIN_PATH_FLAGS+=(-c release)
 fi
-BIN_PATH="$(swift build "${SHOW_BIN_PATH_FLAGS[@]}" 2>/dev/null)"
+BIN_PATH="$(swift_package build "${SHOW_BIN_PATH_FLAGS[@]}" 2>/dev/null)"
 BUILT_EXECUTABLE="$BIN_PATH/$EXECUTABLE_NAME"
 
 if [[ ! -x "$BUILT_EXECUTABLE" ]]; then

@@ -27,10 +27,18 @@ From the package root:
 ```sh
 ./Scripts/patch-rsocket-checkouts.sh
 swift test
-./Scripts/launch-macos-companion.sh
 ```
 
-Then build and run `Tinkerble Demo` in Xcode, or run:
+Then build and run `Tinkerble Demo` in Xcode. The shared demo scheme patches
+Xcode's package checkout, builds the macOS companion, and launches it
+automatically for Debug builds before the iOS app target builds. You can opt out
+for a build with:
+
+```sh
+TINKERBLE_COMPANION_AUTOLAUNCH=0 xcodebuild ...
+```
+
+You can also run both apps from the command line:
 
 ```sh
 ./Scripts/run-tinkerble-demo.sh
@@ -38,7 +46,7 @@ Then build and run `Tinkerble Demo` in Xcode, or run:
 
 The demo app connects to `127.0.0.1:7777`, which works for iOS Simulator. For a physical device, use the Mac's local network IP address.
 
-`Scripts/package-macos-companion.sh` builds `build/Tinkerble.app`, compiles `Tinkerble.icon` into `Contents/Resources/Assets.car` with Xcode 26 `actool`, writes the user-visible app name as `Tinkerble`, removes legacy `.icns` sidecars, and ad-hoc signs the app for local development. `Scripts/launch-macos-companion.sh` packages that app and opens it as a normal macOS app.
+`Scripts/package-macos-companion.sh` builds `build/Tinkerble.app`, compiles `Tinkerble.icon` into `Contents/Resources/Assets.car` with Xcode 26 `actool`, writes the user-visible app name as `Tinkerble`, removes legacy `.icns` sidecars, and ad-hoc signs the app for local development. `Scripts/ensure-macos-companion-running.sh` packages that app, opens it as a normal macOS app when needed, and verifies that `TinkerbleCompanion` is listening on port `7777`. `Scripts/launch-macos-companion.sh` uses the same path with `--restart` for manual relaunches.
 
 ## Upstream RSocket Note
 
@@ -66,7 +74,7 @@ In Xcode:
 
 1. Add the local package at the repository root, or add the future remote repository URL.
 2. Link the `Tinkerble` product to the iOS app target.
-3. Run the `TinkerbleCompanion` product on macOS during development.
+3. Add a Debug-only build pre-action or run script that calls `Scripts/ensure-macos-companion-running.sh` from the package checkout. That hook packages and launches the macOS companion automatically when your app target builds.
 
 In `Package.swift`:
 
@@ -194,6 +202,12 @@ Defaults:
 - Numeric controls are only available for numeric value types.
 
 ## Running Both Apps
+
+Automatic mode:
+
+- Build `Tinkerble Demo` in Xcode with the shared scheme.
+- The Debug build pre-action builds and launches the macOS companion.
+- The iOS Simulator app then connects to the companion on `127.0.0.1:7777`.
 
 Fixed target mode:
 
