@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Observation
 import Tinkerble
 
 private enum DemoMood: String, CaseIterable, TinkerbleEnum {
@@ -14,7 +15,28 @@ private enum DemoMood: String, CaseIterable, TinkerbleEnum {
     case celebratory
 }
 
+@TinkerbleObservable
+@MainActor
+private final class ObservableDemoModel {
+    @TinkerbleObservableState(category: "Observable", name: "Badge Text")
+    var badgeText = "Observable Model"
+
+    @TinkerbleObservableState(category: "Observable", name: "Badge Enabled")
+    var badgeEnabled = true
+
+    @TinkerbleObservableState(category: "Observable", name: "Badge Count", control: .stepper(step: 1))
+    var badgeCount = 2
+
+    @TinkerbleObservableState("Observable", name: "Badge Opacity", control: .slider(0.0...1.0))
+    var badgeOpacity = 0.9
+
+    @TinkerbleObservableState(category: "Observable", name: "Badge Mood")
+    var badgeMood = DemoMood.calm
+}
+
 struct ContentView: View {
+    @State private var observableModel = ObservableDemoModel()
+
     @TinkerbleState(name: "Title")
     private var title = "Tinkerble Demo"
 
@@ -39,6 +61,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     sampleCards
+                    observableExamples
                     logButton
                 }
                 .padding(20)
@@ -95,6 +118,33 @@ struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
+    }
+
+    private var observableExamples: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(observableModel.badgeText)
+                .font(.headline)
+                .foregroundStyle(observableModel.badgeEnabled ? .primary : .secondary)
+
+            HStack(spacing: 10) {
+                ForEach(0..<max(1, observableModel.badgeCount), id: \.self) { index in
+                    Text("\(index + 1)")
+                        .font(.caption.bold().monospacedDigit())
+                        .foregroundStyle(.white)
+                        .frame(width: 34, height: 34)
+                        .background(accentColor.opacity(observableModel.badgeOpacity))
+                        .clipShape(Circle())
+                }
+            }
+
+            Text("Observable mood: \(observableModel.badgeMood.tinkerbleDisplayName)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var logButton: some View {

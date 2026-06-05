@@ -23,6 +23,16 @@ public final class Tinkerble: ObservableObject {
         bindTransport(transport)
     }
 
+    internal func resetForTesting(transport: TinkerbleClientTransport = TinkerbleRSocketClientTransport()) {
+        self.transport.disconnect()
+        self.transport = transport
+        tweaksByID.removeAll()
+        remoteAppliers.removeAll()
+        registeredTweaks.removeAll()
+        connectionStatus = .disconnected
+        bindTransport(transport)
+    }
+
     public func connect(host: String = "127.0.0.1", port: Int = 7777) {
         transport.connect(host: host, port: port)
     }

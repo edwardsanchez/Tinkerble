@@ -156,6 +156,25 @@ private var accent = Color.blue
 
 Swift does not reliably expose the wrapped variable name to the property wrapper, so `name` is required. `category` is optional. Values without a category appear above categorized groups.
 
+Use tweakable observable model state:
+
+```swift
+@TinkerbleObservable
+@MainActor
+final class DemoModel {
+    @TinkerbleObservableState(name: "Title")
+    var title = "Demo"
+
+    @TinkerbleObservableState(category: "Layout", name: "Width", control: .slider(5...400))
+    var width = 120
+
+    @TinkerbleObservableState(category: "Flags", name: "Enabled")
+    var isEnabled = true
+}
+```
+
+`@TinkerbleObservableState` uses the same `name`, `category`, supported value types, enum support, and control APIs as `@TinkerbleState`. It is a macro API for observable model classes; mark the model with `@TinkerbleObservable` instead of Swift's `@Observable` so Tinkerble can generate the Observation registrar and hidden tweak registration storage together.
+
 Basic enums use `TinkerbleEnum`:
 
 ```swift
@@ -243,7 +262,8 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
 ## Current Limitations
 
 - Arrays, dictionaries, arbitrary structs, nested models, `ObservableObject`, and `@Published` are intentionally unsupported.
-- `@TinkerbleState` is main-actor state. In an `@Observable` model, use `@ObservationIgnored`.
+- `@TinkerbleState` is main-actor SwiftUI view state.
+- `@TinkerbleObservableState` is main-actor observable model state. Use it inside a `@TinkerbleObservable` class.
 - The current connection flow uses a fixed host and port. Bonjour discovery is documented but not implemented.
 - Only one active companion session is tracked.
 - The companion UI is intentionally basic.
