@@ -15,6 +15,7 @@ fail() {
 [[ "$(basename "$APP_BUNDLE")" == "Tinkerble.app" ]] || fail "app bundle is $(basename "$APP_BUNDLE"), expected Tinkerble.app"
 [[ -x "$APP_BUNDLE/Contents/MacOS/TinkerbleCompanion" ]] || fail "missing executable"
 [[ -f "$RESOURCES_DIR/Assets.car" ]] || fail "missing compiled Icon Composer Assets.car"
+[[ -f "$RESOURCES_DIR/wings.pdf" ]] || fail "missing wings.pdf companion resource"
 
 if find "$RESOURCES_DIR" -name "*.icns" -print -quit | grep -q .; then
   find "$RESOURCES_DIR" -name "*.icns" -print >&2

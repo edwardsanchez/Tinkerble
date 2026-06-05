@@ -368,10 +368,7 @@ private struct TweakInspectorContent: View {
             }
 
             if store.tweaks.isEmpty {
-                Text("Waiting for registered values")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                EmptyTweakPlaceholderView()
             }
         }
         .padding(.horizontal, TinkerbleCompanionWindowLayout.inspectorHorizontalPadding)

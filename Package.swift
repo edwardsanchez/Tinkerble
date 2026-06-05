@@ -53,7 +53,8 @@ let package = Package(
         ),
         .executableTarget(
             name: "TinkerbleCompanion",
-            dependencies: ["TinkerbleCompanionCore"]
+            dependencies: ["TinkerbleCompanionCore"],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "TinkerbleTests",
