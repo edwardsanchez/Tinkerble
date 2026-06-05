@@ -8,10 +8,21 @@ final class TinkerbleBuildAutomationTests: XCTestCase {
 
         XCTAssertTrue(scheme.contains("Patch package checkouts"))
         XCTAssertTrue(scheme.contains("Scripts/patch-rsocket-checkouts.sh"))
-        XCTAssertTrue(scheme.contains("Scripts/ensure-macos-companion-running.sh"))
-        XCTAssertTrue(scheme.contains("CONFIGURATION:-${BUILD_STYLE:-Debug}"))
-        XCTAssertTrue(scheme.contains("== &quot;Debug&quot;"))
+        XCTAssertFalse(scheme.contains("Scripts/ensure-macos-companion-running.sh"))
         XCTAssertTrue(scheme.contains("Tinkerble Demo.app"))
+    }
+
+    func testDemoTargetRebuildsCompanionFromRunScriptPhase() throws {
+        let project = try readText("Tinkerble Demo/Tinkerble Demo.xcodeproj/project.pbxproj")
+
+        XCTAssertTrue(project.contains("Rebuild Tinkerble Companion"))
+        XCTAssertTrue(project.contains("alwaysOutOfDate = 1;"))
+        XCTAssertTrue(project.contains("Scripts/patch-rsocket-checkouts.sh"))
+        XCTAssertTrue(project.contains("Scripts/ensure-macos-companion-running.sh"))
+        XCTAssertTrue(project.contains("ensure-macos-companion-running.sh\\\" --restart"))
+        XCTAssertTrue(project.contains("CONFIG=\\\"${CONFIGURATION:-${BUILD_STYLE:-Debug}}\\\""))
+        XCTAssertTrue(project.contains("if [[ \\\"${CONFIG}\\\" == \\\"Debug\\\" ]]; then"))
+        XCTAssertTrue(project.contains("ENABLE_USER_SCRIPT_SANDBOXING = NO;"))
     }
 
     func testEnsureCompanionScriptIsExecutableAndVerifiesLaunch() throws {
@@ -51,6 +62,15 @@ final class TinkerbleBuildAutomationTests: XCTestCase {
         XCTAssertTrue(script.contains("Scripts/ensure-macos-companion-running.sh"))
         XCTAssertTrue(script.contains("--restart"))
         XCTAssertFalse(script.contains("open -n"))
+    }
+
+    func testCompanionVerifierAvoidsPipefailSensitiveAssetutilGrep() throws {
+        let script = try readText("Scripts/verify-macos-companion-package.sh")
+
+        XCTAssertTrue(script.contains("ASSET_INFO=\"$(mktemp)\""))
+        XCTAssertTrue(script.contains("assetutil -I \"$RESOURCES_DIR/Assets.car\" > \"$ASSET_INFO\""))
+        XCTAssertTrue(script.contains("grep -q '\"Name\" : \"Tinkerble\"' \"$ASSET_INFO\""))
+        XCTAssertFalse(script.contains("assetutil -I \"$RESOURCES_DIR/Assets.car\" | grep -q"))
     }
 
     func testRSocketPatchKeepsRequestExamplesInXcodeSourceList() throws {

@@ -30,7 +30,7 @@ swift test
 ```
 
 Then build and run `Tinkerble Demo` in Xcode. The shared demo scheme patches
-Xcode's package checkout, builds the macOS companion, and launches it
+Xcode's package checkout, builds the macOS companion, and restarts it
 automatically for Debug builds before the iOS app target builds. You can opt out
 for a build with:
 
@@ -46,7 +46,7 @@ You can also run both apps from the command line:
 
 The demo app connects to `127.0.0.1:7777`, which works for iOS Simulator. For a physical device, use the Mac's local network IP address.
 
-`Scripts/package-macos-companion.sh` builds `build/Tinkerble.app`, compiles `Tinkerble.icon` into `Contents/Resources/Assets.car` with Xcode 26 `actool`, writes the user-visible app name as `Tinkerble`, removes legacy `.icns` sidecars, and ad-hoc signs the app for local development. `Scripts/ensure-macos-companion-running.sh` packages that app, opens it as a normal macOS app when needed, and verifies that `TinkerbleCompanion` is listening on port `7777`. `Scripts/launch-macos-companion.sh` uses the same path with `--restart` for manual relaunches.
+`Scripts/package-macos-companion.sh` builds `build/Tinkerble.app`, compiles `Tinkerble.icon` into `Contents/Resources/Assets.car` with Xcode 26 `actool`, writes the user-visible app name as `Tinkerble`, removes legacy `.icns` sidecars, and ad-hoc signs the app for local development. `Scripts/ensure-macos-companion-running.sh` packages that app, opens it as a normal macOS app when needed, restarts it when passed `--restart`, and verifies that `TinkerbleCompanion` is listening on port `7777`. `Scripts/launch-macos-companion.sh` uses the same path with `--restart` for manual relaunches.
 
 ## Upstream RSocket Note
 
@@ -244,7 +244,7 @@ Defaults:
 Automatic mode:
 
 - Build `Tinkerble Demo` in Xcode with the shared scheme.
-- The Debug build pre-action builds and launches the macOS companion.
+- The Debug build pre-action builds and restarts the macOS companion.
 - The iOS Simulator app then connects to the companion on `127.0.0.1:7777`.
 
 Fixed target mode:

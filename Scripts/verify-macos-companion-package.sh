@@ -37,9 +37,13 @@ fi
 MINIMUM_SYSTEM_VERSION="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$INFO_PLIST")"
 [[ "$MINIMUM_SYSTEM_VERSION" == "26.0" ]] || fail "LSMinimumSystemVersion is $MINIMUM_SYSTEM_VERSION, expected 26.0"
 
-if ! assetutil -I "$RESOURCES_DIR/Assets.car" | grep -q '"Name" : "Tinkerble"'; then
+ASSET_INFO="$(mktemp)"
+assetutil -I "$RESOURCES_DIR/Assets.car" > "$ASSET_INFO"
+if ! grep -q '"Name" : "Tinkerble"' "$ASSET_INFO"; then
+  rm -f "$ASSET_INFO"
   fail "compiled Assets.car does not contain the Tinkerble icon asset"
 fi
+rm -f "$ASSET_INFO"
 
 codesign --verify "$APP_BUNDLE"
 
