@@ -1,15 +1,20 @@
-import Combine
 import Foundation
+import Observation
 
+@Observable
 @MainActor
-public final class Tinkerble: ObservableObject {
+public final class Tinkerble {
+    @ObservationIgnored
     public static let shared = Tinkerble()
 
-    @Published public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
-    @Published public private(set) var registeredTweaks: [TinkerbleTweak] = []
+    public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
+    public private(set) var registeredTweaks: [TinkerbleTweak] = []
 
+    @ObservationIgnored
     private var tweaksByID: [String: TinkerbleTweak] = [:]
+    @ObservationIgnored
     private var remoteAppliers: [String: (TinkerbleValue) -> Void] = [:]
+    @ObservationIgnored
     private var transport: TinkerbleClientTransport
 
     public init(transport: TinkerbleClientTransport = TinkerbleRSocketClientTransport()) {

@@ -65,7 +65,7 @@ final class TinkerbleRSocketIntegrationTests: XCTestCase {
             if condition() {
                 return true
             }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            try? await Task.sleep(for: .milliseconds(50))
         }
         return condition()
     }

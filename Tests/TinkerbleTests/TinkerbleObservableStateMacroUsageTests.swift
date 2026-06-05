@@ -128,7 +128,7 @@ final class TinkerbleObservableStateMacroUsageTests: XCTestCase {
             if condition() {
                 return
             }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            try? await Task.sleep(for: .milliseconds(50))
         }
     }
 }

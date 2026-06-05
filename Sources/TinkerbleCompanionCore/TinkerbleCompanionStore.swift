@@ -1,17 +1,22 @@
-import Combine
 import Foundation
+import Observation
 import RSocketCore
 import Tinkerble
 
+@Observable
 @MainActor
-public final class TinkerbleCompanionStore: ObservableObject {
-    @Published public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
-    @Published public private(set) var tweaks: [TinkerbleTweak] = []
-    @Published public private(set) var logs: [TinkerbleLogEntry] = []
+public final class TinkerbleCompanionStore {
+    public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
+    public private(set) var tweaks: [TinkerbleTweak] = []
+    public private(set) var logs: [TinkerbleLogEntry] = []
 
+    @ObservationIgnored
     private let codec = TinkerbleRSocketPayloadCodec()
+    @ObservationIgnored
     private var server: TinkerbleRSocketCompanionServer?
+    @ObservationIgnored
     private var tweaksByID: [String: TinkerbleTweak] = [:]
+    @ObservationIgnored
     private var outboundStream: UnidirectionalStream?
 
     public init() {}

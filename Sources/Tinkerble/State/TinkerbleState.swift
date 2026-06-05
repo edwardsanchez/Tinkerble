@@ -1,11 +1,13 @@
-import Combine
 import Foundation
+import Observation
 import SwiftUI
 
+@Observable
 @MainActor
-final class TinkerbleStateBox<Value: TinkerbleValueConvertible>: ObservableObject {
-    @Published var value: Value
+final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
+    var value: Value
 
+    @ObservationIgnored
     private let id: String
 
     init(initialValue: Value, category: String?, name: String, control: TinkerbleControl<Value>) {
@@ -43,7 +45,7 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible>: ObservableObjec
 @propertyWrapper
 @MainActor
 public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty {
-    @StateObject private var box: TinkerbleStateBox<Value>
+    @State private var box: TinkerbleStateBox<Value>
 
     public var wrappedValue: Value {
         get { box.value }
@@ -63,7 +65,7 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
-        _box = StateObject(
+        _box = State(
             wrappedValue: TinkerbleStateBox(
                 initialValue: wrappedValue,
                 category: category,

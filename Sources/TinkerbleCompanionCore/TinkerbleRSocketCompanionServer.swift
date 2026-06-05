@@ -1,7 +1,7 @@
 import Foundation
-import NIOCore
-import NIOExtras
-import NIOPosix
+@preconcurrency import NIOCore
+@preconcurrency import NIOExtras
+@preconcurrency import NIOPosix
 import RSocketCore
 import Tinkerble
 
@@ -40,26 +40,32 @@ final class TinkerbleRSocketCompanionServer {
                             return channel.eventLoop.makeSucceededFuture(())
                         }
 
-                        return channel.pipeline.addHandlers([
-                            ByteToMessageHandler(
-                                LengthFieldBasedFrameDecoder(lengthFieldBitLength: .threeBytes),
-                                maximumBufferSize: 1 << 20
-                            ),
-                            LengthFieldPrepender(lengthFieldBitLength: .threeBytes),
-                        ]).flatMap {
-                            channel.pipeline.addRSocketServerHandlers(
-                                makeResponder: { [weak self] setupInfo in
-                                    guard let self else { return nil }
-                                    self.receive(setupInfo.payload, outbound: nil)
-                                    return TinkerbleCompanionResponder(
-                                        encoding: setupInfo.encoding,
-                                        onPayload: { [weak self] payload, outbound in
-                                            self?.receive(payload, outbound: outbound)
-                                        }
-                                    )
-                                }
+                        do {
+                            try channel.pipeline.syncOperations.addHandler(
+                                ByteToMessageHandler(
+                                    LengthFieldBasedFrameDecoder(lengthFieldBitLength: .threeBytes),
+                                    maximumBufferSize: 1 << 20
+                                )
                             )
+                            try channel.pipeline.syncOperations.addHandler(
+                                LengthFieldPrepender(lengthFieldBitLength: .threeBytes)
+                            )
+                        } catch {
+                            return channel.eventLoop.makeFailedFuture(error)
                         }
+
+                        return channel.pipeline.addRSocketServerHandlers(
+                            makeResponder: { [weak self] setupInfo in
+                                guard let self else { return nil }
+                                self.receive(setupInfo.payload, outbound: nil)
+                                return TinkerbleCompanionResponder(
+                                    encoding: setupInfo.encoding,
+                                    onPayload: { [weak self] payload, outbound in
+                                        self?.receive(payload, outbound: outbound)
+                                    }
+                                )
+                            }
+                        )
                     }
 
                 self.channel = try bootstrap.bind(host: self.host, port: self.port).wait()

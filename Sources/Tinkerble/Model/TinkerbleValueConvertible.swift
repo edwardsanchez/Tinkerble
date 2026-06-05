@@ -112,8 +112,8 @@ public extension TinkerbleEnum where Self: RawRepresentable, RawValue == String,
 
     var tinkerbleDisplayName: String {
         rawValue
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
+            .replacing("-", with: " ")
+            .replacing("_", with: " ")
             .capitalized
     }
 

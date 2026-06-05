@@ -85,7 +85,7 @@ public final class TinkerbleRSocketClientTransport: TinkerbleClientTransport {
     private func receive(_ payload: Payload) {
         do {
             let message = try codec.message(from: payload)
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.onMessage?(message)
             }
         } catch {
@@ -114,7 +114,7 @@ public final class TinkerbleRSocketClientTransport: TinkerbleClientTransport {
     }
 
     private func publishStatus(_ status: TinkerbleConnectionStatus) {
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             self?.onStatusChange?(status)
         }
     }
