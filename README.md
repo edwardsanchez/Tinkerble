@@ -194,6 +194,25 @@ TinkerLog.print("User tapped Save")
 TinkerLog.log("Current opacity: \(opacity)")
 ```
 
+## Text Controls
+
+Strings use a regular input field by default:
+
+```swift
+@TinkerbleState(name: "Title")
+private var title = "Demo"
+```
+
+You can opt into a text area, or ask Tinkerble to pick one when the registered text is longer than 25 characters:
+
+```swift
+@TinkerbleState(name: "Notes", control: .area)
+private var notes = "Longer copy"
+
+@TinkerbleState(name: "Subtitle", control: .text(.automatic))
+private var subtitle = "Short copy"
+```
+
 ## Numeric Controls
 
 Integer controls expose integer-only APIs:

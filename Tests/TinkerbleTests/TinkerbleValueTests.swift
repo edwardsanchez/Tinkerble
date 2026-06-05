@@ -42,4 +42,21 @@ final class TinkerbleValueTests: XCTestCase {
 
         XCTAssertEqual(decoded, .register(tweak))
     }
+
+    func testRSocketPayloadCodecRoundTripsTextControlDescriptors() throws {
+        let codec = TinkerbleRSocketPayloadCodec()
+        let tweak = TinkerbleTweak(
+            id: "Copy/Message",
+            category: "Copy",
+            name: "Message",
+            value: .string("Longer message"),
+            valueKind: .string,
+            control: TinkerbleControl<String>.text(.automatic).descriptor
+        )
+
+        let payload = try codec.payload(for: .register(tweak))
+        let decoded = try codec.message(from: payload)
+
+        XCTAssertEqual(decoded, .register(tweak))
+    }
 }

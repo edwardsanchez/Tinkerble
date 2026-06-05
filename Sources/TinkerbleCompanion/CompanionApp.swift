@@ -153,8 +153,7 @@ private struct TweakRow: View {
     private var control: some View {
         switch tweak.value {
         case .string:
-            TextField("", text: stringBinding)
-                .textFieldStyle(.roundedBorder)
+            stringControl
         case .bool:
             Toggle("", isOn: boolBinding)
                 .labelsHidden()
@@ -171,6 +170,23 @@ private struct TweakRow: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
+        }
+    }
+
+    @ViewBuilder
+    private var stringControl: some View {
+        switch resolvedTextControlStyle {
+        case .area:
+            TextEditor(text: stringBinding)
+                .font(.body)
+                .frame(minHeight: 72)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color(nsColor: .separatorColor))
+                }
+        case .field, .automatic:
+            TextField("", text: stringBinding)
+                .textFieldStyle(.roundedBorder)
         }
     }
 
@@ -201,6 +217,10 @@ private struct TweakRow: View {
                 )
                 .labelsHidden()
             }
+        case .text:
+            TextField("", text: numberTextBinding(configuration: .init(decimalPlaces: 2)))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 96)
         case .automatic:
             TextField("", text: numberTextBinding(configuration: .init(decimalPlaces: 2)))
                 .textFieldStyle(.roundedBorder)
@@ -216,6 +236,12 @@ private struct TweakRow: View {
             },
             set: { store.updateTweak(id: tweak.id, value: .string($0)) }
         )
+    }
+
+    private var resolvedTextControlStyle: TinkerbleTextControlStyle {
+        guard case let .string(value) = tweak.value else { return .field }
+        guard case let .text(configuration) = tweak.control else { return .field }
+        return configuration.resolvedStyle(for: value)
     }
 
     private var boolBinding: Binding<Bool> {

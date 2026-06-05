@@ -2,6 +2,32 @@ import XCTest
 @testable import Tinkerble
 
 final class TinkerbleControlTests: XCTestCase {
+    func testStringControlsExposeFieldAreaAndAutomaticStyles() {
+        XCTAssertEqual(
+            TinkerbleControl<String>.field.descriptor,
+            .text(.init(style: .field))
+        )
+        XCTAssertEqual(
+            TinkerbleControl<String>.area.descriptor,
+            .text(.init(style: .area))
+        )
+        XCTAssertEqual(
+            TinkerbleControl<String>.text(.automatic).descriptor,
+            .text(.init(style: .automatic))
+        )
+    }
+
+    func testDefaultStringControlRemainsRegularFieldControl() {
+        XCTAssertEqual(TinkerbleControl<String>.automatic.descriptor, .automatic)
+    }
+
+    func testAutomaticTextControlUsesAreaPastTwentyFiveCharacters() {
+        let control = TinkerbleTextControl(style: .automatic)
+
+        XCTAssertEqual(control.resolvedStyle(for: String(repeating: "a", count: 25)), .field)
+        XCTAssertEqual(control.resolvedStyle(for: String(repeating: "a", count: 26)), .area)
+    }
+
     func testDecimalSliderDefaultsToTwoPlacesForUnitRange() {
         let control = TinkerbleControl<Double>.slider(0...1)
 

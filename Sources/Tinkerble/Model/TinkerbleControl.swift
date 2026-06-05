@@ -14,8 +14,34 @@ public struct TinkerbleControl<Value> {
 
 public enum TinkerbleControlDescriptor: Codable, Equatable, Hashable {
     case automatic
+    case text(TinkerbleTextControl)
     case stepper(TinkerbleNumericControl)
     case slider(TinkerbleNumericControl)
+}
+
+public enum TinkerbleTextControlStyle: String, Codable, Equatable, Hashable {
+    case automatic
+    case field
+    case area
+}
+
+public struct TinkerbleTextControl: Codable, Equatable, Hashable {
+    public static let automaticAreaThreshold = 25
+
+    public var style: TinkerbleTextControlStyle
+
+    public init(style: TinkerbleTextControlStyle) {
+        self.style = style
+    }
+
+    public func resolvedStyle(for value: String) -> TinkerbleTextControlStyle {
+        switch style {
+        case .automatic:
+            value.count > Self.automaticAreaThreshold ? .area : .field
+        case .field, .area:
+            style
+        }
+    }
 }
 
 public struct TinkerbleNumericControl: Codable, Equatable, Hashable {
@@ -29,6 +55,20 @@ public struct TinkerbleNumericControl: Codable, Equatable, Hashable {
         self.maximum = maximum
         self.step = step
         self.decimalPlaces = decimalPlaces
+    }
+}
+
+public extension TinkerbleControl where Value == String {
+    static var field: Self {
+        Self(descriptor: .text(.init(style: .field)))
+    }
+
+    static var area: Self {
+        Self(descriptor: .text(.init(style: .area)))
+    }
+
+    static func text(_ style: TinkerbleTextControlStyle) -> Self {
+        Self(descriptor: .text(.init(style: style)))
     }
 }
 
