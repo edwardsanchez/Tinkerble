@@ -15,6 +15,21 @@
       "blur-material" : 0.5,
       "layers" : [
         {
+          "fill" : {
+            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "top wings.svg",
+          "name" : "top wings",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              6.453125,
+              -221.3671875
+            ]
+          }
+        },
+        {
           "blend-mode" : "normal",
           "fill" : {
             "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
@@ -25,21 +40,7 @@
             "scale" : 1,
             "translation-in-points" : [
               7.2265625,
-              193.7578125
-            ]
-          }
-        },
-        {
-          "fill" : {
-            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
-          },
-          "image-name" : "top wings.svg",
-          "name" : "top wings",
-          "position" : {
-            "scale" : 1,
-            "translation-in-points" : [
-              6.453125,
-              -221.3671875
+              193.8
             ]
           }
         },
@@ -62,7 +63,7 @@
       ],
       "lighting" : "individual",
       "position" : {
-        "scale" : 0.74,
+        "scale" : 0.66,
         "translation-in-points" : [
           -3.09375,
           84.1328125
