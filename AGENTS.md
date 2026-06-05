@@ -45,6 +45,10 @@ xcodebuild -project "Tinkerble Demo/Tinkerble Demo.xcodeproj" -scheme "Tinkerble
 
 The patch script is currently needed because upstream `rsocket-swift` and one SwiftNIO C shim do not compile cleanly with Xcode 26.5 without checkout-only workarounds.
 
+## UI Tests
+
+Do not add tests that assert companion UI styling or layout details. Avoid assertions for colors, materials, window chrome, shadows, titlebar presentation, text styling, padding, dimensions, sizing math, control styles, or source snippets that exist only to pin visual implementation. Verify UI changes by building and launching the real app instead of freezing visual metrics in tests.
+
 ## Do Not Change Carelessly
 
 - Do not remove the transport protocol boundary; the RSocket dependency is alpha and may need replacement or isolation later.
