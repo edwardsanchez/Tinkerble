@@ -31,6 +31,13 @@ struct TinkerbleCompanionApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .commands {
+            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .undoRedo) {}
+            CommandGroup(replacing: .pasteboard) {}
+            CommandGroup(replacing: .textEditing) {}
+            CommandGroup(replacing: .textFormatting) {}
+            CommandGroup(replacing: .toolbar) {}
+            CommandGroup(replacing: .help) {}
             CommandGroup(after: .windowArrangement) {
                 Toggle("Keep Window on Top", isOn: $windowLevel.keepsWindowOnTop)
             }
@@ -48,6 +55,16 @@ private final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        applyMenuPolicy()
+
+        Task { @MainActor in
+            await Task.yield()
+            applyMenuPolicy()
+        }
+    }
+
+    func applicationDidUpdate(_ notification: Notification) {
+        applyMenuPolicy()
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -60,5 +77,9 @@ private final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldRestoreApplicationState(_ app: NSApplication, coder: NSCoder) -> Bool {
         false
+    }
+
+    private func applyMenuPolicy() {
+        TinkerbleCompanionMenuPolicy.apply(to: NSApp.mainMenu)
     }
 }
