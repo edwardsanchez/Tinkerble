@@ -95,20 +95,13 @@
       "blend-mode" : "screen",
       "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : "none"
-            }
-          ],
-          "glass" : false,
-          "image-name" : "Stars.png",
-          "name" : "Stars",
+          "image-name" : "Image.png",
+          "name" : "Image",
           "position" : {
-            "scale" : 1,
+            "scale" : 0.89,
             "translation-in-points" : [
-              0,
-              0
+              -10,
+              40
             ]
           }
         }
@@ -121,6 +114,40 @@
       "specular" : false,
       "translucency" : {
         "enabled" : false,
+        "value" : 0.5
+      }
+    },
+    {
+      "hidden-specializations" : [
+        {
+          "value" : true
+        },
+        {
+          "appearance" : "dark",
+          "value" : false
+        },
+        {
+          "appearance" : "tinted",
+          "value" : false
+        }
+      ],
+      "layers" : [
+        {
+          "blend-mode" : "overlay",
+          "hidden" : true,
+          "image-name" : "Frame.svg",
+          "name" : "Lines",
+          "opacity" : 0.4
+        }
+      ],
+      "name" : "Lines",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : true,
         "value" : 0.5
       }
     }
