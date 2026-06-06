@@ -132,6 +132,68 @@ final class TinkerbleNumericInteractionTests: XCTestCase {
         )
     }
 
+    func testShiftRangedDragAdjustsByTenPerPoint() {
+        let configuration = TinkerbleNumericControl(minimum: 0, maximum: 100, decimalPlaces: 0)
+
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.draggedValue(
+                from: 50,
+                horizontalTranslation: 2,
+                modifiers: .shift,
+                configuration: configuration
+            ),
+            70
+        )
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.draggedValue(
+                from: 50,
+                horizontalTranslation: -2,
+                modifiers: .shift,
+                configuration: configuration
+            ),
+            30
+        )
+    }
+
+    func testOptionRangedDragAdjustsDecimalFieldsByOneDecimalPlacePerPoint() {
+        let configuration = TinkerbleNumericControl(minimum: 0, maximum: 100, decimalPlaces: 2)
+
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.draggedValue(
+                from: 50,
+                horizontalTranslation: 2,
+                modifiers: .option,
+                configuration: configuration
+            ),
+            50.2,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.draggedValue(
+                from: 50,
+                horizontalTranslation: -2,
+                modifiers: .option,
+                configuration: configuration
+            ),
+            49.8,
+            accuracy: 0.0001
+        )
+    }
+
+    func testOptionRangedDragDoesNothingForIntegerFields() {
+        let configuration = TinkerbleNumericControl(minimum: 0, maximum: 100, decimalPlaces: 0)
+
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.draggedValue(
+                from: 50,
+                horizontalTranslation: 2,
+                modifiers: .option,
+                configuration: configuration
+            ),
+            50
+        )
+    }
+
     func testRangedDragClampsAtFiftyPixelsEitherDirection() {
         let configuration = TinkerbleNumericControl(minimum: 0, maximum: 100, decimalPlaces: 0)
 

@@ -70,6 +70,14 @@ public enum TinkerbleComponentPreviewFixture {
                 control: .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2))
             ),
             TinkerbleTweak(
+                id: "Numbers/Decimal Range Slider",
+                category: "Numbers",
+                name: "Decimal Range Slider",
+                value: .number(12.5),
+                valueKind: .number,
+                control: .slider(.init(minimum: 0, maximum: 20, step: 0.01, decimalPlaces: 2))
+            ),
+            TinkerbleTweak(
                 id: "Numbers/Angle Degrees Field",
                 category: "Numbers",
                 name: "Angle Degrees Field",

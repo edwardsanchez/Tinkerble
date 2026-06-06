@@ -18,6 +18,7 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
                 "Values/Color Picker",
                 "Numbers/Number Field",
                 "Numbers/Number Slider",
+                "Numbers/Decimal Range Slider",
                 "Numbers/Angle Degrees Field",
                 "Numbers/Angle Radians Slider",
                 "Dates/Date Picker",
@@ -37,6 +38,7 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
         XCTAssertTrue(tweaks.contains { $0.control == .automatic && $0.valueKind == .color })
         XCTAssertTrue(tweaks.contains { $0.control == .plain(.init(decimalPlaces: 0)) && $0.valueKind == .number })
         XCTAssertTrue(tweaks.contains { $0.control == .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2)) })
+        XCTAssertTrue(tweaks.contains { $0.control == .slider(.init(minimum: 0, maximum: 20, step: 0.01, decimalPlaces: 2)) })
         XCTAssertTrue(tweaks.contains { $0.control == .plain(.init(step: 1, decimalPlaces: 0, angleUnit: .degrees)) })
         XCTAssertTrue(tweaks.contains { $0.control == .slider(.init(minimum: 0, maximum: .pi, step: 0.01, decimalPlaces: 2, angleUnit: .radians)) })
         XCTAssertTrue(tweaks.contains { $0.control == TinkerbleControl<Date>.date.descriptor })
@@ -56,6 +58,18 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
         }
 
         XCTAssertEqual(Set(resolvedAutomaticStyles), [.field, .area])
+    }
+
+    func testPreviewFixtureIncludesZeroToTwentyDecimalSlider() throws {
+        let tweak = try XCTUnwrap(
+            TinkerbleComponentPreviewFixture.tweaks.first { $0.id == "Numbers/Decimal Range Slider" }
+        )
+
+        XCTAssertEqual(tweak.category, "Numbers")
+        XCTAssertEqual(tweak.name, "Decimal Range Slider")
+        XCTAssertEqual(tweak.value, .number(12.5))
+        XCTAssertEqual(tweak.valueKind, .number)
+        XCTAssertEqual(tweak.control, .slider(.init(minimum: 0, maximum: 20, step: 0.01, decimalPlaces: 2)))
     }
 
     func testPreviewFixtureBuildsScrollableGroups() {

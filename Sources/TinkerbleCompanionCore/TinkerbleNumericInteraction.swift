@@ -44,11 +44,13 @@ public enum TinkerbleNumericInteraction {
     public static func draggedValue(
         from startValue: Double,
         horizontalTranslation: Double,
+        modifiers: TinkerbleNumericKeyboardModifiers = [],
         configuration: TinkerbleNumericControl
     ) -> Double {
         guard let minimum = configuration.minimum,
               let maximum = configuration.maximum,
-              maximum > minimum
+              maximum > minimum,
+              let multiplier = dragMultiplier(for: modifiers, decimalPlaces: configuration.decimalPlaces)
         else {
             return startValue
         }
@@ -56,7 +58,7 @@ public enum TinkerbleNumericInteraction {
         let clampedTranslation = min(max(horizontalTranslation, -dragDistance), dragDistance)
         let range = maximum - minimum
         let progress = clampedTranslation / (dragDistance * 2)
-        return constrained(startValue + range * progress, by: configuration)
+        return constrained(startValue + range * progress * multiplier, by: configuration)
     }
 
     public static func adjustedTextValue(_ value: Double, configuration: TinkerbleNumericControl) -> Double {
@@ -76,6 +78,20 @@ public enum TinkerbleNumericInteraction {
             return direction.sign * 10
         }
         return direction.sign
+    }
+
+    private static func dragMultiplier(
+        for modifiers: TinkerbleNumericKeyboardModifiers,
+        decimalPlaces: Int
+    ) -> Double? {
+        if modifiers.contains(.option) {
+            guard decimalPlaces > 0 else { return nil }
+            return 0.1
+        }
+        if modifiers.contains(.shift) {
+            return 10
+        }
+        return 1
     }
 
     private static func constrained(_ value: Double, by configuration: TinkerbleNumericControl) -> Double {

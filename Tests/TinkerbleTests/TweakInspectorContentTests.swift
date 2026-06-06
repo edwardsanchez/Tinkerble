@@ -27,9 +27,13 @@ final class TweakInspectorContentTests: XCTestCase {
         let source = try readText("Sources/TinkerbleCompanionUI/TweakInspectorView.swift")
 
         XCTAssertTrue(source.contains("@State private var displayedValue: Double?"))
+        XCTAssertTrue(source.contains("Image(systemName: \"chevron.left.chevron.right\")"))
+        XCTAssertFalse(source.contains("Button(\"Adjust value\", systemImage: \"chevron.left.chevron.right\")"))
         XCTAssertTrue(source.contains("let startValue = dragStartValue ?? currentValue"))
         XCTAssertTrue(source.contains("commitValue(\n                    TinkerbleNumericInteraction.draggedValue("))
+        XCTAssertTrue(source.contains("modifiers: .current"))
         XCTAssertTrue(source.contains("refreshEditingText: true"))
+        XCTAssertTrue(source.contains(".id(textFieldRefreshID)"))
         XCTAssertTrue(source.contains("editingText = textValue(for: value)"))
         XCTAssertTrue(source.contains("return textValue(for: currentValue)"))
         XCTAssertTrue(source.contains("@Previewable @State var rangedValue = 0.65"))

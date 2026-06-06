@@ -286,12 +286,11 @@ struct TinkerbleNumberFieldView: View {
     var body: some View {
         HStack(spacing: 6) {
             if showsDragHandle {
-                Button("Adjust value", systemImage: "chevron.left.chevron.right") {}
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
+                Image(systemName: "chevron.left.chevron.right")
                     .foregroundStyle(.secondary)
                     .frame(width: 18, height: 22)
                     .contentShape(.rect)
+                    .accessibilityLabel("Adjust value")
                     .modifier(ResizeLeftRightCursorModifier())
                     .gesture(dragGesture)
             }
@@ -301,6 +300,7 @@ struct TinkerbleNumberFieldView: View {
                 .focused($isFocused)
                 .frame(width: 96)
                 .multilineTextAlignment(.trailing)
+                .id(textFieldRefreshID)
                 .onSubmit {
                     editingText = nil
                 }
@@ -329,6 +329,7 @@ struct TinkerbleNumberFieldView: View {
                     TinkerbleNumericInteraction.draggedValue(
                         from: startValue,
                         horizontalTranslation: value.translation.width,
+                        modifiers: .current,
                         configuration: configuration
                     ),
                     refreshEditingText: true
@@ -357,6 +358,10 @@ struct TinkerbleNumberFieldView: View {
 
     private var currentValue: Double {
         displayedValue ?? value
+    }
+
+    private var textFieldRefreshID: String {
+        dragStartValue == nil ? "idle" : textValue(for: currentValue)
     }
 
     private func handleKeyPress(
@@ -423,6 +428,22 @@ private struct ResizeLeftRightCursorModifier: ViewModifier {
 }
 
 private extension TinkerbleNumericKeyboardModifiers {
+    static var current: Self {
+        #if os(macOS)
+        var options: Self = []
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.shift) {
+            options.insert(.shift)
+        }
+        if flags.contains(.option) {
+            options.insert(.option)
+        }
+        return options
+        #else
+        []
+        #endif
+    }
+
     init(_ modifiers: EventModifiers) {
         var options: Self = []
         if modifiers.contains(.shift) {
