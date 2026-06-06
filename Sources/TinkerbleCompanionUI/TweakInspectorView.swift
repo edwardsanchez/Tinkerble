@@ -44,7 +44,9 @@ struct TweakInspectorContent: View {
                         Text(category)
                             .font(.subheadline)
                             .bold()
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
+                            .textCase(.uppercase)
+                            .padding(.top, group.id == groups.first?.id ? 0 : 15)
                     }
 
                     ForEach(group.tweaks) { tweak in
@@ -68,16 +70,17 @@ private struct TweakRow: View {
     var updateTweak: (String, TinkerbleValue) -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
+        HStack(alignment: .top, spacing: 14) {
             Text(tweak.name)
-                .font(.body)
+                .font(.callout)
                 .bold()
-                .foregroundStyle(.primary)
+                .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .frame(width: 116, alignment: .leading)
 
             control
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .font(.callout)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -112,12 +115,9 @@ private struct TweakRow: View {
         switch resolvedTextControlStyle {
         case .area:
             TextEditor(text: stringBinding)
-                .font(.body)
                 .frame(minHeight: 72)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color(nsColor: .separatorColor))
-                }
+                .padding(.bottom, 15)
+
         case .field, .automatic:
             TextField("", text: stringBinding)
                 .textFieldStyle(.roundedBorder)
@@ -149,6 +149,7 @@ private struct TweakRow: View {
                     in: (configuration.minimum ?? -Double.greatestFiniteMagnitude)...(configuration.maximum ?? Double.greatestFiniteMagnitude),
                     step: configuration.step
                 )
+                .controlSize(.mini)
                 .labelsHidden()
             }
         case .text:
