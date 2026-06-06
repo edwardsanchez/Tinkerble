@@ -92,6 +92,34 @@ extension CGFloat: TinkerbleValueConvertible {
     }
 }
 
+extension Angle: TinkerbleValueConvertible {
+    public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
+        TinkerbleControl<Angle>.plain.descriptor
+    }
+
+    public var tinkerbleValue: TinkerbleValue { .number(radians) }
+
+    public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Angle? {
+        guard case let .number(number) = value else { return nil }
+        return .radians(number)
+    }
+}
+
+extension Date: TinkerbleValueConvertible {
+    public static var tinkerbleValueKind: TinkerbleValueKind { .date }
+    public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
+        TinkerbleControl<Date>.dateAndTime.descriptor
+    }
+
+    public var tinkerbleValue: TinkerbleValue { .date(self) }
+
+    public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Date? {
+        guard case let .date(date) = value else { return nil }
+        return date
+    }
+}
+
 extension Color: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .color }
     public var tinkerbleValue: TinkerbleValue { .color(TinkerbleColor(self)) }

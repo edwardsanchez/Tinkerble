@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Tinkerble
 
 private enum DemoMode: String, CaseIterable, TinkerbleEnum {
@@ -12,6 +13,21 @@ final class TinkerbleValueTests: XCTestCase {
         XCTAssertEqual(Bool.fromTinkerbleValue(true.tinkerbleValue), true)
         XCTAssertEqual(Int.fromTinkerbleValue(12.tinkerbleValue), 12)
         XCTAssertEqual(Double.fromTinkerbleValue(0.75.tinkerbleValue), 0.75)
+    }
+
+    func testAngleRoundTripsThroughCanonicalRadianNumberRepresentation() {
+        let angle = Angle.degrees(90)
+
+        XCTAssertEqual(angle.tinkerbleValue, .number(Double.pi / 2))
+        XCTAssertEqual(Angle.fromTinkerbleValue(angle.tinkerbleValue)?.degrees ?? 0, 90, accuracy: 0.0001)
+    }
+
+    func testDateRoundTripsThroughDateValueRepresentation() {
+        let date = Date(timeIntervalSinceReferenceDate: 804_729_600)
+
+        XCTAssertEqual(date.tinkerbleValue, .date(date))
+        XCTAssertEqual(Date.fromTinkerbleValue(date.tinkerbleValue), date)
+        XCTAssertEqual(date.tinkerbleValue.kind, .date)
     }
 
     func testBasicRawRepresentableEnumsExposePickerOptions() {
@@ -67,5 +83,32 @@ final class TinkerbleValueTests: XCTestCase {
         let decoded = try codec.message(from: payload)
 
         XCTAssertEqual(decoded, .register(tweak))
+    }
+
+    func testRSocketPayloadCodecRoundTripsAngleAndDateControlDescriptors() throws {
+        let codec = TinkerbleRSocketPayloadCodec()
+        let tweaks = [
+            TinkerbleTweak(
+                id: "Layout/Rotation",
+                category: "Layout",
+                name: "Rotation",
+                value: Angle.degrees(45).tinkerbleValue,
+                valueKind: .number,
+                control: TinkerbleControl<Angle>.slider(.degrees(0)...(.degrees(360))).descriptor
+            ),
+            TinkerbleTweak(
+                id: "Schedule/Start",
+                category: "Schedule",
+                name: "Start",
+                value: Date(timeIntervalSinceReferenceDate: 804_729_600).tinkerbleValue,
+                valueKind: .date,
+                control: TinkerbleControl<Date>.datePicker(.dateAndTime).descriptor
+            ),
+        ]
+
+        let payload = try codec.payload(for: .snapshot(tweaks))
+        let decoded = try codec.message(from: payload)
+
+        XCTAssertEqual(decoded, .snapshot(tweaks))
     }
 }

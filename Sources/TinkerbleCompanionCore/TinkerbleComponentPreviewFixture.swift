@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Tinkerble
 
 public enum TinkerbleComponentPreviewFixture {
@@ -67,6 +68,46 @@ public enum TinkerbleComponentPreviewFixture {
                 value: .number(0.65),
                 valueKind: .number,
                 control: .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2))
+            ),
+            TinkerbleTweak(
+                id: "Numbers/Angle Degrees Field",
+                category: "Numbers",
+                name: "Angle Degrees Field",
+                value: .number(Angle.degrees(45).radians),
+                valueKind: .number,
+                control: .plain(.init(step: 1, decimalPlaces: 0, angleUnit: .degrees))
+            ),
+            TinkerbleTweak(
+                id: "Numbers/Angle Radians Slider",
+                category: "Numbers",
+                name: "Angle Radians Slider",
+                value: .number(Angle.radians(1.57).radians),
+                valueKind: .number,
+                control: .slider(.init(minimum: 0, maximum: .pi, step: 0.01, decimalPlaces: 2, angleUnit: .radians))
+            ),
+            TinkerbleTweak(
+                id: "Dates/Date Picker",
+                category: "Dates",
+                name: "Date Picker",
+                value: .date(Date(timeIntervalSinceReferenceDate: 804_729_600)),
+                valueKind: .date,
+                control: .date(.init(components: .date))
+            ),
+            TinkerbleTweak(
+                id: "Dates/Date And Time Picker",
+                category: "Dates",
+                name: "Date And Time Picker",
+                value: .date(Date(timeIntervalSinceReferenceDate: 804_729_600)),
+                valueKind: .date,
+                control: .date(.init(components: .dateAndTime))
+            ),
+            TinkerbleTweak(
+                id: "Dates/Time Picker",
+                category: "Dates",
+                name: "Time Picker",
+                value: .date(Date(timeIntervalSinceReferenceDate: 804_729_600)),
+                valueKind: .date,
+                control: .date(.init(components: .time))
             ),
             TinkerbleTweak(
                 id: "Values/Enum Picker",

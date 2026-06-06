@@ -13,6 +13,7 @@ public enum TinkerbleValueKind: String, Codable, Hashable {
     case bool
     case color
     case number
+    case date
     case enumeration
 }
 
@@ -66,6 +67,7 @@ public enum TinkerbleValue: Codable, Equatable, Hashable {
     case bool(Bool)
     case color(TinkerbleColor)
     case number(Double)
+    case date(Date)
     case enumCase(String)
 
     public var kind: TinkerbleValueKind {
@@ -78,6 +80,8 @@ public enum TinkerbleValue: Codable, Equatable, Hashable {
             return .color
         case .number:
             return .number
+        case .date:
+            return .date
         case .enumCase:
             return .enumeration
         }

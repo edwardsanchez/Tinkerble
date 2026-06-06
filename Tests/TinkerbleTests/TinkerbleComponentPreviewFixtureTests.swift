@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Tinkerble
 @testable import TinkerbleCompanionCore
 
@@ -17,13 +18,18 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
                 "Values/Color Picker",
                 "Numbers/Number Field",
                 "Numbers/Number Slider",
+                "Numbers/Angle Degrees Field",
+                "Numbers/Angle Radians Slider",
+                "Dates/Date Picker",
+                "Dates/Date And Time Picker",
+                "Dates/Time Picker",
                 "Values/Enum Picker",
             ]
         )
 
         XCTAssertEqual(
             Set(tweaks.map(\.valueKind)),
-            [.string, .bool, .color, .number, .enumeration]
+            [.string, .bool, .color, .number, .date, .enumeration]
         )
         XCTAssertTrue(tweaks.contains { $0.control == .text(.init(style: .field)) })
         XCTAssertTrue(tweaks.contains { $0.control == .text(.init(style: .area)) })
@@ -31,6 +37,11 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
         XCTAssertTrue(tweaks.contains { $0.control == .automatic && $0.valueKind == .color })
         XCTAssertTrue(tweaks.contains { $0.control == .plain(.init(decimalPlaces: 0)) && $0.valueKind == .number })
         XCTAssertTrue(tweaks.contains { $0.control == .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2)) })
+        XCTAssertTrue(tweaks.contains { $0.control == .plain(.init(step: 1, decimalPlaces: 0, angleUnit: .degrees)) })
+        XCTAssertTrue(tweaks.contains { $0.control == .slider(.init(minimum: 0, maximum: .pi, step: 0.01, decimalPlaces: 2, angleUnit: .radians)) })
+        XCTAssertTrue(tweaks.contains { $0.control == TinkerbleControl<Date>.date.descriptor })
+        XCTAssertTrue(tweaks.contains { $0.control == TinkerbleControl<Date>.dateAndTime.descriptor })
+        XCTAssertTrue(tweaks.contains { $0.control == TinkerbleControl<Date>.time.descriptor })
         XCTAssertTrue(tweaks.contains { $0.valueKind == .enumeration && $0.enumOptions.count == 3 })
     }
 
@@ -50,7 +61,7 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
     func testPreviewFixtureBuildsScrollableGroups() {
         let groups = TinkerbleComponentPreviewFixture.groups
 
-        XCTAssertEqual(groups.map(\.category), ["Numbers", "Text", "Values"])
+        XCTAssertEqual(groups.map(\.category), ["Dates", "Numbers", "Text", "Values"])
         XCTAssertEqual(groups.flatMap(\.tweaks).count, TinkerbleComponentPreviewFixture.tweaks.count)
     }
 

@@ -106,6 +106,8 @@ private struct TweakRow: View {
                 .labelsHidden()
         case .number:
             numberControl
+        case .date:
+            dateControl
         case .enumCase:
             Picker("", selection: enumBinding) {
                 ForEach(tweak.enumOptions) { option in
@@ -136,32 +138,57 @@ private struct TweakRow: View {
         switch tweak.control {
         case let .plain(configuration):
             TinkerbleNumberFieldView(
-                value: numberValue,
+                value: numberDisplayValue(for: configuration),
                 configuration: configuration,
                 showsDragHandle: false,
-                updateValue: updateNumberValue
+                updateValue: { updateNumberDisplayValue($0, configuration: configuration) }
             )
         case let .slider(configuration):
             TinkerbleNumberFieldView(
-                value: numberValue,
+                value: numberDisplayValue(for: configuration),
                 configuration: configuration,
                 showsDragHandle: true,
-                updateValue: updateNumberValue
+                updateValue: { updateNumberDisplayValue($0, configuration: configuration) }
             )
         case .text:
-            TinkerbleNumberFieldView(
-                value: numberValue,
-                configuration: .init(decimalPlaces: 2),
-                showsDragHandle: false,
-                updateValue: updateNumberValue
-            )
+            fallbackNumberControl
         case .automatic:
-            TinkerbleNumberFieldView(
-                value: numberValue,
-                configuration: .init(decimalPlaces: 2),
-                showsDragHandle: false,
-                updateValue: updateNumberValue
-            )
+            fallbackNumberControl
+        case .date:
+            fallbackNumberControl
+        }
+    }
+
+    @ViewBuilder
+    private var fallbackNumberControl: some View {
+        let configuration = TinkerbleNumericControl(decimalPlaces: 2)
+        TinkerbleNumberFieldView(
+            value: numberValue,
+            configuration: configuration,
+            showsDragHandle: false,
+            updateValue: updateNumberValue
+        )
+    }
+
+    @ViewBuilder
+    private var dateControl: some View {
+        DatePicker("", selection: dateBinding, displayedComponents: displayedDatePickerComponents)
+            .labelsHidden()
+            .datePickerStyle(.compact)
+    }
+
+    private var displayedDatePickerComponents: DatePickerComponents {
+        guard case let .date(configuration) = tweak.control else {
+            return [.date, .hourAndMinute]
+        }
+
+        switch configuration.components {
+        case .date:
+            return .date
+        case .dateAndTime:
+            return [.date, .hourAndMinute]
+        case .time:
+            return .hourAndMinute
         }
     }
 
@@ -206,8 +233,31 @@ private struct TweakRow: View {
         return value
     }
 
+    private func numberDisplayValue(for configuration: TinkerbleNumericControl) -> Double {
+        guard let angleUnit = configuration.angleUnit else { return numberValue }
+        return angleUnit.displayValue(fromStoredRadians: numberValue)
+    }
+
     private func updateNumberValue(_ value: Double) {
         updateTweak(tweak.id, .number(value))
+    }
+
+    private func updateNumberDisplayValue(_ value: Double, configuration: TinkerbleNumericControl) {
+        guard let angleUnit = configuration.angleUnit else {
+            updateNumberValue(value)
+            return
+        }
+        updateNumberValue(angleUnit.storedRadians(fromDisplayValue: value))
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: {
+                guard case let .date(value) = tweak.value else { return Date() }
+                return value
+            },
+            set: { updateTweak(tweak.id, .date($0)) }
+        )
     }
 
     private var enumBinding: Binding<String> {
@@ -230,6 +280,7 @@ private struct TinkerbleNumberFieldView: View {
 
     @FocusState private var isFocused: Bool
     @State private var dragStartValue: Double?
+    @State private var displayedValue: Double?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -255,15 +306,24 @@ private struct TinkerbleNumberFieldView: View {
                 .onKeyPress(.downArrow, phases: [.down, .repeat]) { keyPress in
                     handleKeyPress(.decrement, modifiers: keyPress.modifiers)
                 }
+
+//            if let angleUnit = configuration.angleUnit {
+//                Text(angleUnit.displayName)
+//                    .foregroundStyle(.secondary)
+//            }
+        }
+        .onChange(of: value) { _, newValue in
+            guard dragStartValue == nil else { return }
+            displayedValue = newValue
         }
     }
 
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
-                let startValue = dragStartValue ?? self.value
+                let startValue = dragStartValue ?? currentValue
                 dragStartValue = startValue
-                updateValue(
+                commitValue(
                     TinkerbleNumericInteraction.draggedValue(
                         from: startValue,
                         horizontalTranslation: value.translation.width,
@@ -279,13 +339,17 @@ private struct TinkerbleNumberFieldView: View {
     private var numberTextBinding: Binding<String> {
         Binding(
             get: {
-                return value.formatted(.number.precision(.fractionLength(configuration.decimalPlaces)))
+                return currentValue.formatted(.number.precision(.fractionLength(configuration.decimalPlaces)))
             },
             set: { text in
                 guard let value = Double(text) else { return }
-                updateValue(TinkerbleNumericInteraction.adjustedTextValue(value, configuration: configuration))
+                commitValue(TinkerbleNumericInteraction.adjustedTextValue(value, configuration: configuration))
             }
         )
+    }
+
+    private var currentValue: Double {
+        displayedValue ?? value
     }
 
     private func handleKeyPress(
@@ -293,15 +357,20 @@ private struct TinkerbleNumberFieldView: View {
         modifiers: EventModifiers
     ) -> KeyPress.Result {
         guard isFocused else { return .ignored }
-        updateValue(
+        commitValue(
             TinkerbleNumericInteraction.adjustedValue(
-                from: value,
+                from: currentValue,
                 direction: direction,
                 modifiers: .init(modifiers),
                 configuration: configuration
             )
         )
         return .handled
+    }
+
+    private func commitValue(_ value: Double) {
+        displayedValue = value
+        updateValue(value)
     }
 }
 
@@ -336,21 +405,37 @@ private extension TinkerbleNumericKeyboardModifiers {
 }
 
 #Preview("Plain Number Field") {
+    @Previewable @State var plainValue = 42.0
+
     TinkerbleNumberFieldView(
-        value: 42,
+        value: plainValue,
         configuration: .init(decimalPlaces: 0),
         showsDragHandle: false,
-        updateValue: { _ in }
+        updateValue: { plainValue = $0 }
     )
     .padding()
 }
 
 #Preview("Ranged Number Field") {
+    @Previewable @State var rangedValue = 0.65
+
     TinkerbleNumberFieldView(
-        value: 0.65,
+        value: rangedValue,
         configuration: .init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2),
         showsDragHandle: true,
-        updateValue: { _ in }
+        updateValue: { rangedValue = $0 }
+    )
+    .padding()
+}
+
+#Preview("Angle Field") {
+    @Previewable @State var angleValue = 45.0
+
+    TinkerbleNumberFieldView(
+        value: angleValue,
+        configuration: .init(minimum: 0, maximum: 360, step: 1, decimalPlaces: 0, angleUnit: .degrees),
+        showsDragHandle: true,
+        updateValue: { angleValue = $0 }
     )
     .padding()
 }

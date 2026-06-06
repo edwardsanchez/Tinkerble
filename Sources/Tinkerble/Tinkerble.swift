@@ -91,7 +91,7 @@ public final class Tinkerble {
         switch descriptor {
         case .automatic:
             Value.tinkerbleDefaultControlDescriptor
-        case .text, .plain, .slider:
+        case .text, .plain, .slider, .date:
             descriptor
         }
     }
