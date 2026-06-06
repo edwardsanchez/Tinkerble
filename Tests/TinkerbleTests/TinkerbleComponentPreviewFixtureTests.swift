@@ -16,7 +16,6 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
                 "Values/Bool Toggle",
                 "Values/Color Picker",
                 "Numbers/Number Field",
-                "Numbers/Number Stepper",
                 "Numbers/Number Slider",
                 "Values/Enum Picker",
             ]
@@ -30,8 +29,7 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
         XCTAssertTrue(tweaks.contains { $0.control == .text(.init(style: .area)) })
         XCTAssertTrue(tweaks.contains { $0.control == .automatic && $0.valueKind == .bool })
         XCTAssertTrue(tweaks.contains { $0.control == .automatic && $0.valueKind == .color })
-        XCTAssertTrue(tweaks.contains { $0.control == .automatic && $0.valueKind == .number })
-        XCTAssertTrue(tweaks.contains { $0.control == .stepper(.init(minimum: 0, maximum: 20, step: 1, decimalPlaces: 0)) })
+        XCTAssertTrue(tweaks.contains { $0.control == .plain(.init(decimalPlaces: 0)) && $0.valueKind == .number })
         XCTAssertTrue(tweaks.contains { $0.control == .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2)) })
         XCTAssertTrue(tweaks.contains { $0.valueKind == .enumeration && $0.enumOptions.count == 3 })
     }

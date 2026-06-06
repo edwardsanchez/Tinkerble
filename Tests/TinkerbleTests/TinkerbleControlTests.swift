@@ -17,7 +17,7 @@ final class TinkerbleControlTests: XCTestCase {
         )
     }
 
-    func testDefaultStringControlRemainsRegularFieldControl() {
+    func testDefaultStringControlRemainsAutomaticControl() {
         XCTAssertEqual(TinkerbleControl<String>.automatic.descriptor, .automatic)
     }
 
@@ -64,14 +64,47 @@ final class TinkerbleControlTests: XCTestCase {
         XCTAssertEqual(configuration.decimalPlaces, 0)
     }
 
-    func testIntegerStepperDoesNotExposeDecimalPlaces() {
-        let control = TinkerbleControl<Int>.stepper(step: 2)
+    func testIntegerPlainDoesNotExposeDecimalPlaces() {
+        let control = TinkerbleControl<Int>.plain(step: 2)
 
-        guard case let .stepper(configuration) = control.descriptor else {
-            return XCTFail("Expected stepper configuration")
+        guard case let .plain(configuration) = control.descriptor else {
+            return XCTFail("Expected plain configuration")
         }
 
         XCTAssertEqual(configuration.step, 2)
         XCTAssertEqual(configuration.decimalPlaces, 0)
+    }
+
+    func testDecimalPlainDefaultsToTwoPlaces() {
+        let control = TinkerbleControl<Double>.plain
+
+        guard case let .plain(configuration) = control.descriptor else {
+            return XCTFail("Expected plain configuration")
+        }
+
+        XCTAssertEqual(configuration.step, 1)
+        XCTAssertEqual(configuration.decimalPlaces, 2)
+    }
+
+    @MainActor
+    func testAutomaticNumericRegistrationResolvesToPlainControl() {
+        Tinkerble.shared.resetForTesting()
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+
+        Tinkerble.shared.register(
+            id: "Count",
+            category: nil,
+            name: "Count",
+            value: 3,
+            control: .automatic,
+            applyRemoteValue: { _ in }
+        )
+
+        XCTAssertEqual(
+            Tinkerble.shared.registeredTweaks.first?.control,
+            TinkerbleControl<Int>.plain.descriptor
+        )
     }
 }

@@ -58,15 +58,7 @@ public enum TinkerbleComponentPreviewFixture {
                 name: "Number Field",
                 value: .number(42),
                 valueKind: .number,
-                control: .automatic
-            ),
-            TinkerbleTweak(
-                id: "Numbers/Number Stepper",
-                category: "Numbers",
-                name: "Number Stepper",
-                value: .number(8),
-                valueKind: .number,
-                control: .stepper(.init(minimum: 0, maximum: 20, step: 1, decimalPlaces: 0))
+                control: .plain(.init(decimalPlaces: 0))
             ),
             TinkerbleTweak(
                 id: "Numbers/Number Slider",

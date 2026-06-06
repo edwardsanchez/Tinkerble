@@ -15,7 +15,7 @@ public struct TinkerbleControl<Value> {
 public enum TinkerbleControlDescriptor: Codable, Equatable, Hashable {
     case automatic
     case text(TinkerbleTextControl)
-    case stepper(TinkerbleNumericControl)
+    case plain(TinkerbleNumericControl)
     case slider(TinkerbleNumericControl)
 }
 
@@ -73,8 +73,12 @@ public extension TinkerbleControl where Value == String {
 }
 
 public extension TinkerbleControl where Value: BinaryInteger {
-    static func stepper(step: Value = 1) -> Self {
-        Self(descriptor: .stepper(.init(step: Double(step), decimalPlaces: 0)))
+    static var plain: Self {
+        Self(descriptor: .plain(.init(decimalPlaces: 0)))
+    }
+
+    static func plain(step: Value) -> Self {
+        Self(descriptor: .plain(.init(step: Double(step), decimalPlaces: 0)))
     }
 
     static func slider(_ range: ClosedRange<Value>, step: Value = 1) -> Self {
@@ -92,9 +96,13 @@ public extension TinkerbleControl where Value: BinaryInteger {
 }
 
 public extension TinkerbleControl where Value: BinaryFloatingPoint {
-    static func stepper(step: Value = 1, decimalPlaces: Int? = nil) -> Self {
+    static var plain: Self {
+        Self(descriptor: .plain(.init(decimalPlaces: inferredDecimalPlaces(for: nil))))
+    }
+
+    static func plain(step: Value = 1, decimalPlaces: Int? = nil) -> Self {
         Self(
-            descriptor: .stepper(
+            descriptor: .plain(
                 .init(
                     step: Double(step),
                     decimalPlaces: decimalPlaces ?? inferredDecimalPlaces(for: nil)

@@ -58,7 +58,7 @@ public final class Tinkerble {
             name: name,
             value: value.tinkerbleValue,
             valueKind: Value.tinkerbleValueKind,
-            control: control.descriptor,
+            control: resolvedControlDescriptor(control.descriptor, for: Value.self),
             enumOptions: Value.tinkerbleEnumOptions ?? []
         )
         let token = TinkerbleRegistrationToken(tweakID: id)
@@ -82,6 +82,18 @@ public final class Tinkerble {
         publishTweaks()
         transport.send(.register(tweak))
         return token
+    }
+
+    private func resolvedControlDescriptor<Value: TinkerbleValueConvertible>(
+        _ descriptor: TinkerbleControlDescriptor,
+        for valueType: Value.Type
+    ) -> TinkerbleControlDescriptor {
+        switch descriptor {
+        case .automatic:
+            Value.tinkerbleDefaultControlDescriptor
+        case .text, .plain, .slider:
+            descriptor
+        }
     }
 
     internal func unregister(_ token: TinkerbleRegistrationToken) {

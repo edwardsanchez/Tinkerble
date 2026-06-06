@@ -28,7 +28,7 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
                     name: "Width",
                     value: .number(120),
                     valueKind: .number,
-                    control: TinkerbleControl<Int>.stepper().descriptor
+                    control: TinkerbleControl<Int>.plain.descriptor
                 )
             ),
             outbound: nil

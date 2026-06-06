@@ -47,7 +47,7 @@ final class TinkerbleObservableStateMacroExpansionTests: XCTestCase {
             @TinkerbleObservable
             @MainActor
             final class DemoModel {
-                @TinkerbleObservableState(name: "Count", control: .stepper())
+                @TinkerbleObservableState(name: "Count", control: TinkerbleControl<Int>.plain)
                 var count = 1
             }
             """,
@@ -61,7 +61,7 @@ final class TinkerbleObservableStateMacroExpansionTests: XCTestCase {
                         access(keyPath: \\.count)
                         _countTinkerbleRegistration.activate(
                         owner: self,
-                        initialValue: _count, name: "Count", control: .stepper(),
+                        initialValue: _count, name: "Count", control: TinkerbleControl<Int>.plain,
                         applyRemoteValue: { owner, newValue in
                             owner.count = newValue
                         }
@@ -71,7 +71,7 @@ final class TinkerbleObservableStateMacroExpansionTests: XCTestCase {
                     set {
                         _countTinkerbleRegistration.activate(
                         owner: self,
-                        initialValue: _count, name: "Count", control: .stepper(),
+                        initialValue: _count, name: "Count", control: TinkerbleControl<Int>.plain,
                         applyRemoteValue: { owner, newValue in
                             owner.count = newValue
                         }

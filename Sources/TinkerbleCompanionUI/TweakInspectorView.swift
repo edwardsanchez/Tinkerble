@@ -1,3 +1,6 @@
+#if os(macOS)
+import AppKit
+#endif
 import SwiftUI
 import Tinkerble
 import TinkerbleCompanionCore
@@ -46,7 +49,7 @@ struct TweakInspectorContent: View {
                             .bold()
                             .foregroundStyle(.primary)
                             .textCase(.uppercase)
-                            .padding(.top, group.id == groups.first?.id ? 0 : 15)
+                            .padding(.top, Self.categoryHeaderTopPadding(for: group, in: groups))
                     }
 
                     ForEach(group.tweaks) { tweak in
@@ -62,6 +65,10 @@ struct TweakInspectorContent: View {
         .padding(.horizontal, TinkerbleCompanionWindowLayout.inspectorHorizontalPadding)
         .padding(.top, TinkerbleCompanionWindowLayout.inspectorTopPadding)
         .padding(.bottom, TinkerbleCompanionWindowLayout.inspectorBottomPadding)
+    }
+
+    static func categoryHeaderTopPadding(for group: TinkerbleTweakGroup, in groups: [TinkerbleTweakGroup]) -> CGFloat {
+        group.id == groups.first?.id ? 0 : 15
     }
 }
 
@@ -127,39 +134,34 @@ private struct TweakRow: View {
     @ViewBuilder
     private var numberControl: some View {
         switch tweak.control {
+        case let .plain(configuration):
+            TinkerbleNumberFieldView(
+                value: numberValue,
+                configuration: configuration,
+                showsDragHandle: false,
+                updateValue: updateNumberValue
+            )
         case let .slider(configuration):
-            HStack {
-                Slider(
-                    value: numberBinding,
-                    in: (configuration.minimum ?? 0)...(configuration.maximum ?? 1),
-                    step: configuration.step
-                )
-                Text(formattedNumber)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(width: 52, alignment: .trailing)
-            }
-        case let .stepper(configuration):
-            HStack {
-                TextField("", text: numberTextBinding(configuration: configuration))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 86)
-                Stepper(
-                    "",
-                    value: numberBinding,
-                    in: (configuration.minimum ?? -Double.greatestFiniteMagnitude)...(configuration.maximum ?? Double.greatestFiniteMagnitude),
-                    step: configuration.step
-                )
-                .controlSize(.mini)
-                .labelsHidden()
-            }
+            TinkerbleNumberFieldView(
+                value: numberValue,
+                configuration: configuration,
+                showsDragHandle: true,
+                updateValue: updateNumberValue
+            )
         case .text:
-            TextField("", text: numberTextBinding(configuration: .init(decimalPlaces: 2)))
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 96)
+            TinkerbleNumberFieldView(
+                value: numberValue,
+                configuration: .init(decimalPlaces: 2),
+                showsDragHandle: false,
+                updateValue: updateNumberValue
+            )
         case .automatic:
-            TextField("", text: numberTextBinding(configuration: .init(decimalPlaces: 2)))
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 96)
+            TinkerbleNumberFieldView(
+                value: numberValue,
+                configuration: .init(decimalPlaces: 2),
+                showsDragHandle: false,
+                updateValue: updateNumberValue
+            )
         }
     }
 
@@ -199,14 +201,13 @@ private struct TweakRow: View {
         )
     }
 
-    private var numberBinding: Binding<Double> {
-        Binding(
-            get: {
-                guard case let .number(value) = tweak.value else { return 0 }
-                return value
-            },
-            set: { updateTweak(tweak.id, .number($0)) }
-        )
+    private var numberValue: Double {
+        guard case let .number(value) = tweak.value else { return 0 }
+        return value
+    }
+
+    private func updateNumberValue(_ value: Double) {
+        updateTweak(tweak.id, .number(value))
     }
 
     private var enumBinding: Binding<String> {
@@ -219,27 +220,137 @@ private struct TweakRow: View {
         )
     }
 
-    private var formattedNumber: String {
-        let places: Int
-        if case let .slider(configuration) = tweak.control {
-            places = configuration.decimalPlaces
-        } else {
-            places = 2
+}
+
+private struct TinkerbleNumberFieldView: View {
+    var value: Double
+    var configuration: TinkerbleNumericControl
+    var showsDragHandle: Bool
+    var updateValue: (Double) -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var dragStartValue: Double?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if showsDragHandle {
+                Button("Adjust value", systemImage: "chevron.left.chevron.right") {}
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 22)
+                    .contentShape(.rect)
+                    .modifier(ResizeLeftRightCursorModifier())
+                    .gesture(dragGesture)
+            }
+
+            TextField("", text: numberTextBinding)
+                .textFieldStyle(.roundedBorder)
+                .focused($isFocused)
+                .frame(width: 96)
+                .multilineTextAlignment(.trailing)
+                .onKeyPress(.upArrow, phases: [.down, .repeat]) { keyPress in
+                    handleKeyPress(.increment, modifiers: keyPress.modifiers)
+                }
+                .onKeyPress(.downArrow, phases: [.down, .repeat]) { keyPress in
+                    handleKeyPress(.decrement, modifiers: keyPress.modifiers)
+                }
         }
-        guard case let .number(value) = tweak.value else { return "0" }
-        return value.formatted(.number.precision(.fractionLength(places)))
     }
 
-    private func numberTextBinding(configuration: TinkerbleNumericControl) -> Binding<String> {
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+            .onChanged { value in
+                let startValue = dragStartValue ?? self.value
+                dragStartValue = startValue
+                updateValue(
+                    TinkerbleNumericInteraction.draggedValue(
+                        from: startValue,
+                        horizontalTranslation: value.translation.width,
+                        configuration: configuration
+                    )
+                )
+            }
+            .onEnded { _ in
+                dragStartValue = nil
+            }
+    }
+
+    private var numberTextBinding: Binding<String> {
         Binding(
             get: {
-                guard case let .number(value) = tweak.value else { return "0" }
                 return value.formatted(.number.precision(.fractionLength(configuration.decimalPlaces)))
             },
             set: { text in
                 guard let value = Double(text) else { return }
-                updateTweak(tweak.id, .number(value))
+                updateValue(TinkerbleNumericInteraction.adjustedTextValue(value, configuration: configuration))
             }
         )
     }
+
+    private func handleKeyPress(
+        _ direction: TinkerbleNumericArrowDirection,
+        modifiers: EventModifiers
+    ) -> KeyPress.Result {
+        guard isFocused else { return .ignored }
+        updateValue(
+            TinkerbleNumericInteraction.adjustedValue(
+                from: value,
+                direction: direction,
+                modifiers: .init(modifiers),
+                configuration: configuration
+            )
+        )
+        return .handled
+    }
+}
+
+private struct ResizeLeftRightCursorModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+            .onHover { isHovering in
+                if isHovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+        #else
+        content
+        #endif
+    }
+}
+
+private extension TinkerbleNumericKeyboardModifiers {
+    init(_ modifiers: EventModifiers) {
+        var options: Self = []
+        if modifiers.contains(.shift) {
+            options.insert(.shift)
+        }
+        if modifiers.contains(.option) {
+            options.insert(.option)
+        }
+        self = options
+    }
+}
+
+#Preview("Plain Number Field") {
+    TinkerbleNumberFieldView(
+        value: 42,
+        configuration: .init(decimalPlaces: 0),
+        showsDragHandle: false,
+        updateValue: { _ in }
+    )
+    .padding()
+}
+
+#Preview("Ranged Number Field") {
+    TinkerbleNumberFieldView(
+        value: 0.65,
+        configuration: .init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2),
+        showsDragHandle: true,
+        updateValue: { _ in }
+    )
+    .padding()
 }

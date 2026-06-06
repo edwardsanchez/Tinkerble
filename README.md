@@ -218,7 +218,7 @@ private var subtitle = "Short copy"
 Integer controls expose integer-only APIs:
 
 ```swift
-@TinkerbleState(name: "Count", control: .stepper(step: 1))
+@TinkerbleState(name: "Count", control: TinkerbleControl<Int>.plain)
 private var count = 3
 
 @TinkerbleState(name: "Columns", control: .slider(1...6))

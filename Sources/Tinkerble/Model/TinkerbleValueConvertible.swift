@@ -5,6 +5,7 @@ import SwiftUI
 public protocol TinkerbleValueConvertible {
     static var tinkerbleValueKind: TinkerbleValueKind { get }
     static var tinkerbleEnumOptions: [TinkerbleEnumOption]? { get }
+    static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor { get }
 
     var tinkerbleValue: TinkerbleValue { get }
     static func fromTinkerbleValue(_ value: TinkerbleValue) -> Self?
@@ -12,6 +13,7 @@ public protocol TinkerbleValueConvertible {
 
 public extension TinkerbleValueConvertible {
     static var tinkerbleEnumOptions: [TinkerbleEnumOption]? { nil }
+    static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor { .automatic }
 }
 
 extension String: TinkerbleValueConvertible {
@@ -36,6 +38,10 @@ extension Bool: TinkerbleValueConvertible {
 
 extension Int: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
+        TinkerbleControl<Int>.plain.descriptor
+    }
+
     public var tinkerbleValue: TinkerbleValue { .number(Double(self)) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Int? {
@@ -46,6 +52,10 @@ extension Int: TinkerbleValueConvertible {
 
 extension Double: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
+        TinkerbleControl<Double>.plain.descriptor
+    }
+
     public var tinkerbleValue: TinkerbleValue { .number(self) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Double? {
@@ -56,6 +66,10 @@ extension Double: TinkerbleValueConvertible {
 
 extension Float: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
+        TinkerbleControl<Float>.plain.descriptor
+    }
+
     public var tinkerbleValue: TinkerbleValue { .number(Double(self)) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Float? {
@@ -66,6 +80,10 @@ extension Float: TinkerbleValueConvertible {
 
 extension CGFloat: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
+        TinkerbleControl<CGFloat>.plain.descriptor
+    }
+
     public var tinkerbleValue: TinkerbleValue { .number(Double(self)) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> CGFloat? {

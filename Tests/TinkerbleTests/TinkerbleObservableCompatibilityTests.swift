@@ -7,7 +7,7 @@ import Observation
 @Observable
 private final class ObservableDemoModel {
     @ObservationIgnored
-    @TinkerbleState(name: "Count", control: .stepper())
+    @TinkerbleState(name: "Count", control: TinkerbleControl<Int>.plain)
     var count = 1
 }
 #endif

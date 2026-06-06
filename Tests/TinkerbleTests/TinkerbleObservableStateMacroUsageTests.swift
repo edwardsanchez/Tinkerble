@@ -22,7 +22,7 @@ private final class ObservableMacroDemoModel {
     @TinkerbleObservableState(category: "Palette", name: "Accent Color")
     var accentColor = Color.blue
 
-    @TinkerbleObservableState(category: "Layout", name: "Card Count", control: .stepper(step: 1))
+    @TinkerbleObservableState(category: "Layout", name: "Card Count", control: TinkerbleControl<Int>.plain)
     var cardCount = 3
 
     @TinkerbleObservableState("Layout", name: "Opacity", control: .slider(0.0...1.0))
@@ -73,7 +73,7 @@ final class TinkerbleObservableStateMacroUsageTests: XCTestCase {
         XCTAssertEqual(registeredTweaks[0].value, .string("Demo"))
         XCTAssertEqual(registeredTweaks[1].value, .bool(true))
         XCTAssertEqual(registeredTweaks[2].valueKind, .color)
-        XCTAssertEqual(registeredTweaks[3].control, TinkerbleControl<Int>.stepper(step: 1).descriptor)
+        XCTAssertEqual(registeredTweaks[3].control, TinkerbleControl<Int>.plain.descriptor)
         XCTAssertEqual(registeredTweaks[4].control, TinkerbleControl<Double>.slider(0.0...1.0).descriptor)
         XCTAssertEqual(registeredTweaks[5].control, TinkerbleControl<Float>.slider(Float(0.0)...Float(1.0)).descriptor)
         XCTAssertEqual(registeredTweaks[6].control, TinkerbleControl<CGFloat>.slider(CGFloat(0)...CGFloat(24)).descriptor)

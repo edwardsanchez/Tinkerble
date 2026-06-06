@@ -11,7 +11,7 @@ private final class LifetimeObservableDemoModel {
     @TinkerbleObservableState(category: "Lifetime Observable", name: "Enabled")
     var isEnabled = true
 
-    @TinkerbleObservableState(category: "Lifetime Observable", name: "Count", control: .stepper(step: 1))
+    @TinkerbleObservableState(category: "Lifetime Observable", name: "Count", control: TinkerbleControl<Int>.plain)
     var count = 3
 }
 
@@ -58,7 +58,7 @@ private struct ScopedTinkerbleStateLifetimeView: View {
     @TinkerbleState(category: "Lifetime State", name: "Enabled")
     private var isEnabled = true
 
-    @TinkerbleState(category: "Lifetime State", name: "Count", control: .stepper(step: 1))
+    @TinkerbleState(category: "Lifetime State", name: "Count", control: TinkerbleControl<Int>.plain)
     private var count = 3
 
     var body: some View {
