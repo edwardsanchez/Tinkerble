@@ -272,7 +272,7 @@ private struct TweakRow: View {
 
 }
 
-private struct TinkerbleNumberFieldView: View {
+struct TinkerbleNumberFieldView: View {
     var value: Double
     var configuration: TinkerbleNumericControl
     var showsDragHandle: Bool
@@ -281,6 +281,7 @@ private struct TinkerbleNumberFieldView: View {
     @FocusState private var isFocused: Bool
     @State private var dragStartValue: Double?
     @State private var displayedValue: Double?
+    @State private var editingText: String?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -300,21 +301,22 @@ private struct TinkerbleNumberFieldView: View {
                 .focused($isFocused)
                 .frame(width: 96)
                 .multilineTextAlignment(.trailing)
+                .onSubmit {
+                    editingText = nil
+                }
                 .onKeyPress(.upArrow, phases: [.down, .repeat]) { keyPress in
                     handleKeyPress(.increment, modifiers: keyPress.modifiers)
                 }
                 .onKeyPress(.downArrow, phases: [.down, .repeat]) { keyPress in
                     handleKeyPress(.decrement, modifiers: keyPress.modifiers)
                 }
-
-//            if let angleUnit = configuration.angleUnit {
-//                Text(angleUnit.displayName)
-//                    .foregroundStyle(.secondary)
-//            }
         }
         .onChange(of: value) { _, newValue in
             guard dragStartValue == nil else { return }
             displayedValue = newValue
+        }
+        .onChange(of: isFocused) { _, isFocused in
+            editingText = isFocused ? textValue(for: currentValue) : nil
         }
     }
 
@@ -328,7 +330,8 @@ private struct TinkerbleNumberFieldView: View {
                         from: startValue,
                         horizontalTranslation: value.translation.width,
                         configuration: configuration
-                    )
+                    ),
+                    refreshEditingText: true
                 )
             }
             .onEnded { _ in
@@ -339,10 +342,14 @@ private struct TinkerbleNumberFieldView: View {
     private var numberTextBinding: Binding<String> {
         Binding(
             get: {
-                return currentValue.formatted(.number.precision(.fractionLength(configuration.decimalPlaces)))
+                if isFocused, let editingText {
+                    return editingText
+                }
+                return textValue(for: currentValue)
             },
             set: { text in
-                guard let value = Double(text) else { return }
+                editingText = text
+                guard let value = Self.number(from: text, configuration: configuration) else { return }
                 commitValue(TinkerbleNumericInteraction.adjustedTextValue(value, configuration: configuration))
             }
         )
@@ -363,14 +370,38 @@ private struct TinkerbleNumberFieldView: View {
                 direction: direction,
                 modifiers: .init(modifiers),
                 configuration: configuration
-            )
+            ),
+            refreshEditingText: true
         )
         return .handled
     }
 
-    private func commitValue(_ value: Double) {
+    private func commitValue(_ value: Double, refreshEditingText: Bool = false) {
         displayedValue = value
+        if refreshEditingText, isFocused {
+            editingText = textValue(for: value)
+        }
         updateValue(value)
+    }
+
+    private func textValue(for value: Double) -> String {
+        let number = value.formatted(.number.precision(.fractionLength(configuration.decimalPlaces)))
+        guard configuration.angleUnit == .degrees else { return number }
+        return "\(number)º"
+    }
+
+    static func number(from text: String, configuration: TinkerbleNumericControl) -> Double? {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedText: String
+        if configuration.angleUnit == .degrees {
+            normalizedText = trimmedText
+                .replacing("º", with: "")
+                .replacing("°", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            normalizedText = trimmedText
+        }
+        return Double(normalizedText)
     }
 }
 

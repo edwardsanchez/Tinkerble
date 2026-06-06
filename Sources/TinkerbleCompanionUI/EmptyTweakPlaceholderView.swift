@@ -13,6 +13,7 @@ struct EmptyTweakPlaceholderView: View {
                     .frame(width: TinkerbleCompanionEmptyStateLayout.imageWidth)
                     // The HUD keeps a hidden titlebar region; center the artwork in the full window.
                     .offset(y: -TinkerbleCompanionWindowLayout.titleBarHeight)
+                    .opacity(0.7)
             }
         }
         .frame(
