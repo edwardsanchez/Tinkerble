@@ -4,10 +4,13 @@ import XCTest
 final class TinkerbleCompanionEmptyStateTests: XCTestCase {
     func testWingsPDFIsImportedAsCompanionResource() throws {
         let resource = repoRoot.appending(path: "Sources/TinkerbleCompanion/Resources/wings.pdf")
+        let previewResource = repoRoot.appending(path: "Sources/TinkerbleCompanionUI/Resources/wings.pdf")
         let package = try readText("Package.swift")
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: resource.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: previewResource.path))
         XCTAssertEqual(resource.pathExtension, "pdf")
+        XCTAssertEqual(previewResource.pathExtension, "pdf")
         XCTAssertTrue(package.contains("resources: [.process(\"Resources\")]"))
     }
 
@@ -25,12 +28,12 @@ final class TinkerbleCompanionEmptyStateTests: XCTestCase {
     }
 
     func testCompanionEmptyStateUsesScalableCenteredImageInsteadOfText() throws {
-        let companionApp = try readText("Sources/TinkerbleCompanion/CompanionApp.swift")
-        let placeholderView = try readText("Sources/TinkerbleCompanion/EmptyTweakPlaceholderView.swift")
-        let resource = try readText("Sources/TinkerbleCompanion/TinkerbleCompanionEmptyStateResource.swift")
+        let tweakInspectorView = try readText("Sources/TinkerbleCompanionUI/TweakInspectorView.swift")
+        let placeholderView = try readText("Sources/TinkerbleCompanionUI/EmptyTweakPlaceholderView.swift")
+        let resource = try readText("Sources/TinkerbleCompanionUI/TinkerbleCompanionEmptyStateResource.swift")
 
-        XCTAssertTrue(companionApp.contains("EmptyTweakPlaceholderView()"))
-        XCTAssertFalse(companionApp.contains("Waiting for registered values"))
+        XCTAssertTrue(tweakInspectorView.contains("EmptyTweakPlaceholderView()"))
+        XCTAssertFalse(tweakInspectorView.contains("Waiting for registered values"))
         XCTAssertTrue(resource.contains("Bundle.main.url("))
         XCTAssertTrue(resource.contains("Bundle.module.url("))
         XCTAssertTrue(placeholderView.contains("NSImage(contentsOf: imageURL)"))

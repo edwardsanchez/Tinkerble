@@ -1,0 +1,98 @@
+import Foundation
+import Tinkerble
+
+public enum TinkerbleComponentPreviewFixture {
+    public static var tweaks: [TinkerbleTweak] {
+        [
+            TinkerbleTweak(
+                id: "Text/String Field",
+                category: "Text",
+                name: "String Field",
+                value: .string("Hello Tinkerble"),
+                valueKind: .string,
+                control: .text(.init(style: .field))
+            ),
+            TinkerbleTweak(
+                id: "Text/String Area",
+                category: "Text",
+                name: "String Area",
+                value: .string("A longer editable note that renders in the multiline text area control."),
+                valueKind: .string,
+                control: .text(.init(style: .area))
+            ),
+            TinkerbleTweak(
+                id: "Text/Automatic Text Field",
+                category: "Text",
+                name: "Automatic Text Field",
+                value: .string("Short copy"),
+                valueKind: .string,
+                control: .text(.init(style: .automatic))
+            ),
+            TinkerbleTweak(
+                id: "Text/Automatic Text Area",
+                category: "Text",
+                name: "Automatic Text Area",
+                value: .string("Automatic text controls switch to the larger editor when the value is long enough."),
+                valueKind: .string,
+                control: .text(.init(style: .automatic))
+            ),
+            TinkerbleTweak(
+                id: "Values/Bool Toggle",
+                category: "Values",
+                name: "Bool Toggle",
+                value: .bool(true),
+                valueKind: .bool,
+                control: .automatic
+            ),
+            TinkerbleTweak(
+                id: "Values/Color Picker",
+                category: "Values",
+                name: "Color Picker",
+                value: .color(.init(red: 0.96, green: 0.72, blue: 0.24)),
+                valueKind: .color,
+                control: .automatic
+            ),
+            TinkerbleTweak(
+                id: "Numbers/Number Field",
+                category: "Numbers",
+                name: "Number Field",
+                value: .number(42),
+                valueKind: .number,
+                control: .automatic
+            ),
+            TinkerbleTweak(
+                id: "Numbers/Number Stepper",
+                category: "Numbers",
+                name: "Number Stepper",
+                value: .number(8),
+                valueKind: .number,
+                control: .stepper(.init(minimum: 0, maximum: 20, step: 1, decimalPlaces: 0))
+            ),
+            TinkerbleTweak(
+                id: "Numbers/Number Slider",
+                category: "Numbers",
+                name: "Number Slider",
+                value: .number(0.65),
+                valueKind: .number,
+                control: .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2))
+            ),
+            TinkerbleTweak(
+                id: "Values/Enum Picker",
+                category: "Values",
+                name: "Enum Picker",
+                value: .enumCase("balanced"),
+                valueKind: .enumeration,
+                control: .automatic,
+                enumOptions: [
+                    .init(id: "compact", displayName: "Compact"),
+                    .init(id: "balanced", displayName: "Balanced"),
+                    .init(id: "expanded", displayName: "Expanded"),
+                ]
+            ),
+        ]
+    }
+
+    public static var groups: [TinkerbleTweakGroup] {
+        TinkerbleTweakGrouping.groupedTweaks(from: tweaks)
+    }
+}

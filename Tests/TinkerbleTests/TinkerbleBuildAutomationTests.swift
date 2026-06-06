@@ -8,6 +8,8 @@ final class TinkerbleBuildAutomationTests: XCTestCase {
 
         XCTAssertTrue(scheme.contains("Patch package checkouts"))
         XCTAssertTrue(scheme.contains("Scripts/patch-rsocket-checkouts.sh"))
+        XCTAssertTrue(scheme.contains("${ROOT_DIR}/.build/checkouts"))
+        XCTAssertFalse(scheme.contains("cd &quot;${BUILD_DIR}/../..&quot;"))
         XCTAssertFalse(scheme.contains("Scripts/ensure-macos-companion-running.sh"))
         XCTAssertTrue(scheme.contains("Tinkerble Demo.app"))
     }

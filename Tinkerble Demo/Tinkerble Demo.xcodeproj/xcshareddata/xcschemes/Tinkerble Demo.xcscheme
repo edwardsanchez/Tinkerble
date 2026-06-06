@@ -11,7 +11,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Patch package checkouts"
-               scriptText = "set -euo pipefail&#10;&#10;ROOT_DIR=&quot;$(cd &quot;${SOURCE_ROOT}/..&quot; &amp;&amp; pwd)&quot;&#10;CHECKOUT_ROOT=&quot;$(cd &quot;${BUILD_DIR}/../..&quot; &amp;&amp; pwd)/SourcePackages/checkouts&quot;&#10;&#10;&quot;${ROOT_DIR}/Scripts/patch-rsocket-checkouts.sh&quot; &quot;${CHECKOUT_ROOT}&quot;&#10;">
+               scriptText = "set -euo pipefail&#10;&#10;ROOT_DIR=&quot;$(cd &quot;${SOURCE_ROOT}/..&quot; &amp;&amp; pwd)&quot;&#10;&#10;&quot;${ROOT_DIR}/Scripts/patch-rsocket-checkouts.sh&quot; &quot;${ROOT_DIR}/.build/checkouts&quot;&#10;&#10;if [[ -n &quot;${BUILD_DIR:-}&quot; ]]; then&#10;  BUILD_PARENT=&quot;$(dirname &quot;${BUILD_DIR}&quot;)&quot;&#10;  if [[ -d &quot;${BUILD_PARENT}&quot; ]]; then&#10;    DERIVED_DATA_DIR=&quot;$(cd &quot;${BUILD_PARENT}/..&quot; &amp;&amp; pwd)&quot;&#10;    XCODE_CHECKOUT_ROOT=&quot;${DERIVED_DATA_DIR}/SourcePackages/checkouts&quot;&#10;    if [[ -d &quot;${XCODE_CHECKOUT_ROOT}&quot; ]]; then&#10;      &quot;${ROOT_DIR}/Scripts/patch-rsocket-checkouts.sh&quot; &quot;${XCODE_CHECKOUT_ROOT}&quot;&#10;    fi&#10;  fi&#10;fi&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"

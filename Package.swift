@@ -12,6 +12,7 @@ let package = Package(
     products: [
         .library(name: "Tinkerble", targets: ["Tinkerble"]),
         .library(name: "TinkerbleCompanionCore", targets: ["TinkerbleCompanionCore"]),
+        .library(name: "TinkerbleCompanionUI", targets: ["TinkerbleCompanionUI"]),
         .executable(name: "TinkerbleCompanion", targets: ["TinkerbleCompanion"]),
     ],
     dependencies: [
@@ -51,9 +52,20 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
             ]
         ),
+        .target(
+            name: "TinkerbleCompanionUI",
+            dependencies: [
+                "Tinkerble",
+                "TinkerbleCompanionCore",
+            ],
+            resources: [.process("Resources")]
+        ),
         .executableTarget(
             name: "TinkerbleCompanion",
-            dependencies: ["TinkerbleCompanionCore"],
+            dependencies: [
+                "TinkerbleCompanionCore",
+                "TinkerbleCompanionUI",
+            ],
             resources: [.process("Resources")]
         ),
         .testTarget(
@@ -61,6 +73,7 @@ let package = Package(
             dependencies: [
                 "Tinkerble",
                 "TinkerbleCompanionCore",
+                "TinkerbleCompanionUI",
             ]
         ),
         .testTarget(
