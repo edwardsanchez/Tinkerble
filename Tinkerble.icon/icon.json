@@ -95,13 +95,13 @@
       "blend-mode" : "screen",
       "layers" : [
         {
-          "image-name" : "Image.png",
-          "name" : "Image",
+          "image-name" : "sparkles.png",
+          "name" : "sparkles",
           "position" : {
             "scale" : 0.89,
             "translation-in-points" : [
               -10,
-              40
+              0
             ]
           }
         }
