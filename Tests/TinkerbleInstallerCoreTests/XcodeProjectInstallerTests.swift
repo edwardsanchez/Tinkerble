@@ -30,6 +30,11 @@ final class XcodeProjectInstallerTests: XCTestCase {
             4
         )
         XCTAssertEqual(project.count(of: "ENABLE_USER_SCRIPT_SANDBOXING = NO;"), 4)
+
+        let scheme = try readScheme(projectURL, name: "MainApp")
+        XCTAssertEqual(scheme.count(of: "Patch Tinkerble package checkouts"), 1)
+        XCTAssertEqual(scheme.count(of: "Scripts/patch-rsocket-checkouts.sh"), 3)
+        XCTAssertTrue(scheme.contains("SourcePackages/checkouts"))
     }
 
     func testInstallIsIdempotent() throws {
@@ -38,10 +43,13 @@ final class XcodeProjectInstallerTests: XCTestCase {
 
         _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let once = try readProject(projectURL)
+        let schemeOnce = try readScheme(projectURL, name: "MainApp")
         _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let twice = try readProject(projectURL)
+        let schemeTwice = try readScheme(projectURL, name: "MainApp")
 
         XCTAssertEqual(twice, once)
+        XCTAssertEqual(schemeTwice, schemeOnce)
     }
 
     func testDryRunDoesNotWriteProject() throws {
@@ -70,12 +78,26 @@ final class XcodeProjectInstallerTests: XCTestCase {
             .appending(path: "TinkerbleInstallerTests-\(UUID().uuidString)")
         let projectURL = root.appending(path: "Fixture.xcodeproj")
         try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        try FileManager.default.createDirectory(at: schemeDirectory, withIntermediateDirectories: true)
         try fixtureProject.write(to: projectURL.appending(path: "project.pbxproj"), atomically: true, encoding: .utf8)
+        try fixtureScheme.write(
+            to: schemeDirectory.appending(path: "MainApp.xcscheme"),
+            atomically: true,
+            encoding: .utf8
+        )
         return projectURL
     }
 
     private func readProject(_ projectURL: URL) throws -> String {
         try String(contentsOf: projectURL.appending(path: "project.pbxproj"), encoding: .utf8)
+    }
+
+    private func readScheme(_ projectURL: URL, name: String) throws -> String {
+        try String(
+            contentsOf: projectURL.appending(path: "xcshareddata/xcschemes/\(name).xcscheme"),
+            encoding: .utf8
+        )
     }
 }
 
@@ -253,4 +275,73 @@ private let fixtureProject = #"""
 	};
 	rootObject = 000000000000000000000050 /* Project object */;
 }
+"""#
+
+private let fixtureScheme = #"""
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "2600"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "000000000000000000000030"
+               BuildableName = "MainApp.app"
+               BlueprintName = "MainApp"
+               ReferencedContainer = "container:Fixture.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "000000000000000000000030"
+            BuildableName = "MainApp.app"
+            BlueprintName = "MainApp"
+            ReferencedContainer = "container:Fixture.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
+</Scheme>
 """#

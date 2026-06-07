@@ -12,10 +12,10 @@
     {
       "identity" : "rsocket-swift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/rsocket/rsocket-swift.git",
+      "location" : "https://github.com/edwardsanchez/rsocket-swift.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "0007072f57de474a9b4e95413d530329edb439a8"
+        "branch" : "tinkerble-xcode26-main",
+        "revision" : "42c23fdcce056dfa36af66c8259df8fcba1c130e"
       }
     },
     {

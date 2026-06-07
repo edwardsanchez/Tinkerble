@@ -16,7 +16,7 @@ let package = Package(
         .executable(name: "tinkerble", targets: ["TinkerbleCLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/rsocket/rsocket-swift.git", branch: "main"),
+        .package(url: "https://github.com/edwardsanchez/rsocket-swift.git", branch: "tinkerble-xcode26-main"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.32.1"),
         .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.8.0"),
     ],

@@ -27,6 +27,7 @@ public final class XcodeProjectInstaller {
         var text = try readProject()
         var editor = ProjectText(text)
         var changes: [String] = []
+        var installedTargets: [NativeTarget] = []
 
         let packageID = try editor.ensureRemotePackageReference(changes: &changes)
         let productID = try editor.ensurePackageProductDependency(packageID: packageID, changes: &changes)
@@ -34,11 +35,15 @@ public final class XcodeProjectInstaller {
 
         for targetName in targetNames {
             try editor.ensureInstall(targetName: targetName, productID: productID, buildFileID: buildFileID, changes: &changes)
+            if let target = editor.nativeTarget(named: targetName) {
+                installedTargets.append(target)
+            }
         }
 
         text = editor.text
         if !dryRun {
             try text.write(to: projectFileURL, atomically: true, encoding: .utf8)
+            try ensureSchemePreActions(targets: installedTargets, changes: &changes)
         }
 
         return TinkerbleInstallResult(
@@ -51,6 +56,129 @@ public final class XcodeProjectInstaller {
 
     private func readProject() throws -> String {
         try String(contentsOf: projectFileURL, encoding: .utf8)
+    }
+
+    private func ensureSchemePreActions(targets: [NativeTarget], changes: inout [String]) throws {
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
+            return
+        }
+
+        let targetIDs = Set(targets.map(\.id))
+        let schemeURLs = try FileManager.default.contentsOfDirectory(
+            at: schemeDirectory,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.pathExtension == "xcscheme" }
+
+        for schemeURL in schemeURLs {
+            var scheme = try String(contentsOf: schemeURL, encoding: .utf8)
+            guard targetIDs.contains(where: { scheme.contains("BlueprintIdentifier = \"\($0)\"") }) else {
+                continue
+            }
+
+            let updated = SchemeText(text: scheme).ensuringTinkerblePatchPreAction()
+            guard updated != scheme else {
+                continue
+            }
+
+            scheme = updated
+            try scheme.write(to: schemeURL, atomically: true, encoding: .utf8)
+            changes.append("Added Tinkerble package patch pre-action to \(schemeURL.deletingPathExtension().lastPathComponent).")
+        }
+    }
+}
+
+struct SchemeText {
+    var text: String
+
+    func ensuringTinkerblePatchPreAction() -> String {
+        if text.contains(TinkerbleInstallerConstants.schemePreActionTitle) {
+            return replacingExistingPreAction()
+        }
+
+        guard let buildActionOpenEnd = text.range(of: "<BuildAction")?.lowerBound,
+              let openTagEnd = text[buildActionOpenEnd...].firstIndex(of: ">") else {
+            return text
+        }
+
+        let insertionIndex = text.index(after: openTagEnd)
+        var updated = text
+        updated.insert(contentsOf: "\n\(preActionsBlock)", at: insertionIndex)
+        return updated
+    }
+
+    private func replacingExistingPreAction() -> String {
+        guard let executionRange = tinkerbleExecutionActionRange else {
+            return text
+        }
+
+        var updated = text
+        updated.replaceSubrange(executionRange, with: executionActionBlock)
+        return updated
+    }
+
+    private var tinkerbleExecutionActionRange: Range<String.Index>? {
+        guard let titleRange = text.range(of: "title = \"\(TinkerbleInstallerConstants.schemePreActionTitle.xmlEscaped)\""),
+              let start = text[..<titleRange.lowerBound].range(of: "         <ExecutionAction", options: .backwards)?.lowerBound,
+              let end = text[titleRange.upperBound...].range(of: "         </ExecutionAction>")?.upperBound else {
+            return nil
+        }
+
+        return start..<end
+    }
+
+    private var preActionsBlock: String {
+        """
+      <PreActions>
+\(executionActionBlock)
+      </PreActions>
+"""
+    }
+
+    private var executionActionBlock: String {
+        """
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "\(TinkerbleInstallerConstants.schemePreActionTitle.xmlEscaped)"
+               scriptText = "\(schemePreActionScript.xmlEscaped)">
+            </ActionContent>
+         </ExecutionAction>
+"""
+    }
+
+    private var schemePreActionScript: String {
+        #"""
+set -euo pipefail
+
+CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
+if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
+  DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
+  CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
+fi
+
+PACKAGE_DIR="${TINKERBLE_PACKAGE_DIR:-}"
+if [[ -z "${PACKAGE_DIR}" && -n "${CHECKOUT_ROOT}" ]]; then
+  for candidate in "${CHECKOUT_ROOT}/Tinkerble" "${CHECKOUT_ROOT}/tinkerble" "${CHECKOUT_ROOT}/Tinker"; do
+    if [[ -x "${candidate}/Scripts/patch-rsocket-checkouts.sh" ]]; then
+      PACKAGE_DIR="${candidate}"
+      break
+    fi
+  done
+fi
+
+if [[ -z "${PACKAGE_DIR}" ]]; then
+  echo "Skipping Tinkerble package patch; package checkout not found yet."
+  exit 0
+fi
+
+if [[ -n "${CHECKOUT_ROOT}" ]]; then
+  "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh" "${CHECKOUT_ROOT}"
+else
+  "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh"
+fi
+"""#
     }
 }
 
@@ -374,7 +502,7 @@ fi
         objects(section: "PBXProject").first { $0.block.contains("isa = PBXProject;") }
     }
 
-    private func nativeTarget(named name: String) -> NativeTarget? {
+    func nativeTarget(named name: String) -> NativeTarget? {
         nativeTargets.first { $0.name == name }
     }
 
@@ -595,5 +723,14 @@ private extension String {
             value.removeLast()
         }
         return value
+    }
+
+    var xmlEscaped: String {
+        replacing("&", with: "&amp;")
+            .replacing("\"", with: "&quot;")
+            .replacing("'", with: "&apos;")
+            .replacing("<", with: "&lt;")
+            .replacing(">", with: "&gt;")
+            .replacing("\n", with: "&#10;")
     }
 }

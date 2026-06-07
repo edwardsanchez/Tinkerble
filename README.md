@@ -81,12 +81,11 @@ The demo app connects to `127.0.0.1:7777`, which works for iOS Simulator. For a 
 
 ## Upstream RSocket Note
 
-Tinkerble depends on `https://github.com/rsocket/rsocket-swift.git`. The current upstream checkout is alpha and needs two local workarounds with Xcode 26.5 on this machine:
+Tinkerble depends on `https://github.com/edwardsanchez/rsocket-swift.git` branch `tinkerble-xcode26-main`, a minimal fork of upstream RSocket with the stale `RequestExamples.swift` helper source disabled. The current upstream dependency stack still needs one checkout workaround with Xcode 26.5 on this machine:
 
 - SwiftNIO's Darwin shim hits an SDK visibility issue around `errx`.
-- RSocket's `RequestExamples.swift` helper file no longer compiles under the current compiler.
 
-`Scripts/patch-rsocket-checkouts.sh` applies those checkout-only fixes after package resolution. The Tinkerble source does not vendor or rewrite RSocket.
+`Scripts/patch-rsocket-checkouts.sh` applies that checkout-only fix after package resolution. The Tinkerble source does not vendor RSocket.
 
 When building the demo project from the command line, pass the patched checkout directory:
 
