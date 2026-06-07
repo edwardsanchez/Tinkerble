@@ -33,7 +33,18 @@ public struct TinkerbleInstallCoordinator {
             selectedTargets = options.targetNames
         }
 
-        let result = try project.install(targetNames: selectedTargets, dryRun: options.isDryRun)
+        let selectedSchemes: [String]
+        if options.schemeNames.isEmpty {
+            selectedSchemes = try promptForDebugSchemes(try project.debugSchemeNames(targetNames: selectedTargets))
+        } else {
+            selectedSchemes = options.schemeNames
+        }
+
+        let result = try project.install(
+            targetNames: selectedTargets,
+            schemeNames: selectedSchemes,
+            dryRun: options.isDryRun
+        )
         if options.isDryRun {
             standardOutput("Dry run: no files changed.")
         }
@@ -140,6 +151,35 @@ public struct TinkerbleInstallCoordinator {
         }
 
         return try MultiSelectionParser.parse(answer, choices: targets)
+    }
+
+    private func promptForDebugSchemes(_ schemes: [String]) throws -> [String] {
+        if schemes.isEmpty {
+            standardOutput("No Debug schemes found for the selected targets.")
+            return []
+        }
+
+        if schemes.count == 1 {
+            return schemes
+        }
+
+        standardOutput("Select Debug schemes for Tinkerble package patch pre-action:")
+        for (offset, scheme) in schemes.enumerated() {
+            standardOutput("\(offset + 1). \(scheme)")
+        }
+        standardOutput("Enter scheme numbers, for example 1,3-4. Leave blank to skip:")
+
+        guard let answer = standardInput() else {
+            throw TinkerbleInstallError.invalidArguments(
+                "Pass --scheme with one or more Debug schemes: \(schemes.joined(separator: ", "))."
+            )
+        }
+
+        if answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return []
+        }
+
+        return try MultiSelectionParser.parse(answer, choices: schemes)
     }
 }
 

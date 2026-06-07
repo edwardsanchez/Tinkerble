@@ -83,6 +83,8 @@ final class TinkerbleBuildAutomationTests: XCTestCase {
         XCTAssertLessThan(installHeading.lowerBound, quickStartHeading.lowerBound)
         XCTAssertTrue(readme.contains("curl -fsSL https://raw.githubusercontent.com/edwardsanchez/Tinkerble/main/install.sh | sh"))
         XCTAssertTrue(readme.contains("https://github.com/edwardsanchez/Tinkerble.git"))
+        XCTAssertTrue(readme.contains("--scheme \"MyApp Debug\""))
+        XCTAssertTrue(readme.contains("Release and TestFlight-style schemes are not offered"))
         XCTAssertFalse(readme.localizedCaseInsensitiveContains("homebrew"))
         XCTAssertFalse(readme.localizedCaseInsensitiveContains("brew install"))
     }

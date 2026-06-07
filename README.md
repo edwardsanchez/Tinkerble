@@ -38,9 +38,14 @@ tinkerble install
 The installer adds the Tinkerble Swift package, links the `Tinkerble` product to
 your selected app target, adds the local-network plist setup, and adds a
 Debug-only build phase that launches the macOS companion from the resolved
-package checkout. Xcode still owns normal package updates after installation:
-update Tinkerble through Xcode's package UI and the build phase will continue to
-use the scripts from the resolved package version.
+package checkout. If more than one Debug scheme builds the selected target, the
+installer asks which Debug schemes should get Tinkerble's package-patch
+pre-action. Release and TestFlight-style schemes are not offered for that
+pre-action.
+
+Xcode still owns normal package updates after installation: update Tinkerble
+through Xcode's package UI and the build phase will continue to use the scripts
+from the resolved package version.
 
 Use explicit flags when scripting the install or working in a repo with multiple
 projects or app targets:
@@ -48,8 +53,12 @@ projects or app targets:
 ```sh
 tinkerble install --project MyApp.xcodeproj --target MyApp
 tinkerble install --project MyApp.xcodeproj --target MyApp --target DemoApp
+tinkerble install --project MyApp.xcodeproj --target MyApp --scheme "MyApp Debug"
 tinkerble install --project MyApp.xcodeproj --target MyApp --dry-run
 ```
+
+Repeat `--scheme` to install the package-patch pre-action into multiple Debug
+schemes.
 
 ## Quick Start For This Package
 

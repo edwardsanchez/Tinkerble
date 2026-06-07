@@ -7,12 +7,14 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
         XCTAssertEqual(try installer.appTargetNames, ["AdminApp", "MainApp"])
+        XCTAssertEqual(try installer.debugSchemeNames(targetNames: ["MainApp", "AdminApp"]), ["MainApp"])
 
-        let result = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
+        let result = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: ["MainApp"], dryRun: false)
         let project = try readProject(projectURL)
 
         XCTAssertFalse(result.isDryRun)
         XCTAssertEqual(result.targetNames, ["MainApp", "AdminApp"])
+        XCTAssertEqual(result.schemeNames, ["MainApp"])
         XCTAssertTrue(project.contains("repositoryURL = \"https://github.com/edwardsanchez/Tinkerble.git\";"))
         XCTAssertEqual(project.count(of: "repositoryURL = \"https://github.com/edwardsanchez/Tinkerble.git\";"), 1)
         XCTAssertEqual(project.count(of: "productName = Tinkerble;"), 1)
@@ -41,10 +43,10 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
+        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: ["MainApp"], dryRun: false)
         let once = try readProject(projectURL)
         let schemeOnce = try readScheme(projectURL, name: "MainApp")
-        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
+        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: ["MainApp"], dryRun: false)
         let twice = try readProject(projectURL)
         let schemeTwice = try readScheme(projectURL, name: "MainApp")
 
@@ -57,19 +59,34 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let before = try readProject(projectURL)
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        let result = try installer.install(targetNames: ["MainApp"], dryRun: true)
+        let result = try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp"], dryRun: true)
         let after = try readProject(projectURL)
+        let scheme = try readScheme(projectURL, name: "MainApp")
 
         XCTAssertTrue(result.isDryRun)
         XCTAssertEqual(after, before)
+        XCTAssertFalse(scheme.contains("Patch Tinkerble package checkouts"))
     }
 
     func testThrowsForMissingTarget() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        XCTAssertThrowsError(try installer.install(targetNames: ["Missing"], dryRun: false)) { error in
+        XCTAssertThrowsError(try installer.install(targetNames: ["Missing"], schemeNames: [], dryRun: false)) { error in
             XCTAssertEqual(error as? TinkerbleInstallError, .targetNotFound("Missing"))
+        }
+    }
+
+    func testThrowsForReleaseSchemeSelection() throws {
+        let projectURL = try makeFixtureProject()
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        XCTAssertEqual(try installer.debugSchemeNames(targetNames: ["MainApp"]), ["MainApp"])
+        XCTAssertThrowsError(try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp Release"], dryRun: false)) { error in
+            XCTAssertEqual(
+                error as? TinkerbleInstallError,
+                .invalidArguments("Scheme MainApp Release is not a Debug scheme.")
+            )
         }
     }
 
@@ -83,6 +100,11 @@ final class XcodeProjectInstallerTests: XCTestCase {
         try fixtureProject.write(to: projectURL.appending(path: "project.pbxproj"), atomically: true, encoding: .utf8)
         try fixtureScheme.write(
             to: schemeDirectory.appending(path: "MainApp.xcscheme"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try releaseFixtureScheme.write(
+            to: schemeDirectory.appending(path: "MainApp Release.xcscheme"),
             atomically: true,
             encoding: .utf8
         )
@@ -338,6 +360,75 @@ private let fixtureScheme = #"""
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
+</Scheme>
+"""#
+
+private let releaseFixtureScheme = #"""
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "2600"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "000000000000000000000030"
+               BuildableName = "MainApp.app"
+               BlueprintName = "MainApp"
+               ReferencedContainer = "container:Fixture.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "000000000000000000000030"
+            BuildableName = "MainApp.app"
+            BlueprintName = "MainApp"
+            ReferencedContainer = "container:Fixture.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Release">
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"

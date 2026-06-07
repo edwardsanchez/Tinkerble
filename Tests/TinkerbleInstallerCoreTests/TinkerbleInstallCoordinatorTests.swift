@@ -26,6 +26,52 @@ final class TinkerbleInstallCoordinatorTests: XCTestCase {
         let project = try String(contentsOf: projectURL.appending(path: "project.pbxproj"), encoding: .utf8)
         XCTAssertTrue(project.contains("https://github.com/edwardsanchez/Tinkerble.git"))
     }
+
+    func testInteractiveInstallPromptsForDebugSchemesAndInstallsOnlySelectedScheme() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "TinkerbleCoordinatorTests-\(UUID().uuidString)")
+        let projectURL = root.appending(path: "Fixture.xcodeproj")
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        try FileManager.default.createDirectory(at: schemeDirectory, withIntermediateDirectories: true)
+        try coordinatorFixtureProject.write(to: projectURL.appending(path: "project.pbxproj"), atomically: true, encoding: .utf8)
+        try coordinatorDebugScheme(name: "MainApp Debug").write(
+            to: schemeDirectory.appending(path: "MainApp Debug.xcscheme"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try coordinatorDebugScheme(name: "MainApp Dev").write(
+            to: schemeDirectory.appending(path: "MainApp Dev.xcscheme"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        var output: [String] = []
+        let coordinator = TinkerbleInstallCoordinator(
+            currentDirectory: root,
+            standardInput: { "2" },
+            standardOutput: { output.append($0) }
+        )
+
+        let result = try coordinator.install(
+            options: InstallCommandOptions(projectPath: "Fixture.xcodeproj", targetNames: ["MainApp"])
+        )
+
+        XCTAssertEqual(result.schemeNames, ["MainApp Dev"])
+        XCTAssertTrue(output.contains("Select Debug schemes for Tinkerble package patch pre-action:"))
+        XCTAssertTrue(output.contains("1. MainApp Debug"))
+        XCTAssertTrue(output.contains("2. MainApp Dev"))
+
+        let debugScheme = try String(
+            contentsOf: schemeDirectory.appending(path: "MainApp Debug.xcscheme"),
+            encoding: .utf8
+        )
+        let devScheme = try String(
+            contentsOf: schemeDirectory.appending(path: "MainApp Dev.xcscheme"),
+            encoding: .utf8
+        )
+        XCTAssertFalse(debugScheme.contains("Patch Tinkerble package checkouts"))
+        XCTAssertTrue(devScheme.contains("Patch Tinkerble package checkouts"))
+    }
 }
 
 private let workspaceContents = #"""
@@ -141,3 +187,74 @@ private let coordinatorFixtureProject = #"""
 	rootObject = 100000000000000000000050 /* Project object */;
 }
 """#
+
+private func coordinatorDebugScheme(name: String) -> String {
+    #"""
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "2600"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "100000000000000000000030"
+               BuildableName = "MainApp.app"
+               BlueprintName = "MainApp"
+               ReferencedContainer = "container:Fixture.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "100000000000000000000030"
+            BuildableName = "MainApp.app"
+            BlueprintName = "MainApp"
+            ReferencedContainer = "container:Fixture.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
+</Scheme>
+"""#
+}

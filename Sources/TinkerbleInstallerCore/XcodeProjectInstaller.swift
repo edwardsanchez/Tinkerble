@@ -23,7 +23,31 @@ public final class XcodeProjectInstaller {
         }
     }
 
-    public func install(targetNames: [String], dryRun: Bool) throws -> TinkerbleInstallResult {
+    public func debugSchemeNames(targetNames: [String]) throws -> [String] {
+        let text = try readProject()
+        let editor = ProjectText(text)
+        let targetIDs = try Set(targetNames.map { targetName in
+            guard let target = editor.nativeTarget(named: targetName) else {
+                throw TinkerbleInstallError.targetNotFound(targetName)
+            }
+            return target.id
+        })
+
+        return try schemeURLs()
+            .compactMap { schemeURL -> String? in
+                let schemeName = schemeURL.deletingPathExtension().lastPathComponent
+                let scheme = try String(contentsOf: schemeURL, encoding: .utf8)
+                guard targetIDs.contains(where: { scheme.contains("BlueprintIdentifier = \"\($0)\"") }),
+                      SchemeText(text: scheme).isDebugScheme(named: schemeName) else {
+                    return nil
+                }
+
+                return schemeName
+            }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    public func install(targetNames: [String], schemeNames: [String], dryRun: Bool) throws -> TinkerbleInstallResult {
         var text = try readProject()
         var editor = ProjectText(text)
         var changes: [String] = []
@@ -43,12 +67,13 @@ public final class XcodeProjectInstaller {
         text = editor.text
         if !dryRun {
             try text.write(to: projectFileURL, atomically: true, encoding: .utf8)
-            try ensureSchemePreActions(targets: installedTargets, changes: &changes)
         }
+        try ensureSchemePreActions(targets: installedTargets, schemeNames: schemeNames, dryRun: dryRun, changes: &changes)
 
         return TinkerbleInstallResult(
             projectPath: projectURL.path,
             targetNames: targetNames,
+            schemeNames: schemeNames,
             changes: changes.isEmpty ? ["Tinkerble already installed."] : changes,
             isDryRun: dryRun
         )
@@ -58,23 +83,37 @@ public final class XcodeProjectInstaller {
         try String(contentsOf: projectFileURL, encoding: .utf8)
     }
 
-    private func ensureSchemePreActions(targets: [NativeTarget], changes: inout [String]) throws {
+    private func ensureSchemePreActions(
+        targets: [NativeTarget],
+        schemeNames: [String],
+        dryRun: Bool,
+        changes: inout [String]
+    ) throws {
+        guard !schemeNames.isEmpty else {
+            return
+        }
+
         let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
         guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
             return
         }
 
         let targetIDs = Set(targets.map(\.id))
-        let schemeURLs = try FileManager.default.contentsOfDirectory(
-            at: schemeDirectory,
-            includingPropertiesForKeys: nil
-        )
-        .filter { $0.pathExtension == "xcscheme" }
+        let schemesByName = Dictionary(uniqueKeysWithValues: try schemeURLs().map {
+            ($0.deletingPathExtension().lastPathComponent, $0)
+        })
 
-        for schemeURL in schemeURLs {
+        for schemeName in schemeNames {
+            guard let schemeURL = schemesByName[schemeName] else {
+                throw TinkerbleInstallError.invalidArguments("Scheme not found: \(schemeName)")
+            }
+
             var scheme = try String(contentsOf: schemeURL, encoding: .utf8)
             guard targetIDs.contains(where: { scheme.contains("BlueprintIdentifier = \"\($0)\"") }) else {
-                continue
+                throw TinkerbleInstallError.invalidArguments("Scheme \(schemeName) does not build the selected target.")
+            }
+            guard SchemeText(text: scheme).isDebugScheme(named: schemeName) else {
+                throw TinkerbleInstallError.invalidArguments("Scheme \(schemeName) is not a Debug scheme.")
             }
 
             let updated = SchemeText(text: scheme).ensuringTinkerblePatchPreAction()
@@ -83,14 +122,38 @@ public final class XcodeProjectInstaller {
             }
 
             scheme = updated
-            try scheme.write(to: schemeURL, atomically: true, encoding: .utf8)
+            if !dryRun {
+                try scheme.write(to: schemeURL, atomically: true, encoding: .utf8)
+            }
             changes.append("Added Tinkerble package patch pre-action to \(schemeURL.deletingPathExtension().lastPathComponent).")
         }
+    }
+
+    private func schemeURLs() throws -> [URL] {
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
+            return []
+        }
+
+        return try FileManager.default.contentsOfDirectory(
+            at: schemeDirectory,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.pathExtension == "xcscheme" }
+        .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 }
 
 struct SchemeText {
     var text: String
+
+    func isDebugScheme(named schemeName: String) -> Bool {
+        !schemeName.isReleaseStyleSchemeName
+            && (
+                actionBuildConfiguration(named: "LaunchAction") == "Debug"
+                    || actionBuildConfiguration(named: "TestAction") == "Debug"
+            )
+    }
 
     func ensuringTinkerblePatchPreAction() -> String {
         if text.contains(TinkerbleInstallerConstants.schemePreActionTitle) {
@@ -126,6 +189,25 @@ struct SchemeText {
         }
 
         return start..<end
+    }
+
+    private func actionBuildConfiguration(named actionName: String) -> String? {
+        guard let actionStart = text.range(of: "<\(actionName)")?.lowerBound,
+              let actionEnd = text[actionStart...].range(of: "</\(actionName)>")?.upperBound else {
+            return nil
+        }
+
+        let block = text[actionStart..<actionEnd]
+        guard let keyRange = block.range(of: "buildConfiguration = \"") else {
+            return nil
+        }
+
+        let valueStart = keyRange.upperBound
+        guard let valueEnd = block[valueStart...].firstIndex(of: "\"") else {
+            return nil
+        }
+
+        return String(block[valueStart..<valueEnd])
     }
 
     private var preActionsBlock: String {
@@ -179,6 +261,22 @@ else
   "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh"
 fi
 """#
+    }
+}
+
+private extension String {
+    var isReleaseStyleSchemeName: Bool {
+        let normalized = lowercased()
+            .replacing("-", with: " ")
+            .replacing("_", with: " ")
+        let terms = normalized.split { !$0.isLetter && !$0.isNumber }
+
+        return terms.contains("release")
+            || terms.contains("testflight")
+            || terms.contains("archive")
+            || terms.contains("production")
+            || normalized.contains("app store")
+            || normalized.contains("appstore")
     }
 }
 
