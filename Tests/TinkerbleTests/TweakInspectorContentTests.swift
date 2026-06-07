@@ -44,10 +44,39 @@ final class TweakInspectorContentTests: XCTestCase {
         let source = try readText("Sources/TinkerbleCompanionUI/TweakInspectorView.swift")
 
         XCTAssertTrue(source.contains("case .date:\n            dateControl"))
-        XCTAssertTrue(source.contains("DatePicker(\"\", selection: dateBinding, displayedComponents: displayedDatePickerComponents)"))
-        XCTAssertTrue(source.contains("case .dateAndTime:\n            return [.date, .hourAndMinute]"))
+        XCTAssertTrue(source.contains("TinkerbleDatePickerView(selection: dateBinding, components: dateControlComponents)"))
+        XCTAssertTrue(source.contains("return .dateAndTime"))
         XCTAssertTrue(source.contains("return \"\\(number)º\""))
         XCTAssertFalse(source.contains("Text(angleUnit.displayName)"))
+    }
+
+    func testDatePickerConfiguresAppKitElementsAndCalendarOverlay() {
+        #if os(macOS)
+        XCTAssertEqual(
+            TinkerbleDatePickerView.appKitConfiguration(for: .date),
+            TinkerbleDatePickerAppKitConfiguration(
+                elements: .yearMonthDay,
+                presentsCalendarOverlay: true,
+                appearance: NSAppearance(named: .darkAqua)
+            )
+        )
+        XCTAssertEqual(
+            TinkerbleDatePickerView.appKitConfiguration(for: .dateAndTime),
+            TinkerbleDatePickerAppKitConfiguration(
+                elements: [.yearMonthDay, .hourMinute],
+                presentsCalendarOverlay: true,
+                appearance: NSAppearance(named: .darkAqua)
+            )
+        )
+        XCTAssertEqual(
+            TinkerbleDatePickerView.appKitConfiguration(for: .time),
+            TinkerbleDatePickerAppKitConfiguration(
+                elements: .hourMinute,
+                presentsCalendarOverlay: false,
+                appearance: NSAppearance(named: .darkAqua)
+            )
+        )
+        #endif
     }
 
     func testDegreeFieldParserAcceptsValuesWithAndWithoutDegreeSymbols() {

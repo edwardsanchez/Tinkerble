@@ -87,7 +87,8 @@ final class TinkerbleComponentPreviewFixtureTests: XCTestCase {
         let previewPage = projectRoot.appending(path: "Sources/TinkerbleCompanionUI/TinkerbleComponentPreviewPageView.swift")
         let source = try String(contentsOf: previewPage, encoding: .utf8)
 
-        XCTAssertTrue(source.contains("private struct TinkerbleComponentPreviewPageView: View"))
+        XCTAssertTrue(source.contains("public struct TinkerbleComponentPreviewPageView: View"))
+        XCTAssertTrue(source.contains("public init() {}"))
         XCTAssertTrue(source.contains("ScrollView {\n            VStack(alignment: .leading, spacing: 0)"))
         XCTAssertTrue(source.contains("#Preview(\"All Tinkerble Components\")"))
     }

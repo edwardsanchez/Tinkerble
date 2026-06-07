@@ -10,19 +10,28 @@ struct TinkerbleCompanionApp: App {
     @NSApplicationDelegateAdaptor(CompanionAppDelegate.self) private var appDelegate
     @State private var store: TinkerbleCompanionStore
     @State private var windowLevel = HudWindowLevelState()
+    private let launchMode: CompanionLaunchMode
 
     init() {
         let store = TinkerbleCompanionStore()
         _store = State(wrappedValue: store)
-        store.start()
+        launchMode = CompanionLaunchMode(arguments: ProcessInfo.processInfo.arguments)
+        if launchMode == .companion {
+            store.start()
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            CompanionRootView(
-                store: store,
-                keepsWindowOnTop: windowLevel.keepsWindowOnTop
-            )
+            switch launchMode {
+            case .companion:
+                CompanionRootView(
+                    store: store,
+                    keepsWindowOnTop: windowLevel.keepsWindowOnTop
+                )
+            case .allComponents:
+                TinkerbleComponentPreviewPageView()
+            }
         }
         .defaultSize(
             width: TinkerbleCompanionWindowLayout.width,
@@ -45,6 +54,15 @@ struct TinkerbleCompanionApp: App {
     }
 }
 
+private enum CompanionLaunchMode: Equatable {
+    case companion
+    case allComponents
+
+    init(arguments: [String]) {
+        self = arguments.contains("--all-components") ? .allComponents : .companion
+    }
+}
+
 @Observable
 @MainActor
 private final class HudWindowLevelState {
@@ -52,6 +70,10 @@ private final class HudWindowLevelState {
 }
 
 private final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)

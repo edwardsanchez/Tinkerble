@@ -2,10 +2,12 @@ import SwiftUI
 import Tinkerble
 import TinkerbleCompanionCore
 
-private struct TinkerbleComponentPreviewPageView: View {
+public struct TinkerbleComponentPreviewPageView: View {
     @State private var tweaks = TinkerbleComponentPreviewFixture.tweaks
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 TweakInspectorContent(

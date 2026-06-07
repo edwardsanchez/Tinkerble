@@ -38,6 +38,10 @@ final class TinkerbleCompanionMenuPolicyTests: XCTestCase {
     func testCompanionAppAppliesMenuPolicyAndReplacesDefaultCommandGroups() throws {
         let source = try readText("Sources/TinkerbleCompanion/CompanionApp.swift")
 
+        XCTAssertTrue(source.contains("CompanionLaunchMode(arguments: ProcessInfo.processInfo.arguments)"))
+        XCTAssertTrue(source.contains("arguments.contains(\"--all-components\")"))
+        XCTAssertTrue(source.contains("TinkerbleComponentPreviewPageView()"))
+        XCTAssertTrue(source.contains("NSApp.appearance = NSAppearance(named: .darkAqua)"))
         XCTAssertTrue(source.contains("TinkerbleCompanionMenuPolicy.apply(to: NSApp.mainMenu)"))
         XCTAssertTrue(source.contains("CommandGroup(replacing: .newItem) {}"))
         XCTAssertTrue(source.contains("CommandGroup(replacing: .undoRedo) {}"))

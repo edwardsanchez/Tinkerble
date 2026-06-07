@@ -130,6 +130,7 @@ private struct TweakRow: View {
         case .field, .automatic:
             TextField("", text: stringBinding)
                 .textFieldStyle(.roundedBorder)
+                .monospacedDigit()
         }
     }
 
@@ -172,24 +173,14 @@ private struct TweakRow: View {
 
     @ViewBuilder
     private var dateControl: some View {
-        DatePicker("", selection: dateBinding, displayedComponents: displayedDatePickerComponents)
-            .labelsHidden()
-            .datePickerStyle(.compact)
+        TinkerbleDatePickerView(selection: dateBinding, components: dateControlComponents)
     }
 
-    private var displayedDatePickerComponents: DatePickerComponents {
+    private var dateControlComponents: TinkerbleDateControlComponents {
         guard case let .date(configuration) = tweak.control else {
-            return [.date, .hourAndMinute]
+            return .dateAndTime
         }
-
-        switch configuration.components {
-        case .date:
-            return .date
-        case .dateAndTime:
-            return [.date, .hourAndMinute]
-        case .time:
-            return .hourAndMinute
-        }
+        return configuration.components
     }
 
     private var stringBinding: Binding<String> {
@@ -300,6 +291,7 @@ struct TinkerbleNumberFieldView: View {
                 .focused($isFocused)
                 .frame(width: 96)
                 .multilineTextAlignment(.trailing)
+                .monospacedDigit()
                 .id(textFieldRefreshID)
                 .onSubmit {
                     editingText = nil
