@@ -20,7 +20,38 @@ The implemented loop is:
 5. The iOS app applies the update to the registered state.
 6. `TinkerLog.print` and `TinkerLog.log` send strings to the companion console.
 
-## Quick Start
+## Install Tinkerble In Your App
+
+Install the `tinkerble` command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/edwardsanchez/Tinkerble/main/install.sh | sh
+```
+
+Then run it from your app repository:
+
+```sh
+cd /path/to/MyApp
+tinkerble install
+```
+
+The installer adds the Tinkerble Swift package, links the `Tinkerble` product to
+your selected app target, adds the local-network plist setup, and adds a
+Debug-only build phase that launches the macOS companion from the resolved
+package checkout. Xcode still owns normal package updates after installation:
+update Tinkerble through Xcode's package UI and the build phase will continue to
+use the scripts from the resolved package version.
+
+Use explicit flags when scripting the install or working in a repo with multiple
+projects or app targets:
+
+```sh
+tinkerble install --project MyApp.xcodeproj --target MyApp
+tinkerble install --project MyApp.xcodeproj --target MyApp --target DemoApp
+tinkerble install --project MyApp.xcodeproj --target MyApp --dry-run
+```
+
+## Quick Start For This Package
 
 From the package root:
 
@@ -68,18 +99,18 @@ xcodebuild \
   build
 ```
 
-## Adding The Package
+## Manual Package Setup
 
 In Xcode:
 
-1. Add the local package at the repository root, or add the future remote repository URL.
+1. Add the local package at the repository root, or add the remote repository URL.
 2. Link the `Tinkerble` product to the iOS app target.
 3. Add a Debug-only build pre-action or run script that calls `Scripts/ensure-macos-companion-running.sh` from the package checkout. That hook packages and launches the macOS companion automatically when your app target builds.
 
 In `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/your-org/Tinkerble.git", branch: "main")
+.package(url: "https://github.com/edwardsanchez/Tinkerble.git", branch: "main")
 ```
 
 Then add:
@@ -155,25 +186,6 @@ private var accent = Color.blue
 ```
 
 Swift does not reliably expose the wrapped variable name to the property wrapper, so `name` is required. `category` is optional. Values without a category appear above categorized groups.
-
-Use tweakable observable model state:
-
-```swift
-@TinkerbleObservable
-@MainActor
-final class DemoModel {
-    @TinkerbleObservableState(name: "Title")
-    var title = "Demo"
-
-    @TinkerbleObservableState(category: "Layout", name: "Width", control: .slider(5...400))
-    var width = 120
-
-    @TinkerbleObservableState(category: "Flags", name: "Enabled")
-    var isEnabled = true
-}
-```
-
-`@TinkerbleObservableState` uses the same `name`, `category`, supported value types, enum support, and control APIs as `@TinkerbleState`. It is a macro API for observable model classes; mark the model with `@TinkerbleObservable` instead of Swift's `@Observable` so Tinkerble can generate the Observation registrar and hidden tweak registration storage together.
 
 Basic enums use `TinkerbleEnum`:
 
@@ -282,7 +294,6 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
 
 - Arrays, dictionaries, arbitrary structs, nested models, `ObservableObject`, and `@Published` are intentionally unsupported.
 - `@TinkerbleState` is main-actor SwiftUI view state.
-- `@TinkerbleObservableState` is main-actor observable model state. Use it inside a `@TinkerbleObservable` class.
 - The current connection flow uses a fixed host and port. Bonjour discovery is documented but not implemented.
 - Only one active companion session is tracked.
 - The companion UI is intentionally basic.

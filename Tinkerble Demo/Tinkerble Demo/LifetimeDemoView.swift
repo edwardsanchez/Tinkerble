@@ -2,16 +2,19 @@ import Observation
 import SwiftUI
 import Tinkerble
 
-@TinkerbleObservable
+@Observable
 @MainActor
 private final class LifetimeObservableDemoModel {
-    @TinkerbleObservableState(category: "Lifetime Observable", name: "Message")
+    @ObservationIgnored
+    @TinkerbleState(category: "Lifetime Observable", name: "Message")
     var message = "Observable scope loaded"
 
-    @TinkerbleObservableState(category: "Lifetime Observable", name: "Enabled")
+    @ObservationIgnored
+    @TinkerbleState(category: "Lifetime Observable", name: "Enabled")
     var isEnabled = true
 
-    @TinkerbleObservableState(category: "Lifetime Observable", name: "Count", control: TinkerbleControl<Int>.plain)
+    @ObservationIgnored
+    @TinkerbleState(category: "Lifetime Observable", name: "Count", control: TinkerbleControl<Int>.plain)
     var count = 3
 }
 
@@ -33,7 +36,7 @@ struct LifetimeDemoView: View {
             }
 
             if showsObservableScope {
-                Section("@TinkerbleObservableState") {
+                Section("@Observable + @TinkerbleState") {
                     ScopedTinkerbleObservableLifetimeView()
                 }
             }
@@ -130,7 +133,7 @@ private struct ScopedTinkerbleObservableLifetimeView: View {
     }
 }
 
-#Preview("@TinkerbleObservableState Scope") {
+#Preview("@Observable + @TinkerbleState Scope") {
     Form {
         ScopedTinkerbleObservableLifetimeView()
     }

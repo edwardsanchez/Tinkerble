@@ -75,6 +75,37 @@ final class TinkerbleBuildAutomationTests: XCTestCase {
         XCTAssertFalse(script.contains("assetutil -I \"$RESOURCES_DIR/Assets.car\" | grep -q"))
     }
 
+    func testReadmeDocumentsUrlInstallerNearTheTop() throws {
+        let readme = try readText("README.md")
+        let installHeading = try XCTUnwrap(readme.range(of: "## Install Tinkerble In Your App"))
+        let quickStartHeading = try XCTUnwrap(readme.range(of: "## Quick Start For This Package"))
+
+        XCTAssertLessThan(installHeading.lowerBound, quickStartHeading.lowerBound)
+        XCTAssertTrue(readme.contains("curl -fsSL https://raw.githubusercontent.com/edwardsanchez/Tinkerble/main/install.sh | sh"))
+        XCTAssertTrue(readme.contains("https://github.com/edwardsanchez/Tinkerble.git"))
+        XCTAssertFalse(readme.localizedCaseInsensitiveContains("homebrew"))
+        XCTAssertFalse(readme.localizedCaseInsensitiveContains("brew install"))
+    }
+
+    func testAppFacingPackageDoesNotForceSwiftSyntaxIntoConsumerApps() throws {
+        let manifest = try readText("Package.swift")
+        let readme = try readText("README.md")
+
+        XCTAssertFalse(manifest.contains("swift-syntax"))
+        XCTAssertFalse(manifest.contains("TinkerbleMacros"))
+        XCTAssertFalse(readme.contains("@TinkerbleObservable"))
+    }
+
+    func testInstallerBuildPhaseTemplateUsesPackageCheckoutScripts() throws {
+        let installer = try readText("Sources/TinkerbleInstallerCore/XcodeProjectInstaller.swift")
+
+        XCTAssertTrue(installer.contains("TINKERBLE_PACKAGE_DIR"))
+        XCTAssertTrue(installer.contains("Scripts/patch-rsocket-checkouts.sh"))
+        XCTAssertTrue(installer.contains("Scripts/ensure-macos-companion-running.sh"))
+        XCTAssertTrue(installer.contains("CHECKOUT_ROOT"))
+        XCTAssertFalse(installer.contains("/opt/homebrew/bin/tinkerble companion ensure"))
+    }
+
     func testRSocketPatchKeepsRequestExamplesInXcodeSourceList() throws {
         let script = try readText("Scripts/patch-rsocket-checkouts.sh")
 

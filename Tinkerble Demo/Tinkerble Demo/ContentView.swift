@@ -15,22 +15,27 @@ private enum DemoMood: String, CaseIterable, TinkerbleEnum {
     case celebratory
 }
 
-@TinkerbleObservable
+@Observable
 @MainActor
 private final class ObservableDemoModel {
-    @TinkerbleObservableState(category: "Observable", name: "Badge Text")
+    @ObservationIgnored
+    @TinkerbleState(category: "Observable", name: "Badge Text")
     var badgeText = "Observable Model"
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Enabled")
+    @ObservationIgnored
+    @TinkerbleState(category: "Observable", name: "Badge Enabled")
     var badgeEnabled = true
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Count", control: TinkerbleControl<Int>.plain)
+    @ObservationIgnored
+    @TinkerbleState(category: "Observable", name: "Badge Count", control: TinkerbleControl<Int>.plain)
     var badgeCount = 2
 
-    @TinkerbleObservableState("Observable", name: "Badge Opacity", control: .slider(0.0...1.0))
+    @ObservationIgnored
+    @TinkerbleState("Observable", name: "Badge Opacity", control: .slider(0.0...1.0))
     var badgeOpacity = 0.9
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Mood")
+    @ObservationIgnored
+    @TinkerbleState(category: "Observable", name: "Badge Mood")
     var badgeMood = DemoMood.calm
 }
 
