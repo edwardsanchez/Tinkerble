@@ -11,8 +11,10 @@ Tinkerble is a proof-of-concept debug companion system. The iOS-side package reg
 - `Sources/Tinkerble/Logging/TinkerLog.swift`: simple logging API that forwards strings to the companion.
 - `Sources/TinkerbleCompanionCore`: companion store and RSocket TCP server.
 - `Sources/TinkerbleCompanion`: macOS SwiftUI split-view app.
+- `Sources/TinkerbleInstallerCore`: testable installer workflow for mutating consumer Xcode projects.
+- `Sources/TinkerbleCLI`: command-line entry point for `tinkerble install`.
 - `Tinkerble Demo`: iOS demo app linked against the local package.
-- `Scripts`: checkout patching and demo run workflow.
+- `Scripts`: checkout patching, companion packaging, install verification, and demo run workflow.
 
 ## Role
 
@@ -25,11 +27,30 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - SwiftUI backed up by `@Observable` classes for shared data.
 - Do not introduce third-party frameworks without asking first.
 - Avoid UIKit unless requested.
+- If the project requires secrets, tokens, or API keys, never include them in the repository.
+
+## Task Handling
+
+- When requirements are ambiguous, pause before implementation and ask up to three concise clarifying questions. Prefer concrete choices when possible, and allow free-form clarification when none of the choices fit.
+- Do not ask questions when a safe default is obvious. State the assumption and proceed.
+- Do not stop at analysis or a progress-only answer. Continue through implementation and verification until the task is complete.
+- Definition of complete:
+  - Implement the behavior exactly as specified.
+  - Add or update tests that verify every acceptance criterion for behavior changes.
+  - Run those tests.
+  - If a test fails, diagnose and fix the implementation or the test harness.
+  - Repeat until all relevant tests pass.
+  - If a tool or environment failure blocks one verification path, use an alternate verification path that proves the same behavior.
+  - Only final-answer when implementation and verification are both complete.
+  - In the final answer, list exactly what passed and what remains unverified, if anything.
+- For documentation-only changes, use the narrowest proof that the written guidance is correct, usually `git diff --check -- AGENTS.md` plus targeted content checks. Do not run the full app suite unless the doc change depends on live product behavior.
 
 ## Project Structure & Module Organization
 
 - Use a consistent project structure, with folder layout determined by app features.
 - Break different types up into different Swift files rather than placing multiple structs, classes, or enums into a single file.
+- Keep package, demo, installer, and companion responsibilities separate. Do not move installer or packaging behavior into the runtime library target.
+- Keep companion UI resources under their owning target resources, and preserve `Tinkerble.icon` as the source icon document.
 
 ## Communication
 
@@ -109,9 +130,22 @@ Future log work belongs in README TODOs unless the task explicitly asks to imple
 - Do not specify `(extraBounce: 0)` in animations: it is redundant (that's already the default) and is not the desired behavior.
 - Do not let views, especially inside scroll views or chat transcripts, jump or pop into new positions. Existing elements must animate continuously from their previous presented position to the next one. Treat abrupt movement, snap-in layout shifts, and content jumping as bugs unless the user explicitly asks for a hard cut.
 
+## SwiftData Instructions
+
+Tinkerble currently does not use SwiftData for its runtime registry, companion store, or installer state. Keep this project live/debug-session oriented unless a task explicitly asks for persistence.
+
+If SwiftData is introduced:
+
+- Keep SwiftData model types focused and clearly named.
+- Do not use SwiftData to blur the RSocket transport boundary or persist transient tweak registrations by default.
+- If SwiftData is configured to use CloudKit:
+  - Never use `@Attribute(.unique)`.
+  - Model properties must always either have default values or be marked optional.
+  - All relationships must be marked optional.
+
 ## Validation
 
-Run:
+For code changes, run the validation sequence that matches the touched area. The broad package validation is:
 
 ```sh
 ./Scripts/patch-rsocket-checkouts.sh
@@ -121,6 +155,22 @@ xcodebuild -project "Tinkerble Demo/Tinkerble Demo.xcodeproj" -scheme "Tinkerble
 ```
 
 The patch script is currently needed because upstream `rsocket-swift` and one SwiftNIO C shim do not compile cleanly with Xcode 26.5 without checkout-only workarounds.
+
+All builds should be warning-free. Fix compiler warnings before marking work complete. Common warnings to watch for:
+
+- `var` should be `let` when the variable is never mutated.
+- Unnecessary `try` when no throwing functions are called.
+- Unnecessary `await` when no async operations occur.
+- CFBundleVersion mismatches between app and extension targets.
+
+Run `/opt/homebrew/bin/swiftlint --fix` only on Swift files changed in this work, not the whole repo. Run `swiftformat --config .swiftformat` only on changed Swift files, not the whole repo.
+
+Use focused tests when the change has a narrower proof path:
+
+- `swift test --filter TinkerbleInstallerCoreTests` for installer behavior.
+- `swift test --filter TinkerbleSwiftUIRuleTests` for policy/source-shape rules.
+- `swift test --filter TinkerbleComponentPreviewFixtureTests` for All Tinkerble Components fixture changes.
+- `swift test --filter TweakInspectorContentTests` for companion inspector rendering/parsing behavior.
 
 ## UI Tests
 
