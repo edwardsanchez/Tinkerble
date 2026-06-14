@@ -4,7 +4,7 @@ import TinkerbleCompanionCore
 
 struct EmptyTweakPlaceholderView: View {
     var body: some View {
-        ZStack {
+        VStack {
             if let imageURL = TinkerbleCompanionEmptyStateResource.wingsURL,
                let image = NSImage(contentsOf: imageURL) {
                 Image(nsImage: image)
@@ -15,6 +15,10 @@ struct EmptyTweakPlaceholderView: View {
                     .offset(y: -TinkerbleCompanionWindowLayout.titleBarHeight)
                     .opacity(0.7)
             }
+
+            Text("No Tinkerble Properties Found")
+                .foregroundStyle(.secondary)
+                .font(.title3)
         }
         .frame(
             maxWidth: .infinity,
