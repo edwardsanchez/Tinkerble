@@ -67,15 +67,15 @@ if [[ "$CONFIGURATION" == "release" ]]; then
 fi
 BIN_PATH="$(swift_package build "${SHOW_BIN_PATH_FLAGS[@]}" 2>/dev/null)"
 BUILT_EXECUTABLE="$BIN_PATH/$EXECUTABLE_NAME"
-RESOURCE_BUNDLE="$BIN_PATH/Tinkerble_TinkerbleCompanion.bundle"
+RESOURCE_BUNDLES=("$BIN_PATH"/Tinkerble_TinkerbleCompanion*.bundle)
 
 if [[ ! -x "$BUILT_EXECUTABLE" ]]; then
   echo "Built executable not found: $BUILT_EXECUTABLE" >&2
   exit 1
 fi
 
-if [[ ! -d "$RESOURCE_BUNDLE" ]]; then
-  echo "Built resource bundle not found: $RESOURCE_BUNDLE" >&2
+if [[ ! -d "${RESOURCE_BUNDLES[0]}" ]]; then
+  echo "Built companion resource bundles not found in $BIN_PATH" >&2
   exit 1
 fi
 
@@ -83,7 +83,9 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BUILT_EXECUTABLE" "$MACOS_DIR/$EXECUTABLE_NAME"
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
-ditto "$RESOURCE_BUNDLE" "$RESOURCES_DIR"
+for resource_bundle in "${RESOURCE_BUNDLES[@]}"; do
+  ditto "$resource_bundle" "$RESOURCES_DIR/$(basename "$resource_bundle")"
+done
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT

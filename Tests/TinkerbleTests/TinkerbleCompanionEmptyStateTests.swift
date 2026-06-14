@@ -47,9 +47,10 @@ final class TinkerbleCompanionEmptyStateTests: XCTestCase {
         let packageScript = try readText("Scripts/package-macos-companion.sh")
         let verifyScript = try readText("Scripts/verify-macos-companion-package.sh")
 
-        XCTAssertTrue(packageScript.contains("Tinkerble_TinkerbleCompanion.bundle"))
-        XCTAssertTrue(packageScript.contains("ditto \"$RESOURCE_BUNDLE\" \"$RESOURCES_DIR\""))
-        XCTAssertTrue(verifyScript.contains("[[ -f \"$RESOURCES_DIR/wings.pdf\" ]]"))
+        XCTAssertTrue(packageScript.contains("Tinkerble_TinkerbleCompanion*.bundle"))
+        XCTAssertTrue(packageScript.contains("for resource_bundle in \"${RESOURCE_BUNDLES[@]}\""))
+        XCTAssertTrue(verifyScript.contains("Tinkerble_TinkerbleCompanion.bundle/Contents/Resources/wings.pdf"))
+        XCTAssertTrue(verifyScript.contains("Tinkerble_TinkerbleCompanionUI.bundle/Contents/Resources/wings.pdf"))
     }
 
     private func readText(_ relativePath: String) throws -> String {

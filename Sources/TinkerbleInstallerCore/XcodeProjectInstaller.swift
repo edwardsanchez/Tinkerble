@@ -93,15 +93,14 @@ public final class XcodeProjectInstaller {
             return
         }
 
-        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
-        guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
-            return
-        }
-
         let targetIDs = Set(targets.map(\.id))
-        let schemesByName = Dictionary(uniqueKeysWithValues: try schemeURLs().map {
-            ($0.deletingPathExtension().lastPathComponent, $0)
-        })
+        var schemesByName: [String: URL] = [:]
+        for schemeURL in try schemeURLs() {
+            let schemeName = schemeURL.deletingPathExtension().lastPathComponent
+            if schemesByName[schemeName] == nil {
+                schemesByName[schemeName] = schemeURL
+            }
+        }
 
         for schemeName in schemeNames {
             guard let schemeURL = schemesByName[schemeName] else {
@@ -130,17 +129,45 @@ public final class XcodeProjectInstaller {
     }
 
     private func schemeURLs() throws -> [URL] {
-        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
-        guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
+        let schemeDirectories = try [
+            projectURL.appending(path: "xcshareddata/xcschemes"),
+        ] + userSchemeDirectories()
+
+        let schemeURLs = try schemeDirectories.flatMap { schemeDirectory in
+            guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
+                return [URL]()
+            }
+
+            return try FileManager.default.contentsOfDirectory(
+                at: schemeDirectory,
+                includingPropertiesForKeys: nil
+            )
+            .filter { $0.pathExtension == "xcscheme" }
+        }
+
+        return schemeURLs.sorted { lhs, rhs in
+            let nameOrder = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+
+            return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
+        }
+    }
+
+    private func userSchemeDirectories() throws -> [URL] {
+        let userDataDirectory = projectURL.appending(path: "xcuserdata")
+        guard FileManager.default.fileExists(atPath: userDataDirectory.path) else {
             return []
         }
 
         return try FileManager.default.contentsOfDirectory(
-            at: schemeDirectory,
+            at: userDataDirectory,
             includingPropertiesForKeys: nil
         )
-        .filter { $0.pathExtension == "xcscheme" }
-        .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        .filter { $0.pathExtension == "xcuserdatad" }
+        .map { $0.appending(path: "xcschemes") }
+        .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 }
 
@@ -381,7 +408,8 @@ struct ProjectText {
         let updated = try addingListEntry(
             to: project.block,
             listName: "packageReferences",
-            entry: "\t\t\t\t\(packageID) /* XCRemoteSwiftPackageReference \"Tinkerble\" */,"
+            entry: "\t\t\t\t\(packageID) /* XCRemoteSwiftPackageReference \"Tinkerble\" */,",
+            createBeforeKeys: ["productRefGroup", "projectDirPath", "projectRoot", "targets"]
         )
         replace(project.range, with: updated)
         changes.append("Added Tinkerble to project package references.")
@@ -399,7 +427,8 @@ struct ProjectText {
         let updated = try addingListEntry(
             to: target.block,
             listName: "packageProductDependencies",
-            entry: "\t\t\t\t\(productID) /* Tinkerble */,"
+            entry: "\t\t\t\t\(productID) /* Tinkerble */,",
+            createBeforeKeys: ["productName", "productReference", "productType"]
         )
         replace(target.range, with: updated)
         changes.append("Linked Tinkerble product to \(target.name).")
@@ -572,9 +601,20 @@ fi
         return updated
     }
 
-    private func addingListEntry(to block: String, listName: String, entry: String, prepend: Bool = false) throws -> String {
+    private func addingListEntry(
+        to block: String,
+        listName: String,
+        entry: String,
+        prepend: Bool = false,
+        createBeforeKeys: [String] = []
+    ) throws -> String {
         guard let listRange = block.range(of: "\(listName) = (") else {
-            throw TinkerbleInstallError.malformedProject("Missing \(listName) list.")
+            return try addingList(
+                named: listName,
+                to: block,
+                entry: entry,
+                beforeKeys: createBeforeKeys
+            )
         }
 
         guard let openLineEnd = block[listRange.upperBound...].firstIndex(of: "\n") else {
@@ -593,6 +633,35 @@ fi
 
         var updated = block
         updated.insert(contentsOf: "\n\(entry)", at: listEnd.lowerBound)
+        return updated
+    }
+
+    private func addingList(
+        named listName: String,
+        to block: String,
+        entry: String,
+        beforeKeys: [String]
+    ) throws -> String {
+        guard !beforeKeys.isEmpty else {
+            throw TinkerbleInstallError.malformedProject("Missing \(listName) list.")
+        }
+
+        let list = "\t\t\t\(listName) = (\n\(entry)\n\t\t\t);\n"
+
+        for key in beforeKeys {
+            if let keyRange = block.range(of: "\t\t\t\(key) = ") {
+                var updated = block
+                updated.insert(contentsOf: list, at: keyRange.lowerBound)
+                return updated
+            }
+        }
+
+        guard let objectEnd = block.range(of: "\n\t\t};", options: .backwards) else {
+            throw TinkerbleInstallError.malformedProject("Missing \(listName) list.")
+        }
+
+        var updated = block
+        updated.insert(contentsOf: list, at: objectEnd.lowerBound)
         return updated
     }
 

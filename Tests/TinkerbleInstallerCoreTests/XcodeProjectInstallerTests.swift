@@ -68,6 +68,43 @@ final class XcodeProjectInstallerTests: XCTestCase {
         XCTAssertFalse(scheme.contains("Patch Tinkerble package checkouts"))
     }
 
+    func testInstallsIntoProjectWithoutExistingSwiftPackageLists() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithoutPackageLists)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], schemeNames: [], dryRun: false)
+        let project = try readProject(projectURL)
+
+        XCTAssertTrue(project.contains("packageReferences = ("))
+        XCTAssertTrue(project.contains("packageProductDependencies = ("))
+        XCTAssertTrue(project.contains("/* XCRemoteSwiftPackageReference \"Tinkerble\" */"))
+        XCTAssertTrue(project.contains("/* Tinkerble */,"))
+        XCTAssertEqual(project.count(of: "packageReferences = ("), 1)
+        XCTAssertEqual(project.count(of: "packageProductDependencies = ("), 1)
+    }
+
+    func testDiscoversAndPatchesUserLocalDebugScheme() throws {
+        let projectURL = try makeFixtureProject(includeSharedSchemes: false)
+        let userSchemeDirectory = projectURL.appending(path: "xcuserdata/edwardsanchez.xcuserdatad/xcschemes")
+        try FileManager.default.createDirectory(at: userSchemeDirectory, withIntermediateDirectories: true)
+        try fixtureScheme.write(
+            to: userSchemeDirectory.appending(path: "MainApp Dev.xcscheme"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        XCTAssertEqual(try installer.debugSchemeNames(targetNames: ["MainApp"]), ["MainApp Dev"])
+
+        _ = try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp Dev"], dryRun: false)
+        let scheme = try String(
+            contentsOf: userSchemeDirectory.appending(path: "MainApp Dev.xcscheme"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(scheme.contains("Patch Tinkerble package checkouts"))
+    }
+
     func testThrowsForMissingTarget() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
@@ -90,24 +127,29 @@ final class XcodeProjectInstallerTests: XCTestCase {
         }
     }
 
-    private func makeFixtureProject() throws -> URL {
+    private func makeFixtureProject(
+        projectText: String = fixtureProject,
+        includeSharedSchemes: Bool = true
+    ) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "TinkerbleInstallerTests-\(UUID().uuidString)")
         let projectURL = root.appending(path: "Fixture.xcodeproj")
         try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
-        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
-        try FileManager.default.createDirectory(at: schemeDirectory, withIntermediateDirectories: true)
-        try fixtureProject.write(to: projectURL.appending(path: "project.pbxproj"), atomically: true, encoding: .utf8)
-        try fixtureScheme.write(
-            to: schemeDirectory.appending(path: "MainApp.xcscheme"),
-            atomically: true,
-            encoding: .utf8
-        )
-        try releaseFixtureScheme.write(
-            to: schemeDirectory.appending(path: "MainApp Release.xcscheme"),
-            atomically: true,
-            encoding: .utf8
-        )
+        try projectText.write(to: projectURL.appending(path: "project.pbxproj"), atomically: true, encoding: .utf8)
+        if includeSharedSchemes {
+            let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+            try FileManager.default.createDirectory(at: schemeDirectory, withIntermediateDirectories: true)
+            try fixtureScheme.write(
+                to: schemeDirectory.appending(path: "MainApp.xcscheme"),
+                atomically: true,
+                encoding: .utf8
+            )
+            try releaseFixtureScheme.write(
+                to: schemeDirectory.appending(path: "MainApp Release.xcscheme"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
         return projectURL
     }
 
@@ -298,6 +340,10 @@ private let fixtureProject = #"""
 	rootObject = 000000000000000000000050 /* Project object */;
 }
 """#
+
+private let fixtureProjectWithoutPackageLists = fixtureProject
+    .replacing("\t\t\tpackageProductDependencies = (\n\t\t\t);\n", with: "")
+    .replacing("\t\t\tpackageReferences = (\n\t\t\t);\n", with: "")
 
 private let fixtureScheme = #"""
 <?xml version="1.0" encoding="UTF-8"?>
