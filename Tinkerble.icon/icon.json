@@ -140,37 +140,6 @@
         "enabled" : true,
         "value" : 0.5
       }
-    },
-    {
-      "blur-material" : null,
-      "hidden-specializations" : [
-        {
-          "appearance" : "dark",
-          "value" : true
-        },
-        {
-          "appearance" : "tinted",
-          "value" : true
-        }
-      ],
-      "layers" : [
-        {
-          "blend-mode" : "normal",
-          "glass" : false,
-          "image-name" : "Image 2.png",
-          "name" : "Background",
-          "opacity" : 0.7
-        }
-      ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.6
-      },
-      "specular" : false,
-      "translucency" : {
-        "enabled" : true,
-        "value" : 1
-      }
     }
   ],
   "supported-platforms" : {
