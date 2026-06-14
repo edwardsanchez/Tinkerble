@@ -1,11 +1,11 @@
 {
+  "features" : [
+    "refractivity"
+  ],
   "fill-specializations" : [
     {
       "value" : {
-        "linear-gradient" : [
-          "display-p3:0.34510,0.74510,0.96471,1.00000",
-          "srgb:0.18431,0.43529,0.96471,1.00000"
-        ],
+        "automatic-gradient" : "display-p3:0.16149,0.16457,0.18620,1.00000",
         "orientation" : {
           "start" : {
             "x" : 0.5,
@@ -25,11 +25,11 @@
   ],
   "groups" : [
     {
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "layers" : [
         {
           "fill" : {
-            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
+            "solid" : "display-p3:0.94912,0.97642,0.99607,1.00000"
           },
           "glass" : true,
           "image-name" : "top wings.svg",
@@ -45,7 +45,7 @@
         {
           "blend-mode" : "normal",
           "fill" : {
-            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
+            "solid" : "display-p3:0.94912,0.97642,0.99607,1.00000"
           },
           "image-name" : "bottom wings.svg",
           "name" : "bottom wings",
@@ -56,39 +56,29 @@
               193.8
             ]
           }
-        },
-        {
-          "blend-mode" : "plus-lighter",
-          "fill" : {
-            "solid" : "srgb:0.80477,0.90889,1.00000,1.00000"
-          },
-          "hidden" : true,
-          "image-name" : "tinkerbell wing.svg",
-          "name" : "tinkerbell wing",
-          "position" : {
-            "scale" : 0.71,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
         }
       ],
       "lighting" : "individual",
+      "name" : "Wings",
       "position" : {
         "scale" : 0.66,
         "translation-in-points" : [
-          -3.09375,
-          84.1328125
+          0,
+          84.1
         ]
+      },
+      "refractivity" : {
+        "depth" : 0.2622265625,
+        "enabled" : true,
+        "strength" : -0.6020703125
       },
       "shadow" : {
         "kind" : "layer-color",
-        "opacity" : 0.5
+        "opacity" : 4
       },
       "translucency" : {
         "enabled" : true,
-        "value" : 0.22
+        "value" : 0.6
       }
     },
     {
@@ -149,6 +139,37 @@
       "translucency" : {
         "enabled" : true,
         "value" : 0.5
+      }
+    },
+    {
+      "blur-material" : null,
+      "hidden-specializations" : [
+        {
+          "appearance" : "dark",
+          "value" : true
+        },
+        {
+          "appearance" : "tinted",
+          "value" : true
+        }
+      ],
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : false,
+          "image-name" : "Image 2.png",
+          "name" : "Background",
+          "opacity" : 0.7
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.6
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 1
       }
     }
   ],

@@ -2,7 +2,17 @@
   "fill-specializations" : [
     {
       "value" : {
-        "automatic-gradient" : "display-p3:0.33705,0.57522,0.00000,1.00000"
+        "automatic-gradient" : "display-p3:0.16149,0.16457,0.18620,1.00000",
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 0
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0.7
+          }
+        }
       }
     },
     {
@@ -12,27 +22,13 @@
   ],
   "groups" : [
     {
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "layers" : [
         {
-          "blend-mode" : "normal",
           "fill" : {
-            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
+            "solid" : "display-p3:0.94912,0.97642,0.99607,1.00000"
           },
-          "image-name" : "bottom wings.svg",
-          "name" : "bottom wings",
-          "position" : {
-            "scale" : 1,
-            "translation-in-points" : [
-              6.2265625,
-              193.7578125
-            ]
-          }
-        },
-        {
-          "fill" : {
-            "automatic-gradient" : "srgb:0.80392,0.90980,1.00000,1.00000"
-          },
+          "glass" : true,
           "image-name" : "top wings.svg",
           "name" : "top wings",
           "position" : {
@@ -44,37 +40,76 @@
           }
         },
         {
-          "blend-mode" : "plus-lighter",
+          "blend-mode" : "normal",
           "fill" : {
-            "solid" : "srgb:0.80477,0.90889,1.00000,1.00000"
+            "solid" : "display-p3:0.94912,0.97642,0.99607,1.00000"
           },
-          "hidden" : true,
-          "image-name" : "tinkerbell wing.svg",
-          "name" : "tinkerbell wing",
+          "image-name" : "bottom wings.svg",
+          "name" : "bottom wings",
           "position" : {
-            "scale" : 0.71,
+            "scale" : 1,
             "translation-in-points" : [
-              0,
-              0
+              7.2265625,
+              193.8
             ]
           }
         }
       ],
       "lighting" : "individual",
+      "name" : "Wings",
       "position" : {
-        "scale" : 0.74,
+        "scale" : 0.66,
         "translation-in-points" : [
-          -3.09375,
-          84.1328125
+          0,
+          84.1
         ]
       },
+      "refractivity" : {
+        "depth" : 0.2622265625,
+        "enabled" : false,
+        "strength" : -0.6020703125
+      },
       "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
+        "kind" : "layer-color",
+        "opacity" : 4
       },
       "translucency" : {
         "enabled" : true,
-        "value" : 0.42
+        "value" : 0.6
+      }
+    },
+    {
+      "hidden-specializations" : [
+        {
+          "value" : true
+        },
+        {
+          "appearance" : "dark",
+          "value" : false
+        },
+        {
+          "appearance" : "tinted",
+          "value" : false
+        }
+      ],
+      "layers" : [
+        {
+          "blend-mode" : "overlay",
+          "hidden" : true,
+          "image-name" : "Frame.svg",
+          "name" : "Lines",
+          "opacity" : 0.4
+        }
+      ],
+      "name" : "Lines",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
       }
     }
   ],

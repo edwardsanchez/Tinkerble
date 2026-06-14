@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024px" height="1024px" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Frame</title>
+    <defs>
+        <path d="M0,0 L1024,0 L1024,1024 L0,1024 L0,0 Z" id="path-1"></path>
+    </defs>
+    <g id="Frame" stroke="none" fill="none" xlink:href="#path-1" fill-rule="evenodd" stroke-width="1">
+        <g id="Group" fill="#FFFFFF">
+            <rect id="Rectangle" x="253.5" y="0" width="10" height="1024"></rect>
+            <rect id="Rectangle" x="507" y="0" width="10" height="1024"></rect>
+            <rect id="Rectangle" x="760.5" y="0" width="10" height="1024"></rect>
+        </g>
+        <g id="Group" transform="translate(512, 512) rotate(90) translate(-512, -512)" fill="#FFFFFF">
+            <rect id="Rectangle" x="253.5" y="0" width="10" height="1024"></rect>
+            <rect id="Rectangle" x="507" y="0" width="10" height="1024"></rect>
+            <rect id="Rectangle" x="760.5" y="0" width="10" height="1024"></rect>
+        </g>
+    </g>
+</svg>
