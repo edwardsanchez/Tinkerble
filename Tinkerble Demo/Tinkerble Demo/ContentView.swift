@@ -15,28 +15,40 @@ private enum DemoMood: String, CaseIterable, TinkerbleEnum {
     case celebratory
 }
 
+@TinkerbleObservable
 @Observable
 @MainActor
 private final class ObservableDemoModel {
-    @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Text", screen: "Basic")
+    @TinkerbleObservableState(category: "Observable", name: "Badge Text", screen: "Basic")
     var badgeText = "Observable Model"
 
-    @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Enabled", screen: "Basic")
+    @TinkerbleObservableState(category: "Observable", name: "Badge Enabled", screen: "Basic")
     var badgeEnabled = true
 
-    @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+    @TinkerbleObservableState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
     var badgeCount = 2
 
-    @ObservationIgnored
-    @TinkerbleState("Observable", name: "Badge Opacity", screen: "Basic", control: .slider(0.0...1.0))
+    @TinkerbleObservableState("Observable", name: "Badge Opacity", screen: "Basic", control: .slider(0.0...1.0))
     var badgeOpacity = 0.9
 
-    @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Mood", screen: "Basic")
+    @TinkerbleObservableState(category: "Observable", name: "Badge Mood", screen: "Basic")
     var badgeMood = DemoMood.calm
+}
+
+@TinkerbleActions
+@Observable
+@MainActor
+private final class ActionDemoModel {
+    var actionCount = 0
+
+    init() {
+        activateTinkerbleActions()
+    }
+
+    @TinkerbleAction(name: "Increment Action Count", screen: "Basic", category: "Observable")
+    func incrementActionCount() {
+        actionCount += 1
+    }
 }
 
 struct ContentView: View {
@@ -59,6 +71,7 @@ struct ContentView: View {
 
 private struct BasicDemoView: View {
     @State private var observableModel = ObservableDemoModel()
+    @State private var actionModel = ActionDemoModel()
 
     @TinkerbleState(name: "Title", screen: "Basic")
     private var title = "Tinkerble Demo"
@@ -157,6 +170,10 @@ private struct BasicDemoView: View {
             }
 
             Text("Observable mood: \(observableModel.badgeMood.tinkerbleDisplayName)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text("Observable actions: \(actionModel.actionCount)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

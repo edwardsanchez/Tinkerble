@@ -1,4 +1,5 @@
 {
+  "originHash" : "159ebb32d04c4e93e6b3733530f5666f772ad0b2f8c7e15238a452d3f47d7ef7",
   "pins" : [
     {
       "identity" : "reactiveswift",
@@ -181,6 +182,15 @@
       }
     },
     {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "b90056de69eed23b3fb39ab69cf1780071dfb664",
+        "version" : "604.0.0-prerelease-2026-06-05"
+      }
+    },
+    {
       "identity" : "swift-system",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
@@ -190,5 +200,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

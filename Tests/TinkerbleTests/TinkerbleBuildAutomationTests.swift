@@ -89,13 +89,15 @@ final class TinkerbleBuildAutomationTests: XCTestCase {
         XCTAssertFalse(readme.localizedCaseInsensitiveContains("brew install"))
     }
 
-    func testAppFacingPackageDoesNotForceSwiftSyntaxIntoConsumerApps() throws {
+    func testAppFacingPackageDocumentsObservableMacroDependency() throws {
         let manifest = try readText("Package.swift")
         let readme = try readText("README.md")
 
-        XCTAssertFalse(manifest.contains("swift-syntax"))
-        XCTAssertFalse(manifest.contains("TinkerbleMacros"))
-        XCTAssertFalse(readme.contains("@TinkerbleObservable"))
+        XCTAssertTrue(manifest.contains("swift-syntax"))
+        XCTAssertTrue(manifest.contains("TinkerbleMacros"))
+        XCTAssertTrue(readme.contains("@TinkerbleObservable"))
+        XCTAssertTrue(readme.contains("@TinkerbleObservableState"))
+        XCTAssertTrue(readme.contains("compile-time SwiftSyntax macro dependency"))
     }
 
     func testInstallerBuildPhaseTemplateUsesPackageCheckoutScripts() throws {

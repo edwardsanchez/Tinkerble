@@ -71,8 +71,16 @@ final class FanDeckDemoSourceTests: XCTestCase {
     }
 
     func testDemoTinkerbleStatesDeclareScreens() throws {
-        XCTAssertEqual(try contentViewSource.components(separatedBy: #"screen: "Basic""#).count - 1, 11)
+        XCTAssertEqual(try contentViewSource.components(separatedBy: #"screen: "Basic""#).count - 1, 12)
         XCTAssertEqual(try fanDeckSource.components(separatedBy: #"screen: "Fan Deck""#).count - 1, 14)
+    }
+
+    func testDemoIncludesMacroActionSurface() throws {
+        let source = try contentViewSource
+
+        XCTAssertTrue(source.contains("@TinkerbleActions"))
+        XCTAssertTrue(source.contains("activateTinkerbleActions()"))
+        XCTAssertTrue(source.contains(#"@TinkerbleAction(name: "Increment Action Count", screen: "Basic", category: "Observable")"#))
     }
 
     private var fanDeckSource: String {

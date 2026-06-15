@@ -148,8 +148,12 @@ public final class Tinkerble {
     }
 
     internal func updateLocalValue<Value: TinkerbleValueConvertible>(id: String, value: Value) {
-        updateStoredValue(id: id, value: value.tinkerbleValue)
-        transport.send(.update(id: id, value: value.tinkerbleValue))
+        updateLocalValue(id: id, value: value.tinkerbleValue)
+    }
+
+    internal func updateLocalValue(id: String, value: TinkerbleValue) {
+        updateStoredValue(id: id, value: value)
+        transport.send(.update(id: id, value: value))
     }
 
     public func log(_ message: String) {

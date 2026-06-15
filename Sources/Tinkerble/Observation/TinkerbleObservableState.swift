@@ -1,10 +1,14 @@
 import Foundation
+import Observation
 
 @MainActor
 public final class TinkerbleObservableStateRegistration {
     private var id: String?
     private var isRegistered = false
     private var isApplyingRemoteValue = false
+    private var lastObservedValue: TinkerbleValue?
+    private var trackedValueReader: (() -> TinkerbleValue)?
+    private var trackedValueObserver: (() -> Void)?
     private var registrationToken: TinkerbleRegistrationToken?
 
     public init() {}
@@ -24,6 +28,7 @@ public final class TinkerbleObservableStateRegistration {
         screen: String? = nil,
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
+        readValue: ((Owner) -> Value)? = nil,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
         guard !isRegistered else { return }
@@ -31,6 +36,7 @@ public final class TinkerbleObservableStateRegistration {
         let id = TinkerbleTweak.makeID(screen: screen, category: category, name: name)
         self.id = id
         isRegistered = true
+        lastObservedValue = initialValue.tinkerbleValue
 
         registrationToken = Tinkerble.shared.register(
             id: id,
@@ -42,10 +48,23 @@ public final class TinkerbleObservableStateRegistration {
             applyRemoteValue: { [weak self, weak owner] newValue in
                 guard let self, let owner else { return }
                 self.isApplyingRemoteValue = true
+                self.lastObservedValue = newValue.tinkerbleValue
                 applyRemoteValue(owner, newValue)
                 self.isApplyingRemoteValue = false
             }
         )
+
+        if let readValue {
+            trackedValueReader = { [weak owner] in
+                guard let owner else { return initialValue.tinkerbleValue }
+                return readValue(owner).tinkerbleValue
+            }
+            trackedValueObserver = { [weak self, weak owner] in
+                guard let self, let owner else { return }
+                self.observe(owner: owner, readValue: readValue)
+            }
+            observe(owner: owner, readValue: readValue)
+        }
     }
 
     public func activate<Owner: AnyObject, Value: TinkerbleValueConvertible>(
@@ -55,6 +74,7 @@ public final class TinkerbleObservableStateRegistration {
         name: String,
         screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
+        readValue: ((Owner) -> Value)? = nil,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
         activate(
@@ -64,6 +84,7 @@ public final class TinkerbleObservableStateRegistration {
             screen: screen,
             category: category,
             control: control,
+            readValue: readValue,
             applyRemoteValue: applyRemoteValue
         )
     }
@@ -75,6 +96,7 @@ public final class TinkerbleObservableStateRegistration {
         name: String,
         screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
+        readValue: ((Owner) -> Value)? = nil,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
         activate(
@@ -84,13 +106,38 @@ public final class TinkerbleObservableStateRegistration {
             screen: screen,
             category: category,
             control: control,
+            readValue: readValue,
             applyRemoteValue: applyRemoteValue
         )
     }
 
     public func updateLocalValue<Value: TinkerbleValueConvertible>(_ value: Value) {
+        updateLocalTinkerbleValue(value.tinkerbleValue)
+    }
+
+    private func updateLocalTinkerbleValue(_ value: TinkerbleValue) {
         guard let id, !isApplyingRemoteValue else { return }
+        guard value != lastObservedValue else { return }
+        lastObservedValue = value
         Tinkerble.shared.updateLocalValue(id: id, value: value)
     }
 
+    private func handleObservedChange() {
+        guard isRegistered, let trackedValueReader else { return }
+        updateLocalTinkerbleValue(trackedValueReader())
+        trackedValueObserver?()
+    }
+
+    private func observe<Owner: AnyObject, Value: TinkerbleValueConvertible>(
+        owner: Owner,
+        readValue: @escaping (Owner) -> Value
+    ) {
+        withObservationTracking {
+            _ = readValue(owner)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleObservedChange()
+            }
+        }
+    }
 }

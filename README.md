@@ -4,7 +4,7 @@ Tinkerble is a proof-of-concept debug companion system for SwiftUI apps. It lets
 
 The package is intentionally small and modular:
 
-- `Tinkerble`: iOS-facing library with `@TinkerbleState`, `.tinkerbleAction`, `TinkerLog`, core tweak models, and the RSocket client transport.
+- `Tinkerble`: iOS-facing library with `@TinkerbleState`, `.tinkerbleAction`, `@TinkerbleObservableState`, `@TinkerbleAction`, `TinkerLog`, core tweak models, and the RSocket client transport.
 - `TinkerbleCompanionCore`: macOS companion store and RSocket server.
 - `TinkerbleCompanion`: SwiftUI macOS companion executable with a log console and tweak inspector.
 - `Tinkerble Demo`: local iOS demo project that imports the package.
@@ -14,7 +14,7 @@ The package is intentionally small and modular:
 The implemented loop is:
 
 1. The iOS app connects to the macOS companion over an RSocket request-channel.
-2. `@TinkerbleState` and `.tinkerbleAction` register tweakable values and actions.
+2. `@TinkerbleState`, `.tinkerbleAction`, `@TinkerbleObservableState`, and `@TinkerbleAction` register tweakable values and actions.
 3. The companion displays tweaks by screen, with uncategorized values first, then grouped categories.
 4. Editing a companion control sends an update back to the iOS app.
 5. Tapping an action button sends a trigger back to the iOS app.
@@ -175,7 +175,7 @@ struct DemoApp: App {
 }
 ```
 
-Use tweakable state:
+Use `@TinkerbleState` for SwiftUI view-local tweakable state:
 
 ```swift
 @TinkerbleState(name: "Title")
@@ -194,7 +194,32 @@ private var isEnabled = true
 private var accent = Color.blue
 ```
 
-Swift does not reliably expose the wrapped variable name to the property wrapper, so `name` is required. `category` is optional. Values without a category appear above categorized groups.
+Swift does not reliably expose the wrapped variable name to the property wrapper, so `name` is required. `screen` and `category` are optional. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups.
+
+Use `@TinkerbleObservableState` for normal stored properties inside `@Observable` classes. Add `@TinkerbleObservable` to the class and keep using normal Observation and `@Bindable` bindings from SwiftUI:
+
+```swift
+@TinkerbleObservable
+@Observable
+@MainActor
+final class Model {
+    @TinkerbleObservableState(category: "Observable", name: "Badge Text", screen: "Basic")
+    var badgeText = "Observable Model"
+
+    @TinkerbleObservableState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+    var badgeCount = 2
+}
+
+struct EditorView: View {
+    @Bindable var model: Model
+
+    var body: some View {
+        TextField("Badge Text", text: $model.badgeText)
+    }
+}
+```
+
+`@TinkerbleObservableState` supports the same `name`, `category`, `screen`, and `control` arguments as `@TinkerbleState`, but it does not create projected SwiftUI bindings. The property remains a normal Observation-tracked property, so SwiftUI bindings come from `@Bindable`.
 
 Use `.tinkerbleAction` to expose a companion button from a SwiftUI view:
 
@@ -210,6 +235,28 @@ struct FanDeckView: View {
     }
 }
 ```
+
+Use `@TinkerbleAction` and `@TinkerbleActions` for zero-parameter methods on `@Observable` classes. Call the generated `activateTinkerbleActions()` once from `init`:
+
+```swift
+@TinkerbleActions
+@Observable
+@MainActor
+final class Model {
+    var actionCount = 0
+
+    init() {
+        activateTinkerbleActions()
+    }
+
+    @TinkerbleAction(name: "Increment Action Count", screen: "Basic", category: "Observable")
+    func incrementActionCount() {
+        actionCount += 1
+    }
+}
+```
+
+`@TinkerbleAction` methods must not take parameters. They support optional `name`, `screen`, and `category` arguments. If `name` is omitted, Tinkerble uses the method name.
 
 Basic enums use `TinkerbleEnum`:
 
@@ -312,6 +359,7 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
   - `Card Count` and `Opacity` under `Layout`.
   - `Mood` under `Modes`.
   - `Fan Out / Collapse` button under `Animation` on the `Fan Deck` screen.
+  - `Increment Action Count` under `Observable` on the `Basic` screen.
 - Edit each companion control and confirm the iOS UI updates.
 - Tap each companion action button and confirm the iOS UI updates.
 
@@ -319,6 +367,8 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
 
 - Arrays, dictionaries, arbitrary structs, nested models, `ObservableObject`, and `@Published` are intentionally unsupported.
 - `@TinkerbleState` is main-actor SwiftUI view state.
+- `@TinkerbleObservableState` is for default-initialized `@Observable` classes marked with `@TinkerbleObservable`. Classes with explicit custom initializers are not supported yet.
+- The app-facing package intentionally has a compile-time SwiftSyntax macro dependency for `@TinkerbleObservable` and `@TinkerbleActions`.
 - The current connection flow uses a fixed host and port. Bonjour discovery is documented but not implemented.
 - Only one active companion session is tracked.
 - The companion UI is intentionally basic.
