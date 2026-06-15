@@ -21,18 +21,20 @@ public final class TinkerbleObservableStateRegistration {
         owner: Owner,
         initialValue: Value,
         name: String,
+        screen: String? = nil,
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
         guard !isRegistered else { return }
 
-        let id = Self.makeID(category: category, name: name)
+        let id = TinkerbleTweak.makeID(screen: screen, category: category, name: name)
         self.id = id
         isRegistered = true
 
         registrationToken = Tinkerble.shared.register(
             id: id,
+            screen: screen,
             category: category,
             name: name,
             value: initialValue,
@@ -51,6 +53,7 @@ public final class TinkerbleObservableStateRegistration {
         initialValue: Value,
         category: String,
         name: String,
+        screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
@@ -58,6 +61,7 @@ public final class TinkerbleObservableStateRegistration {
             owner: owner,
             initialValue: initialValue,
             name: name,
+            screen: screen,
             category: category,
             control: control,
             applyRemoteValue: applyRemoteValue
@@ -69,6 +73,7 @@ public final class TinkerbleObservableStateRegistration {
         initialValue: Value,
         _ category: String,
         name: String,
+        screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
@@ -76,6 +81,7 @@ public final class TinkerbleObservableStateRegistration {
             owner: owner,
             initialValue: initialValue,
             name: name,
+            screen: screen,
             category: category,
             control: control,
             applyRemoteValue: applyRemoteValue
@@ -87,13 +93,4 @@ public final class TinkerbleObservableStateRegistration {
         Tinkerble.shared.updateLocalValue(id: id, value: value)
     }
 
-    private static func makeID(category: String?, name: String) -> String {
-        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let category = category?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !category.isEmpty
-        else {
-            return normalizedName
-        }
-        return "\(category)/\(normalizedName)"
-    }
 }

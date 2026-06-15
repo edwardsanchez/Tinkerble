@@ -174,7 +174,7 @@ Use focused tests when the change has a narrower proof path:
 
 ## UI Tests
 
-Do not add tests that assert companion UI styling or layout details. Avoid assertions for colors, materials, window chrome, shadows, titlebar presentation, text styling, padding, dimensions, sizing math, control styles, or source snippets that exist only to pin visual implementation. Verify UI changes by building and launching the real app instead of freezing visual metrics in tests.
+Do not add tests that assert companion UI styling or layout details. Avoid assertions for colors, materials, window chrome, shadows, titlebar presentation, text styling, padding, dimensions, sizing math, control styles, or source snippets that exist only to pin visual implementation. Do not assert literal SwiftUI layout/modifier choices such as `ViewThatFits`, `Picker` label text, `.labelsHidden()`, `.fixedSize(...)`, `.pickerStyle(...)`, or `.frame(...)`. Verify UI behavior through user-visible state changes and build or launch the real app instead of freezing visual metrics in tests.
 
 ## Do Not Change Carelessly
 

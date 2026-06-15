@@ -12,12 +12,13 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
     @ObservationIgnored
     private var registrationToken: TinkerbleRegistrationToken?
 
-    init(initialValue: Value, category: String?, name: String, control: TinkerbleControl<Value>) {
+    init(initialValue: Value, screen: String? = nil, category: String?, name: String, control: TinkerbleControl<Value>) {
         self.value = initialValue
-        self.id = Self.makeID(category: category, name: name)
+        self.id = TinkerbleTweak.makeID(screen: screen, category: category, name: name)
 
         registrationToken = Tinkerble.shared.register(
             id: id,
+            screen: screen,
             category: category,
             name: name,
             value: initialValue,
@@ -41,15 +42,6 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
         Tinkerble.shared.updateLocalValue(id: id, value: newValue)
     }
 
-    private static func makeID(category: String?, name: String) -> String {
-        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let category = category?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !category.isEmpty
-        else {
-            return normalizedName
-        }
-        return "\(category)/\(normalizedName)"
-    }
 }
 
 @propertyWrapper
@@ -72,12 +64,14 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
     public init(
         wrappedValue: Value,
         name: String,
+        screen: String? = nil,
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
         _box = State(
             wrappedValue: TinkerbleStateBox(
                 initialValue: wrappedValue,
+                screen: screen,
                 category: category,
                 name: name,
                 control: control
@@ -89,17 +83,19 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         wrappedValue: Value,
         category: String,
         name: String,
+        screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
-        self.init(wrappedValue: wrappedValue, name: name, category: category, control: control)
+        self.init(wrappedValue: wrappedValue, name: name, screen: screen, category: category, control: control)
     }
 
     public init(
         wrappedValue: Value,
         _ category: String,
         name: String,
+        screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
-        self.init(wrappedValue: wrappedValue, name: name, category: category, control: control)
+        self.init(wrappedValue: wrappedValue, name: name, screen: screen, category: category, control: control)
     }
 }

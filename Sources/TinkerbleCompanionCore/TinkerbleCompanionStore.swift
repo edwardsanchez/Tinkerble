@@ -8,6 +8,7 @@ import Tinkerble
 public final class TinkerbleCompanionStore {
     public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
     public private(set) var tweaks: [TinkerbleTweak] = []
+    public private(set) var selectedScreen = TinkerbleTweak.defaultScreenName
     public private(set) var logs: [TinkerbleLogEntry] = []
 
     @ObservationIgnored
@@ -22,7 +23,37 @@ public final class TinkerbleCompanionStore {
     public init() {}
 
     public var groupedTweaks: [TinkerbleTweakGroup] {
-        TinkerbleTweakGrouping.groupedTweaks(from: tweaks)
+        TinkerbleTweakGrouping.groupedTweaks(from: visibleTweaks)
+    }
+
+    public var screens: [String] {
+        let uniqueScreens = Set(tweaks.map(\.screen))
+        return uniqueScreens.sorted { left, right in
+            if left == right {
+                return false
+            }
+            if left == TinkerbleTweak.defaultScreenName {
+                return true
+            }
+            if right == TinkerbleTweak.defaultScreenName {
+                return false
+            }
+            return left.localizedCaseInsensitiveCompare(right) == .orderedAscending
+        }
+    }
+
+    public var showsScreenSelector: Bool {
+        screens.count > 1
+    }
+
+    private var visibleTweaks: [TinkerbleTweak] {
+        guard showsScreenSelector else { return tweaks }
+        return tweaks.filter { $0.screen == selectedScreen }
+    }
+
+    public func selectScreen(_ screen: String) {
+        guard screens.contains(screen) else { return }
+        selectedScreen = screen
     }
 
     public func start(host: String = "0.0.0.0", port: Int = 7777) {
@@ -90,6 +121,10 @@ public final class TinkerbleCompanionStore {
 
     private func publishTweaks() {
         tweaks = tweaksByID.values.sorted { left, right in
+            if left.screen != right.screen {
+                return left.screen.localizedCaseInsensitiveCompare(right.screen) == .orderedAscending
+            }
+
             switch (left.category, right.category) {
             case (nil, nil):
                 return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
@@ -103,6 +138,11 @@ public final class TinkerbleCompanionStore {
                 }
                 return leftCategory.localizedCaseInsensitiveCompare(rightCategory) == .orderedAscending
             }
+        }
+        if let firstScreen = screens.first, !screens.contains(selectedScreen) {
+            selectedScreen = firstScreen
+        } else if screens.isEmpty {
+            selectedScreen = TinkerbleTweak.defaultScreenName
         }
     }
 

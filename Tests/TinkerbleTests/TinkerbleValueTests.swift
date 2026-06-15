@@ -46,6 +46,7 @@ final class TinkerbleValueTests: XCTestCase {
         let codec = TinkerbleRSocketPayloadCodec()
         let tweak = TinkerbleTweak(
             id: "Layout/Opacity",
+            screen: "Fan Deck",
             category: "Layout",
             name: "Opacity",
             value: .number(0.5),
@@ -57,6 +58,41 @@ final class TinkerbleValueTests: XCTestCase {
         let decoded = try codec.message(from: payload)
 
         XCTAssertEqual(decoded, .register(tweak))
+    }
+
+    func testTweakDefaultsMissingScreenToDefaultDuringDecoding() throws {
+        let encoded = try JSONEncoder().encode(
+            TinkerbleTweak(
+                id: "Layout/Opacity",
+                category: "Layout",
+                name: "Opacity",
+                value: .number(0.5),
+                valueKind: .number,
+                control: .automatic
+            )
+        )
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        json.removeValue(forKey: "screen")
+        let data = try JSONSerialization.data(withJSONObject: json)
+
+        let tweak = try JSONDecoder().decode(TinkerbleTweak.self, from: data)
+
+        XCTAssertEqual(tweak.screen, TinkerbleTweak.defaultScreenName)
+    }
+
+    func testTweakIDKeepsDefaultScreenIDsCompatibleAndPrefixesNamedScreens() {
+        XCTAssertEqual(
+            TinkerbleTweak.makeID(category: "Layout", name: "Opacity"),
+            "Layout/Opacity"
+        )
+        XCTAssertEqual(
+            TinkerbleTweak.makeID(screen: "Fan Deck", category: "Layout", name: "Opacity"),
+            "Fan Deck/Layout/Opacity"
+        )
+        XCTAssertEqual(
+            TinkerbleTweak.makeID(screen: "  ", category: nil, name: "Title"),
+            "Title"
+        )
     }
 
     func testRSocketPayloadCodecRoundTripsUnregisterMessages() throws {

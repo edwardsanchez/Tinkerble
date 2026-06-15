@@ -46,6 +46,7 @@ public final class Tinkerble {
     @discardableResult
     internal func register<Value: TinkerbleValueConvertible>(
         id: String,
+        screen: String? = nil,
         category: String?,
         name: String,
         value: Value,
@@ -54,6 +55,7 @@ public final class Tinkerble {
     ) -> TinkerbleRegistrationToken {
         let tweak = TinkerbleTweak(
             id: id,
+            screen: screen,
             category: normalizedCategory(category),
             name: name,
             value: value.tinkerbleValue,
@@ -161,6 +163,10 @@ public final class Tinkerble {
 
     private func sortedTweaks() -> [TinkerbleTweak] {
         liveRegistrationsByID.values.map(\.tweak).sorted { left, right in
+            if left.screen != right.screen {
+                return left.screen.localizedCaseInsensitiveCompare(right.screen) == .orderedAscending
+            }
+
             switch (left.category, right.category) {
             case (nil, nil):
                 return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending

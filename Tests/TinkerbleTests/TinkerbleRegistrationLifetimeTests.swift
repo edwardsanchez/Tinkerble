@@ -28,6 +28,51 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
         XCTAssertEqual(transport.sentMessages.last, .unregister(id: "Lifetime State/Message"))
     }
 
+    func testTinkerbleStateBoxRegistersNamedScreen() {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+
+        let box = TinkerbleStateBox<String>(
+            initialValue: "Loaded",
+            screen: "Fan Deck",
+            category: "Deck",
+            name: "Title",
+            control: .automatic
+        )
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Fan Deck/Deck/Title"])
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.screen), ["Fan Deck"])
+        XCTAssertNotNil(box)
+    }
+
+    func testObservableStateRegistrationRegistersNamedScreen() {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+        let owner = ScreenRegistrationOwner()
+        let registration = TinkerbleObservableStateRegistration()
+
+        registration.activate(
+            owner: owner,
+            initialValue: "Loaded",
+            name: "Title",
+            screen: "Basic",
+            category: "Layout",
+            control: .automatic,
+            applyRemoteValue: { owner, value in
+                owner.value = value
+            }
+        )
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Basic/Layout/Title"])
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.screen), ["Basic"])
+    }
+
     func testDuplicateLiveRegistrationsRemainVisibleUntilLastTokenUnregisters() async {
         let transport = LifetimeRecordingTransport()
         Tinkerble.shared.resetForTesting(transport: transport)
@@ -85,6 +130,10 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(50))
         }
     }
+}
+
+private final class ScreenRegistrationOwner {
+    var value = ""
 }
 
 private final class LifetimeRecordingTransport: TinkerbleClientTransport {

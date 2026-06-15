@@ -14,6 +14,8 @@ struct TweakInspectorView: View {
             TweakInspectorContent(
                 groups: store.groupedTweaks,
                 isEmpty: store.tweaks.isEmpty,
+                screens: store.screens,
+                selectedScreen: selectedScreenBinding,
                 updateTweak: store.updateTweak
             )
         }
@@ -21,6 +23,8 @@ struct TweakInspectorView: View {
             TweakInspectorContent(
                 groups: store.groupedTweaks,
                 isEmpty: store.tweaks.isEmpty,
+                screens: store.screens,
+                selectedScreen: selectedScreenBinding,
                 updateTweak: store.updateTweak
             )
                 .fixedSize(horizontal: false, vertical: true)
@@ -32,15 +36,42 @@ struct TweakInspectorView: View {
                 }
         }
     }
+
+    private var selectedScreenBinding: Binding<String> {
+        Binding(
+            get: { store.selectedScreen },
+            set: { store.selectScreen($0) }
+        )
+    }
 }
 
 struct TweakInspectorContent: View {
     var groups: [TinkerbleTweakGroup]
     var isEmpty: Bool
+    var screens: [String]
+    @Binding var selectedScreen: String
     var updateTweak: (String, TinkerbleValue) -> Void
+
+    init(
+        groups: [TinkerbleTweakGroup],
+        isEmpty: Bool,
+        screens: [String] = [],
+        selectedScreen: Binding<String> = .constant(TinkerbleTweak.defaultScreenName),
+        updateTweak: @escaping (String, TinkerbleValue) -> Void
+    ) {
+        self.groups = groups
+        self.isEmpty = isEmpty
+        self.screens = screens
+        _selectedScreen = selectedScreen
+        self.updateTweak = updateTweak
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if screens.count > 1 {
+                TweakScreenSelectorView(screens: screens, selectedScreen: $selectedScreen)
+            }
+
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     if let category = group.category {
@@ -69,6 +100,35 @@ struct TweakInspectorContent: View {
 
     static func categoryHeaderTopPadding(for group: TinkerbleTweakGroup, in groups: [TinkerbleTweakGroup]) -> CGFloat {
         group.id == groups.first?.id ? 0 : 15
+    }
+}
+
+private struct TweakScreenSelectorView: View {
+    let screens: [String]
+    @Binding var selectedScreen: String
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            Picker("", selection: $selectedScreen) {
+                ForEach(screens, id: \.self) { screen in
+                    Text(screen)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .tag(screen)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+
+            Picker("", selection: $selectedScreen) {
+                ForEach(screens, id: \.self) { screen in
+                    Text(screen)
+                        .tag(screen)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 

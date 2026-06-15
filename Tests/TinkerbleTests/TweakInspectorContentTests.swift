@@ -50,6 +50,15 @@ final class TweakInspectorContentTests: XCTestCase {
         XCTAssertFalse(source.contains("Text(angleUnit.displayName)"))
     }
 
+    func testInspectorViewUsesStoreScreenSelectionBinding() throws {
+        let source = try readText("Sources/TinkerbleCompanionUI/TweakInspectorView.swift")
+
+        XCTAssertTrue(source.contains("screens: store.screens"))
+        XCTAssertTrue(source.contains("selectedScreen: selectedScreenBinding"))
+        XCTAssertTrue(source.contains("get: { store.selectedScreen }"))
+        XCTAssertTrue(source.contains("set: { store.selectScreen($0) }"))
+    }
+
     func testDatePickerConfiguresAppKitElementsAndCalendarOverlay() {
         #if os(macOS)
         XCTAssertEqual(
