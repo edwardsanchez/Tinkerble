@@ -84,7 +84,6 @@ private struct BasicDemoView: View {
                 header
                 sampleCards
                 observableExamples
-                logButton
             }
             .padding(20)
         }
@@ -165,18 +164,6 @@ private struct BasicDemoView: View {
         .padding(14)
         .background(.background)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var logButton: some View {
-        Button {
-            TinkerLog.print("Demo log: \(title), mood \(mood.rawValue), cards \(cardCount)")
-        } label: {
-            Label("Send Demo Log", systemImage: "text.bubble")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(accentColor)
-        .disabled(!isEnabled)
     }
 
     private func cardTitle(for index: Int) -> String {

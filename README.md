@@ -296,7 +296,6 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
   - `Card Count` and `Opacity` under `Layout`.
   - `Mood` under `Modes`.
 - Edit each companion control and confirm the iOS UI updates.
-- Tap `Send Demo Log` in the iOS app and confirm the log appears in the companion console.
 
 ## Current Limitations
 
