@@ -30,6 +30,10 @@ final class TinkerbleValueTests: XCTestCase {
         XCTAssertEqual(date.tinkerbleValue.kind, .date)
     }
 
+    func testActionValueUsesActionKind() {
+        XCTAssertEqual(TinkerbleValue.action.kind, .action)
+    }
+
     func testBasicRawRepresentableEnumsExposePickerOptions() {
         XCTAssertEqual(DemoMode.compact.tinkerbleValue, .enumCase("compact"))
         XCTAssertEqual(DemoMode.fromTinkerbleValue(.enumCase("expanded")), .expanded)
@@ -102,6 +106,15 @@ final class TinkerbleValueTests: XCTestCase {
         let decoded = try codec.message(from: payload)
 
         XCTAssertEqual(decoded, .unregister(id: "Lifetime State/Message"))
+    }
+
+    func testRSocketPayloadCodecRoundTripsTriggerMessages() throws {
+        let codec = TinkerbleRSocketPayloadCodec()
+
+        let payload = try codec.payload(for: .trigger(id: "Fan Deck/Animation/Toggle Fan"))
+        let decoded = try codec.message(from: payload)
+
+        XCTAssertEqual(decoded, .trigger(id: "Fan Deck/Animation/Toggle Fan"))
     }
 
     func testRSocketPayloadCodecRoundTripsTextControlDescriptors() throws {

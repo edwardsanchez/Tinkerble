@@ -44,6 +44,7 @@ final class FanDeckDemoSourceTests: XCTestCase {
             ".onGeometryChange(for: CGSize.self)",
             "Color.lerp(from: startColor, to: endColor, progress: Double(card.index) / divisor)",
             ".spring(duration: duration, bounce: bounciness)",
+            #".tinkerbleAction("Fan Out / Collapse", screen: "Fan Deck", category: "Animation")"#,
             "Task.sleep(for: .seconds(0.15))",
             ".onTapGesture",
             ".onDisappear",
@@ -71,7 +72,7 @@ final class FanDeckDemoSourceTests: XCTestCase {
 
     func testDemoTinkerbleStatesDeclareScreens() throws {
         XCTAssertEqual(try contentViewSource.components(separatedBy: #"screen: "Basic""#).count - 1, 11)
-        XCTAssertEqual(try fanDeckSource.components(separatedBy: #"screen: "Fan Deck""#).count - 1, 13)
+        XCTAssertEqual(try fanDeckSource.components(separatedBy: #"screen: "Fan Deck""#).count - 1, 14)
     }
 
     private var fanDeckSource: String {

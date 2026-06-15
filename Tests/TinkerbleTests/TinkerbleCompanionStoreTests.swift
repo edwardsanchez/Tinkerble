@@ -1,4 +1,5 @@
 import XCTest
+import RSocketCore
 @testable import Tinkerble
 @testable import TinkerbleCompanionCore
 
@@ -110,6 +111,27 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertEqual(store.logs, [entry])
     }
 
+    func testCompanionTriggerTweakSendsTriggerMessage() throws {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        let codec = TinkerbleRSocketPayloadCodec()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+
+        store.triggerTweak(id: "Fan Deck/Animation/Toggle Fan")
+
+        let payload = try XCTUnwrap(outbound.payloads.last)
+        XCTAssertEqual(try codec.message(from: payload), .trigger(id: "Fan Deck/Animation/Toggle Fan"))
+    }
+
+    func testCompanionIgnoresInboundTriggerMessages() {
+        let store = TinkerbleCompanionStore()
+
+        store.handle(.trigger(id: "Fan Deck/Animation/Toggle Fan"), outbound: nil)
+
+        XCTAssertTrue(store.tweaks.isEmpty)
+        XCTAssertTrue(store.logs.isEmpty)
+    }
+
     func testCompanionRemovesTweaksWhenTheyUnregister() {
         let store = TinkerbleCompanionStore()
 
@@ -134,4 +156,22 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertTrue(store.tweaks.isEmpty)
         XCTAssertTrue(store.groupedTweaks.isEmpty)
     }
+}
+
+private final class RecordingOutboundStream: UnidirectionalStream {
+    var payloads: [Payload] = []
+
+    func onNext(_ payload: Payload, isCompletion: Bool) {
+        payloads.append(payload)
+    }
+
+    func onComplete() {}
+
+    func onRequestN(_ requestN: Int32) {}
+
+    func onCancel() {}
+
+    func onError(_ error: RSocketCore.Error) {}
+
+    func onExtension(extendedType: Int32, payload: Payload, canBeIgnored: Bool) {}
 }

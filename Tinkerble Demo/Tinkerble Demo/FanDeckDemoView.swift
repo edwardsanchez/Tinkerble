@@ -164,6 +164,9 @@ private struct FanDeckView: View {
         .onDisappear {
             isExpanded = false
         }
+        .tinkerbleAction("Fan Out / Collapse", screen: "Fan Deck", category: "Animation") {
+            toggleFan()
+        }
     }
 
     private func cardColor(for card: FanDeckCardLayout) -> Color {
@@ -187,6 +190,12 @@ private struct FanDeckView: View {
             await MainActor.run {
                 expandFan()
             }
+        }
+    }
+
+    private func toggleFan() {
+        withAnimation(.spring(duration: duration, bounce: bounciness)) {
+            isExpanded.toggle()
         }
     }
 }

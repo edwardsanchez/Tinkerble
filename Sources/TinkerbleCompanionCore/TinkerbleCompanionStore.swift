@@ -88,6 +88,10 @@ public final class TinkerbleCompanionStore {
         send(.update(id: id, value: value))
     }
 
+    public func triggerTweak(id: String) {
+        send(.trigger(id: id))
+    }
+
     internal func handle(_ message: TinkerbleWireMessage, outbound: UnidirectionalStream?) {
         if let outbound {
             outboundStream = outbound
@@ -107,6 +111,8 @@ public final class TinkerbleCompanionStore {
             publishTweaks()
         case let .update(id, value):
             updateStoredTweak(id: id, value: value)
+        case .trigger:
+            break
         case let .log(entry):
             logs.append(entry)
         }

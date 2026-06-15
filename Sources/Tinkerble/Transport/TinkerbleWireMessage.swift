@@ -18,6 +18,7 @@ public enum TinkerbleWireMessage: Codable, Equatable {
     case register(TinkerbleTweak)
     case unregister(id: String)
     case update(id: String, value: TinkerbleValue)
+    case trigger(id: String)
     case log(TinkerbleLogEntry)
 }
 

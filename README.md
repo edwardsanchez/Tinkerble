@@ -1,10 +1,10 @@
 # Tinkerble
 
-Tinkerble is a proof-of-concept debug companion system for SwiftUI apps. It lets an iOS app register tweakable values, send logs to a macOS companion app, and receive live value edits back from the Mac during development.
+Tinkerble is a proof-of-concept debug companion system for SwiftUI apps. It lets an iOS app register tweakable values and actions, send logs to a macOS companion app, receive live value edits back from the Mac, and trigger app-side commands during development.
 
 The package is intentionally small and modular:
 
-- `Tinkerble`: iOS-facing library with `@TinkerbleState`, `TinkerLog`, core tweak models, and the RSocket client transport.
+- `Tinkerble`: iOS-facing library with `@TinkerbleState`, `.tinkerbleAction`, `TinkerLog`, core tweak models, and the RSocket client transport.
 - `TinkerbleCompanionCore`: macOS companion store and RSocket server.
 - `TinkerbleCompanion`: SwiftUI macOS companion executable with a log console and tweak inspector.
 - `Tinkerble Demo`: local iOS demo project that imports the package.
@@ -14,11 +14,12 @@ The package is intentionally small and modular:
 The implemented loop is:
 
 1. The iOS app connects to the macOS companion over an RSocket request-channel.
-2. `@TinkerbleState` registers tweakable values.
-3. The companion displays uncategorized values first, then grouped categories.
+2. `@TinkerbleState` and `.tinkerbleAction` register tweakable values and actions.
+3. The companion displays tweaks by screen, with uncategorized values first, then grouped categories.
 4. Editing a companion control sends an update back to the iOS app.
-5. The iOS app applies the update to the registered state.
-6. `TinkerLog.print` and `TinkerLog.log` send strings to the companion console.
+5. Tapping an action button sends a trigger back to the iOS app.
+6. The iOS app applies value updates or runs the registered action closure.
+7. `TinkerLog.print` and `TinkerLog.log` send strings to the companion console.
 
 ## Install Tinkerble In Your App
 
@@ -195,6 +196,21 @@ private var accent = Color.blue
 
 Swift does not reliably expose the wrapped variable name to the property wrapper, so `name` is required. `category` is optional. Values without a category appear above categorized groups.
 
+Use `.tinkerbleAction` to expose a companion button from a SwiftUI view:
+
+```swift
+struct FanDeckView: View {
+    @State private var isExpanded = false
+
+    var body: some View {
+        DeckView(isExpanded: isExpanded)
+            .tinkerbleAction("Fan Out / Collapse", screen: "Fan Deck", category: "Animation") {
+                isExpanded.toggle()
+            }
+    }
+}
+```
+
 Basic enums use `TinkerbleEnum`:
 
 ```swift
@@ -295,7 +311,9 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
   - `Accent Color` under `Palette`.
   - `Card Count` and `Opacity` under `Layout`.
   - `Mood` under `Modes`.
+  - `Fan Out / Collapse` button under `Animation` on the `Fan Deck` screen.
 - Edit each companion control and confirm the iOS UI updates.
+- Tap each companion action button and confirm the iOS UI updates.
 
 ## Current Limitations
 

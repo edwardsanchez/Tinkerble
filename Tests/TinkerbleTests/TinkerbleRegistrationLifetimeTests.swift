@@ -73,6 +73,79 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
         XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.screen), ["Basic"])
     }
 
+    func testActionRegistrationRegistersNamedScreenAndRunsOnTrigger() async {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+        let owner = ActionRegistrationOwner()
+        let registration = TinkerbleActionRegistration()
+
+        registration.activate(
+            owner: owner,
+            name: "Toggle Fan",
+            screen: "Fan Deck",
+            category: "Animation",
+            perform: { owner in
+                owner.runCount += 1
+            }
+        )
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Fan Deck/Animation/Toggle Fan"])
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.screen), ["Fan Deck"])
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.value), [.action])
+
+        transport.receive(.trigger(id: "Fan Deck/Animation/Toggle Fan"))
+
+        await waitUntil { owner.runCount == 1 }
+        XCTAssertEqual(owner.runCount, 1)
+    }
+
+    func testDuplicateActionRegistrationsRemainVisibleAndAllRunUntilLastTokenUnregisters() async {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+        var firstRunCount = 0
+        var secondRunCount = 0
+        let firstToken = Tinkerble.shared.registerAction(
+            id: "Fan Deck/Animation/Toggle Fan",
+            screen: "Fan Deck",
+            category: "Animation",
+            name: "Toggle Fan",
+            perform: { firstRunCount += 1 }
+        )
+        let secondToken = Tinkerble.shared.registerAction(
+            id: "Fan Deck/Animation/Toggle Fan",
+            screen: "Fan Deck",
+            category: "Animation",
+            name: "Toggle Fan",
+            perform: { secondRunCount += 1 }
+        )
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Fan Deck/Animation/Toggle Fan"])
+        XCTAssertEqual(transport.sentMessages.compactMap(\.registeredTweak).map(\.id), ["Fan Deck/Animation/Toggle Fan"])
+
+        transport.receive(.trigger(id: "Fan Deck/Animation/Toggle Fan"))
+
+        await waitUntil { firstRunCount == 1 && secondRunCount == 1 }
+        XCTAssertEqual(firstRunCount, 1)
+        XCTAssertEqual(secondRunCount, 1)
+
+        transport.sentMessages.removeAll()
+        Tinkerble.shared.unregister(firstToken)
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Fan Deck/Animation/Toggle Fan"])
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+
+        Tinkerble.shared.unregister(secondToken)
+
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertEqual(transport.sentMessages, [.unregister(id: "Fan Deck/Animation/Toggle Fan")])
+    }
+
     func testDuplicateLiveRegistrationsRemainVisibleUntilLastTokenUnregisters() async {
         let transport = LifetimeRecordingTransport()
         Tinkerble.shared.resetForTesting(transport: transport)
@@ -134,6 +207,10 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
 
 private final class ScreenRegistrationOwner {
     var value = ""
+}
+
+private final class ActionRegistrationOwner {
+    var runCount = 0
 }
 
 private final class LifetimeRecordingTransport: TinkerbleClientTransport {

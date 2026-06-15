@@ -86,6 +86,40 @@ public final class Tinkerble {
         return token
     }
 
+    @discardableResult
+    internal func registerAction(
+        id: String,
+        screen: String? = nil,
+        category: String?,
+        name: String,
+        perform: @escaping () -> Void
+    ) -> TinkerbleRegistrationToken {
+        let tweak = TinkerbleTweak(
+            id: id,
+            screen: screen,
+            category: normalizedCategory(category),
+            name: name,
+            value: .action,
+            valueKind: .action,
+            control: .automatic
+        )
+        let token = TinkerbleRegistrationToken(tweakID: id)
+
+        if var liveRegistration = liveRegistrationsByID[id] {
+            liveRegistration.actionHandlers[token.instanceID] = perform
+            liveRegistrationsByID[id] = liveRegistration
+            return token
+        }
+
+        liveRegistrationsByID[id] = LiveTweakRegistration(
+            tweak: tweak,
+            actionHandlers: [token.instanceID: perform]
+        )
+        publishTweaks()
+        transport.send(.register(tweak))
+        return token
+    }
+
     private func resolvedControlDescriptor<Value: TinkerbleValueConvertible>(
         _ descriptor: TinkerbleControlDescriptor,
         for valueType: Value.Type
@@ -102,7 +136,8 @@ public final class Tinkerble {
         guard var liveRegistration = liveRegistrationsByID[token.tweakID] else { return }
 
         liveRegistration.remoteAppliers.removeValue(forKey: token.instanceID)
-        guard liveRegistration.remoteAppliers.isEmpty else {
+        liveRegistration.actionHandlers.removeValue(forKey: token.instanceID)
+        guard liveRegistration.remoteAppliers.isEmpty, liveRegistration.actionHandlers.isEmpty else {
             liveRegistrationsByID[token.tweakID] = liveRegistration
             return
         }
@@ -144,6 +179,11 @@ public final class Tinkerble {
             let appliers = liveRegistrationsByID[id].map { Array($0.remoteAppliers.values) } ?? []
             for applier in appliers {
                 applier(value)
+            }
+        case let .trigger(id):
+            let handlers = liveRegistrationsByID[id].map { Array($0.actionHandlers.values) } ?? []
+            for handler in handlers {
+                handler()
             }
         case .hello, .snapshot, .register, .unregister, .log:
             break
@@ -194,6 +234,7 @@ public final class Tinkerble {
 
     private struct LiveTweakRegistration {
         var tweak: TinkerbleTweak
-        var remoteAppliers: [UUID: (TinkerbleValue) -> Void]
+        var remoteAppliers: [UUID: (TinkerbleValue) -> Void] = [:]
+        var actionHandlers: [UUID: () -> Void] = [:]
     }
 }

@@ -15,6 +15,7 @@ public enum TinkerbleValueKind: String, Codable, Hashable {
     case number
     case date
     case enumeration
+    case action
 }
 
 public struct TinkerbleColor: Codable, Equatable, Hashable {
@@ -69,6 +70,7 @@ public enum TinkerbleValue: Codable, Equatable, Hashable {
     case number(Double)
     case date(Date)
     case enumCase(String)
+    case action
 
     public var kind: TinkerbleValueKind {
         switch self {
@@ -84,6 +86,8 @@ public enum TinkerbleValue: Codable, Equatable, Hashable {
             return .date
         case .enumCase:
             return .enumeration
+        case .action:
+            return .action
         }
     }
 }

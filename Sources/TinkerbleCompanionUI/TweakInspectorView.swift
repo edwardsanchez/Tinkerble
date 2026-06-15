@@ -16,7 +16,8 @@ struct TweakInspectorView: View {
                 isEmpty: store.tweaks.isEmpty,
                 screens: store.screens,
                 selectedScreen: selectedScreenBinding,
-                updateTweak: store.updateTweak
+                updateTweak: store.updateTweak,
+                triggerTweak: store.triggerTweak
             )
         }
         .background {
@@ -25,7 +26,8 @@ struct TweakInspectorView: View {
                 isEmpty: store.tweaks.isEmpty,
                 screens: store.screens,
                 selectedScreen: selectedScreenBinding,
-                updateTweak: store.updateTweak
+                updateTweak: store.updateTweak,
+                triggerTweak: store.triggerTweak
             )
                 .fixedSize(horizontal: false, vertical: true)
                 .hidden()
@@ -51,19 +53,22 @@ struct TweakInspectorContent: View {
     var screens: [String]
     @Binding var selectedScreen: String
     var updateTweak: (String, TinkerbleValue) -> Void
+    var triggerTweak: (String) -> Void
 
     init(
         groups: [TinkerbleTweakGroup],
         isEmpty: Bool,
         screens: [String] = [],
         selectedScreen: Binding<String> = .constant(TinkerbleTweak.defaultScreenName),
-        updateTweak: @escaping (String, TinkerbleValue) -> Void
+        updateTweak: @escaping (String, TinkerbleValue) -> Void,
+        triggerTweak: @escaping (String) -> Void = { _ in }
     ) {
         self.groups = groups
         self.isEmpty = isEmpty
         self.screens = screens
         _selectedScreen = selectedScreen
         self.updateTweak = updateTweak
+        self.triggerTweak = triggerTweak
     }
 
     var body: some View {
@@ -84,7 +89,7 @@ struct TweakInspectorContent: View {
                     }
 
                     ForEach(group.tweaks) { tweak in
-                        TweakRow(tweak: tweak, updateTweak: updateTweak)
+                        TweakRow(tweak: tweak, updateTweak: updateTweak, triggerTweak: triggerTweak)
                     }
                 }
             }
@@ -135,19 +140,31 @@ private struct TweakScreenSelectorView: View {
 private struct TweakRow: View {
     var tweak: TinkerbleTweak
     var updateTweak: (String, TinkerbleValue) -> Void
+    var triggerTweak: (String) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(tweak.name)
-                .font(.callout)
-                .bold()
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .frame(width: 116, alignment: .leading)
+        if case .action = tweak.value {
+            actionButton
+        } else {
+            HStack(alignment: .top, spacing: 14) {
+                Text(tweak.name)
+                    .font(.callout)
+                    .bold()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(width: 116, alignment: .leading)
 
-            control
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .font(.callout)
+                control
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .font(.callout)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var actionButton: some View {
+        Button(tweak.name) {
+            triggerTweak(tweak.id)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -176,6 +193,8 @@ private struct TweakRow: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
+        case .action:
+            actionButton
         }
     }
 

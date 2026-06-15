@@ -59,6 +59,17 @@ final class TweakInspectorContentTests: XCTestCase {
         XCTAssertTrue(source.contains("set: { store.selectScreen($0) }"))
     }
 
+    func testInspectorRoutesActionsToFullWidthButtons() throws {
+        let source = try readText("Sources/TinkerbleCompanionUI/TweakInspectorView.swift")
+
+        XCTAssertTrue(source.contains("triggerTweak: store.triggerTweak"))
+        XCTAssertTrue(source.contains("var triggerTweak: (String) -> Void"))
+        XCTAssertTrue(source.contains("if case .action = tweak.value"))
+        XCTAssertTrue(source.contains("Button(tweak.name)"))
+        XCTAssertTrue(source.contains("triggerTweak(tweak.id)"))
+        XCTAssertFalse(source.contains("Button(\"Run\", systemImage: \"play.fill\")"))
+    }
+
     func testDatePickerConfiguresAppKitElementsAndCalendarOverlay() {
         #if os(macOS)
         XCTAssertEqual(
