@@ -17,6 +17,9 @@ struct TweakInspectorView: View {
                 screens: store.screens,
                 selectedScreen: selectedScreenBinding,
                 updateTweak: store.updateTweak,
+                beginCoalescedTweakUpdate: store.beginCoalescedTweakUpdate,
+                updateCoalescedTweak: store.updateCoalescedTweak,
+                endCoalescedTweakUpdate: store.endCoalescedTweakUpdate,
                 triggerTweak: store.triggerTweak
             )
         }
@@ -27,6 +30,9 @@ struct TweakInspectorView: View {
                 screens: store.screens,
                 selectedScreen: selectedScreenBinding,
                 updateTweak: store.updateTweak,
+                beginCoalescedTweakUpdate: store.beginCoalescedTweakUpdate,
+                updateCoalescedTweak: store.updateCoalescedTweak,
+                endCoalescedTweakUpdate: store.endCoalescedTweakUpdate,
                 triggerTweak: store.triggerTweak
             )
                 .fixedSize(horizontal: false, vertical: true)
@@ -53,6 +59,9 @@ struct TweakInspectorContent: View {
     var screens: [String]
     @Binding var selectedScreen: String
     var updateTweak: (String, TinkerbleValue) -> Void
+    var beginCoalescedTweakUpdate: (String) -> Void
+    var updateCoalescedTweak: (String, TinkerbleValue) -> Void
+    var endCoalescedTweakUpdate: (String) -> Void
     var triggerTweak: (String) -> Void
 
     init(
@@ -61,6 +70,9 @@ struct TweakInspectorContent: View {
         screens: [String] = [],
         selectedScreen: Binding<String> = .constant(TinkerbleTweak.defaultScreenName),
         updateTweak: @escaping (String, TinkerbleValue) -> Void,
+        beginCoalescedTweakUpdate: @escaping (String) -> Void = { _ in },
+        updateCoalescedTweak: @escaping (String, TinkerbleValue) -> Void = { _, _ in },
+        endCoalescedTweakUpdate: @escaping (String) -> Void = { _ in },
         triggerTweak: @escaping (String) -> Void = { _ in }
     ) {
         self.groups = groups
@@ -68,6 +80,9 @@ struct TweakInspectorContent: View {
         self.screens = screens
         _selectedScreen = selectedScreen
         self.updateTweak = updateTweak
+        self.beginCoalescedTweakUpdate = beginCoalescedTweakUpdate
+        self.updateCoalescedTweak = updateCoalescedTweak
+        self.endCoalescedTweakUpdate = endCoalescedTweakUpdate
         self.triggerTweak = triggerTweak
     }
 
@@ -89,7 +104,14 @@ struct TweakInspectorContent: View {
                     }
 
                     ForEach(group.tweaks) { tweak in
-                        TweakRow(tweak: tweak, updateTweak: updateTweak, triggerTweak: triggerTweak)
+                        TweakRow(
+                            tweak: tweak,
+                            updateTweak: updateTweak,
+                            beginCoalescedTweakUpdate: beginCoalescedTweakUpdate,
+                            updateCoalescedTweak: updateCoalescedTweak,
+                            endCoalescedTweakUpdate: endCoalescedTweakUpdate,
+                            triggerTweak: triggerTweak
+                        )
                     }
                 }
             }
@@ -140,6 +162,9 @@ private struct TweakScreenSelectorView: View {
 private struct TweakRow: View {
     var tweak: TinkerbleTweak
     var updateTweak: (String, TinkerbleValue) -> Void
+    var beginCoalescedTweakUpdate: (String) -> Void
+    var updateCoalescedTweak: (String, TinkerbleValue) -> Void
+    var endCoalescedTweakUpdate: (String) -> Void
     var triggerTweak: (String) -> Void
 
     var body: some View {
@@ -200,17 +225,13 @@ private struct TweakRow: View {
 
     @ViewBuilder
     private var stringControl: some View {
-        switch resolvedTextControlStyle {
-        case .area:
-            TextEditor(text: stringBinding)
-                .frame(minHeight: 72)
-                .padding(.bottom, 15)
-
-        case .field, .automatic:
-            TextField("", text: stringBinding)
-                .textFieldStyle(.roundedBorder)
-                .monospacedDigit()
-        }
+        TinkerbleStringControlView(
+            value: stringValue,
+            style: resolvedTextControlStyle,
+            beginCoalescedUpdate: { beginCoalescedTweakUpdate(tweak.id) },
+            updateCoalescedValue: { updateCoalescedTweak(tweak.id, .string($0)) },
+            endCoalescedUpdate: { endCoalescedTweakUpdate(tweak.id) }
+        )
     }
 
     @ViewBuilder
@@ -221,14 +242,20 @@ private struct TweakRow: View {
                 value: numberDisplayValue(for: configuration),
                 configuration: configuration,
                 showsDragHandle: false,
-                updateValue: { updateNumberDisplayValue($0, configuration: configuration) }
+                updateValue: { updateNumberDisplayValue($0, configuration: configuration) },
+                beginCoalescedUpdate: {},
+                updateCoalescedValue: { updateNumberDisplayValue($0, configuration: configuration, isCoalesced: true) },
+                endCoalescedUpdate: {}
             )
         case let .slider(configuration):
             TinkerbleNumberFieldView(
                 value: numberDisplayValue(for: configuration),
                 configuration: configuration,
                 showsDragHandle: true,
-                updateValue: { updateNumberDisplayValue($0, configuration: configuration) }
+                updateValue: { updateNumberDisplayValue($0, configuration: configuration) },
+                beginCoalescedUpdate: { beginCoalescedTweakUpdate(tweak.id) },
+                updateCoalescedValue: { updateNumberDisplayValue($0, configuration: configuration, isCoalesced: true) },
+                endCoalescedUpdate: { endCoalescedTweakUpdate(tweak.id) }
             )
         case .text:
             fallbackNumberControl
@@ -246,7 +273,10 @@ private struct TweakRow: View {
             value: numberValue,
             configuration: configuration,
             showsDragHandle: false,
-            updateValue: updateNumberValue
+            updateValue: updateNumberValue,
+            beginCoalescedUpdate: {},
+            updateCoalescedValue: { updateNumberValue($0, isCoalesced: true) },
+            endCoalescedUpdate: {}
         )
     }
 
@@ -262,14 +292,9 @@ private struct TweakRow: View {
         return configuration.components
     }
 
-    private var stringBinding: Binding<String> {
-        Binding(
-            get: {
-                guard case let .string(value) = tweak.value else { return "" }
-                return value
-            },
-            set: { updateTweak(tweak.id, .string($0)) }
-        )
+    private var stringValue: String {
+        guard case let .string(value) = tweak.value else { return "" }
+        return value
     }
 
     private var resolvedTextControlStyle: TinkerbleTextControlStyle {
@@ -312,12 +337,24 @@ private struct TweakRow: View {
         updateTweak(tweak.id, .number(value))
     }
 
-    private func updateNumberDisplayValue(_ value: Double, configuration: TinkerbleNumericControl) {
-        guard let angleUnit = configuration.angleUnit else {
+    private func updateNumberValue(_ value: Double, isCoalesced: Bool) {
+        if isCoalesced {
+            updateCoalescedTweak(tweak.id, .number(value))
+        } else {
             updateNumberValue(value)
+        }
+    }
+
+    private func updateNumberDisplayValue(
+        _ value: Double,
+        configuration: TinkerbleNumericControl,
+        isCoalesced: Bool = false
+    ) {
+        guard let angleUnit = configuration.angleUnit else {
+            updateNumberValue(value, isCoalesced: isCoalesced)
             return
         }
-        updateNumberValue(angleUnit.storedRadians(fromDisplayValue: value))
+        updateNumberValue(angleUnit.storedRadians(fromDisplayValue: value), isCoalesced: isCoalesced)
     }
 
     private var dateBinding: Binding<Date> {
@@ -347,6 +384,9 @@ struct TinkerbleNumberFieldView: View {
     var configuration: TinkerbleNumericControl
     var showsDragHandle: Bool
     var updateValue: (Double) -> Void
+    var beginCoalescedUpdate: () -> Void = {}
+    var updateCoalescedValue: (Double) -> Void = { _ in }
+    var endCoalescedUpdate: () -> Void = {}
 
     @FocusState private var isFocused: Bool
     @State private var dragStartValue: Double?
@@ -394,8 +434,14 @@ struct TinkerbleNumberFieldView: View {
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
-                let startValue = dragStartValue ?? currentValue
-                dragStartValue = startValue
+                let startValue: Double
+                if let dragStartValue {
+                    startValue = dragStartValue
+                } else {
+                    startValue = currentValue
+                    dragStartValue = startValue
+                    beginCoalescedUpdate()
+                }
                 commitValue(
                     TinkerbleNumericInteraction.draggedValue(
                         from: startValue,
@@ -403,11 +449,13 @@ struct TinkerbleNumberFieldView: View {
                         modifiers: .current,
                         configuration: configuration
                     ),
-                    refreshEditingText: true
+                    refreshEditingText: true,
+                    isCoalesced: true
                 )
             }
             .onEnded { _ in
                 dragStartValue = nil
+                endCoalescedUpdate()
             }
     }
 
@@ -452,12 +500,16 @@ struct TinkerbleNumberFieldView: View {
         return .handled
     }
 
-    private func commitValue(_ value: Double, refreshEditingText: Bool = false) {
+    private func commitValue(_ value: Double, refreshEditingText: Bool = false, isCoalesced: Bool = false) {
         displayedValue = value
         if refreshEditingText, isFocused {
             editingText = textValue(for: value)
         }
-        updateValue(value)
+        if isCoalesced {
+            updateCoalescedValue(value)
+        } else {
+            updateValue(value)
+        }
     }
 
     private func textValue(for value: Double) -> String {
