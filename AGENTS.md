@@ -168,13 +168,12 @@ Run `/opt/homebrew/bin/swiftlint --fix` only on Swift files changed in this work
 Use focused tests when the change has a narrower proof path:
 
 - `swift test --filter TinkerbleInstallerCoreTests` for installer behavior.
-- `swift test --filter TinkerbleSwiftUIRuleTests` for policy/source-shape rules.
 - `swift test --filter TinkerbleComponentPreviewFixtureTests` for All Tinkerble Components fixture changes.
 - `swift test --filter TweakInspectorContentTests` for companion inspector rendering/parsing behavior.
 
 ## UI Tests
 
-Do not add tests that assert companion UI styling or layout details. Avoid assertions for colors, materials, window chrome, shadows, titlebar presentation, text styling, padding, dimensions, sizing math, control styles, or source snippets that exist only to pin visual implementation. Do not assert literal SwiftUI layout/modifier choices such as `ViewThatFits`, `Picker` label text, `.labelsHidden()`, `.fixedSize(...)`, `.pickerStyle(...)`, or `.frame(...)`. Verify UI behavior through user-visible state changes and build or launch the real app instead of freezing visual metrics in tests.
+Do not add tests that assert companion UI styling or layout details. Avoid assertions for colors, materials, window chrome, shadows, titlebar presentation, text styling, padding, dimensions, sizing math, control styles, or source snippets that exist only to pin visual implementation. Do not write tests that read source files and assert string containment with `source.contains(...)`, `script.contains(...)`, `project.contains(...)`, or equivalent substring-count checks. Do not assert literal SwiftUI layout/modifier choices such as `ViewThatFits`, `Picker` label text, `.labelsHidden()`, `.fixedSize(...)`, `.pickerStyle(...)`, or `.frame(...)`. Verify UI behavior through user-visible state changes and build or launch the real app instead of freezing visual metrics in tests.
 
 ## Do Not Change Carelessly
 

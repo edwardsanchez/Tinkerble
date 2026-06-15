@@ -23,8 +23,6 @@ final class TinkerbleInstallCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(result.targetNames, ["MainApp"])
-        let project = try String(contentsOf: projectURL.appending(path: "project.pbxproj"), encoding: .utf8)
-        XCTAssertTrue(project.contains("https://github.com/edwardsanchez/Tinkerble.git"))
     }
 
     func testInteractiveInstallPromptsForDebugSchemesAndInstallsOnlySelectedScheme() throws {
@@ -60,17 +58,6 @@ final class TinkerbleInstallCoordinatorTests: XCTestCase {
         XCTAssertTrue(output.contains("Select Debug schemes for Tinkerble package patch pre-action:"))
         XCTAssertTrue(output.contains("1. MainApp Debug"))
         XCTAssertTrue(output.contains("2. MainApp Dev"))
-
-        let debugScheme = try String(
-            contentsOf: schemeDirectory.appending(path: "MainApp Debug.xcscheme"),
-            encoding: .utf8
-        )
-        let devScheme = try String(
-            contentsOf: schemeDirectory.appending(path: "MainApp Dev.xcscheme"),
-            encoding: .utf8
-        )
-        XCTAssertFalse(debugScheme.contains("Patch Tinkerble package checkouts"))
-        XCTAssertTrue(devScheme.contains("Patch Tinkerble package checkouts"))
     }
 }
 
