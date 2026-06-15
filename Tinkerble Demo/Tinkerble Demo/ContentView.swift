@@ -19,68 +19,76 @@ private enum DemoMood: String, CaseIterable, TinkerbleEnum {
 @MainActor
 private final class ObservableDemoModel {
     @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Text")
+    @TinkerbleState(category: "Observable", name: "Badge Text", screen: "Basic")
     var badgeText = "Observable Model"
 
     @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Enabled")
+    @TinkerbleState(category: "Observable", name: "Badge Enabled", screen: "Basic")
     var badgeEnabled = true
 
     @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Count", control: TinkerbleControl<Int>.plain)
+    @TinkerbleState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
     var badgeCount = 2
 
     @ObservationIgnored
-    @TinkerbleState("Observable", name: "Badge Opacity", control: .slider(0.0...1.0))
+    @TinkerbleState("Observable", name: "Badge Opacity", screen: "Basic", control: .slider(0.0...1.0))
     var badgeOpacity = 0.9
 
     @ObservationIgnored
-    @TinkerbleState(category: "Observable", name: "Badge Mood")
+    @TinkerbleState(category: "Observable", name: "Badge Mood", screen: "Basic")
     var badgeMood = DemoMood.calm
 }
 
 struct ContentView: View {
+    var body: some View {
+        TabView {
+            Tab("Basic", systemImage: "slider.horizontal.3") {
+                NavigationStack {
+                    BasicDemoView()
+                }
+            }
+
+            Tab("Fan Deck", systemImage: "rectangle.portrait.on.rectangle.portrait.angled.fill") {
+                NavigationStack {
+                    FanDeckDemoView()
+                }
+            }
+        }
+    }
+}
+
+private struct BasicDemoView: View {
     @State private var observableModel = ObservableDemoModel()
 
-    @TinkerbleState(name: "Title")
+    @TinkerbleState(name: "Title", screen: "Basic")
     private var title = "Tinkerble Demo"
 
-    @TinkerbleState(category: "Flags", name: "Enabled")
+    @TinkerbleState(category: "Flags", name: "Enabled", screen: "Basic")
     private var isEnabled = true
 
-    @TinkerbleState(category: "Palette", name: "Accent Color")
+    @TinkerbleState(category: "Palette", name: "Accent Color", screen: "Basic")
     private var accentColor = Color.blue
 
-    @TinkerbleState(category: "Layout", name: "Card Count", control: TinkerbleControl<Int>.plain)
+    @TinkerbleState(category: "Layout", name: "Card Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
     private var cardCount = 3
 
-    @TinkerbleState(category: "Layout", name: "Opacity", control: .slider(0.0...1.0))
+    @TinkerbleState(category: "Layout", name: "Opacity", screen: "Basic", control: .slider(0.0...1.0))
     private var opacity = 0.82
 
-    @TinkerbleState(category: "Modes", name: "Mood")
+    @TinkerbleState(category: "Modes", name: "Mood", screen: "Basic")
     private var mood = DemoMood.focused
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    sampleCards
-                    observableExamples
-                    NavigationLink {
-                        LifetimeDemoView()
-                    } label: {
-                        Label("Registration Lifetime", systemImage: "rectangle.stack")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    logButton
-                }
-                .padding(20)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                sampleCards
+                observableExamples
+                logButton
             }
-            .navigationTitle("Tinkerble")
-            .background(Color(.systemGroupedBackground))
+            .padding(20)
         }
+        .background(Color(.systemGroupedBackground))
     }
 
     private var header: some View {
@@ -185,4 +193,10 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+#Preview("Basic Demo") {
+    NavigationStack {
+        BasicDemoView()
+    }
 }
