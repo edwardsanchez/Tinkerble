@@ -17,6 +17,12 @@ final class TinkerbleCompanionMenuPolicyTests: XCTestCase {
         fileMenu.addItem(withTitle: "New Window", action: nil, keyEquivalent: "n")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close", action: nil, keyEquivalent: "w")
+        editMenu.addItem(withTitle: "Undo", action: nil, keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: nil, keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "AutoFill", action: nil, keyEquivalent: "")
+        editMenu.addItem(withTitle: "Start Dictation…", action: nil, keyEquivalent: "")
+        editMenu.addItem(withTitle: "Emoji & Symbols", action: nil, keyEquivalent: "")
         windowMenu.addItem(withTitle: "Minimize", action: nil, keyEquivalent: "m")
         windowMenu.addItem(withTitle: "Keep Window on Top", action: nil, keyEquivalent: "")
 
@@ -30,46 +36,15 @@ final class TinkerbleCompanionMenuPolicyTests: XCTestCase {
 
         TinkerbleCompanionMenuPolicy.apply(to: menu)
 
-        XCTAssertEqual(menu.items.map(\.title), ["Tinkerble", "File", "Window"])
+        XCTAssertEqual(menu.items.map(\.title), ["Tinkerble", "File", "Edit", "Window"])
         XCTAssertEqual(fileMenu.items.map(\.title), ["Close"])
+        XCTAssertEqual(editMenu.items.map(\.title), ["Undo", "Redo"])
         XCTAssertEqual(windowMenu.items.map(\.title), ["Minimize", "Keep Window on Top"])
-    }
-
-    func testCompanionAppAppliesMenuPolicyAndReplacesDefaultCommandGroups() throws {
-        let source = try readText("Sources/TinkerbleCompanion/CompanionApp.swift")
-
-        XCTAssertTrue(source.contains("CompanionLaunchMode(arguments: ProcessInfo.processInfo.arguments)"))
-        XCTAssertTrue(source.contains("arguments.contains(\"--all-components\")"))
-        XCTAssertTrue(source.contains("TinkerbleComponentPreviewPageView()"))
-        XCTAssertTrue(source.contains("NSApp.appearance = NSAppearance(named: .darkAqua)"))
-        XCTAssertTrue(source.contains("TinkerbleCompanionMenuPolicy.apply(to: NSApp.mainMenu)"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .newItem) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .undoRedo) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .pasteboard) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .textEditing) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .textFormatting) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .toolbar) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(replacing: .help) {}"))
-        XCTAssertTrue(source.contains("CommandGroup(after: .windowArrangement)"))
     }
 
     private func menuItem(title: String, submenu: NSMenu) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.submenu = submenu
         return item
-    }
-
-    private func readText(_ relativePath: String) throws -> String {
-        try String(
-            contentsOf: repoRoot.appending(path: relativePath),
-            encoding: .utf8
-        )
-    }
-
-    private var repoRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
     }
 }

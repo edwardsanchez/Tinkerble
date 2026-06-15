@@ -62,7 +62,7 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
                         value: .number(5),
                         valueKind: .number,
                         control: .automatic
-                    ),
+                    )
                 ]
             ),
             outbound: nil
@@ -132,6 +132,192 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertTrue(store.logs.isEmpty)
     }
 
+    func testCompanionUpdateRegistersUndoAndRedoSendsUpdateMessages() throws {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        let codec = TinkerbleRSocketPayloadCodec()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+        store.handle(.register(titleTweak(value: .string("Initial"))), outbound: nil)
+
+        store.updateTweak(id: "Title", value: .string("Edited"))
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Edited"))
+        XCTAssertTrue(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .string("Edited"))
+        )
+
+        store.undo()
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Initial"))
+        XCTAssertFalse(store.canUndo)
+        XCTAssertTrue(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .string("Initial"))
+        )
+
+        store.redo()
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Edited"))
+        XCTAssertTrue(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .string("Edited"))
+        )
+    }
+
+    func testCompanionDoesNotRegisterUndoForInboundUpdates() {
+        let store = TinkerbleCompanionStore()
+        store.handle(.register(titleTweak(value: .string("Initial"))), outbound: nil)
+
+        store.handle(.update(id: "Title", value: .string("From App")), outbound: nil)
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("From App"))
+        XCTAssertFalse(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+    }
+
+    func testCompanionDoesNotRegisterUndoForRepeatedValues() {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+        store.handle(.register(titleTweak(value: .string("Initial"))), outbound: nil)
+
+        store.updateTweak(id: "Title", value: .string("Initial"))
+
+        XCTAssertTrue(outbound.payloads.isEmpty)
+        XCTAssertFalse(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+    }
+
+    func testCompanionCoalescesContinuousUpdatesIntoSingleUndoEntry() throws {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        let codec = TinkerbleRSocketPayloadCodec()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+        store.handle(.register(titleTweak(value: .number(0))), outbound: nil)
+
+        store.beginCoalescedTweakUpdate(id: "Title")
+        store.updateCoalescedTweak(id: "Title", value: .number(1))
+        store.updateCoalescedTweak(id: "Title", value: .number(2))
+        store.updateCoalescedTweak(id: "Title", value: .number(3))
+        store.endCoalescedTweakUpdate(id: "Title")
+
+        XCTAssertEqual(store.tweaks.first?.value, .number(3))
+        XCTAssertTrue(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+        XCTAssertEqual(
+            try outbound.payloads.map { try codec.message(from: $0) },
+            [
+                .update(id: "Title", value: .number(1)),
+                .update(id: "Title", value: .number(2)),
+                .update(id: "Title", value: .number(3))
+            ]
+        )
+
+        store.undo()
+
+        XCTAssertEqual(store.tweaks.first?.value, .number(0))
+        XCTAssertFalse(store.canUndo)
+        XCTAssertTrue(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .number(0))
+        )
+
+        store.redo()
+
+        XCTAssertEqual(store.tweaks.first?.value, .number(3))
+        XCTAssertTrue(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .number(3))
+        )
+    }
+
+    func testCompanionDoesNotRegisterCoalescedUndoWhenValueReturnsToStart() {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+        store.handle(.register(titleTweak(value: .number(0))), outbound: nil)
+
+        store.beginCoalescedTweakUpdate(id: "Title")
+        store.updateCoalescedTweak(id: "Title", value: .number(1))
+        store.updateCoalescedTweak(id: "Title", value: .number(0))
+        store.endCoalescedTweakUpdate(id: "Title")
+
+        XCTAssertEqual(store.tweaks.first?.value, .number(0))
+        XCTAssertFalse(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+    }
+
+    func testCompanionCoalescesStringUpdatesIntoSingleUndoEntry() throws {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        let codec = TinkerbleRSocketPayloadCodec()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+        store.handle(.register(titleTweak(value: .string("Initial"))), outbound: nil)
+
+        store.beginCoalescedTweakUpdate(id: "Title")
+        store.updateCoalescedTweak(id: "Title", value: .string("E"))
+        store.updateCoalescedTweak(id: "Title", value: .string("Ed"))
+        store.updateCoalescedTweak(id: "Title", value: .string("Edited"))
+        store.endCoalescedTweakUpdate(id: "Title")
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Edited"))
+        XCTAssertTrue(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+        XCTAssertEqual(
+            try outbound.payloads.map { try codec.message(from: $0) },
+            [
+                .update(id: "Title", value: .string("E")),
+                .update(id: "Title", value: .string("Ed")),
+                .update(id: "Title", value: .string("Edited"))
+            ]
+        )
+
+        store.undo()
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Initial"))
+        XCTAssertFalse(store.canUndo)
+        XCTAssertTrue(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .string("Initial"))
+        )
+
+        store.redo()
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Edited"))
+        XCTAssertTrue(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+        XCTAssertEqual(
+            try codec.message(from: try XCTUnwrap(outbound.payloads.last)),
+            .update(id: "Title", value: .string("Edited"))
+        )
+    }
+
+    func testCompanionDoesNotRegisterStringUndoWhenValueReturnsToStart() {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundStream()
+        store.handle(.hello(role: .iOSApp, version: "test"), outbound: outbound)
+        store.handle(.register(titleTweak(value: .string("Initial"))), outbound: nil)
+
+        store.beginCoalescedTweakUpdate(id: "Title")
+        store.updateCoalescedTweak(id: "Title", value: .string("Edited"))
+        store.updateCoalescedTweak(id: "Title", value: .string("Initial"))
+        store.endCoalescedTweakUpdate(id: "Title")
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Initial"))
+        XCTAssertFalse(store.canUndo)
+        XCTAssertFalse(store.canRedo)
+    }
+
     func testCompanionRemovesTweaksWhenTheyUnregister() {
         let store = TinkerbleCompanionStore()
 
@@ -155,6 +341,17 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
 
         XCTAssertTrue(store.tweaks.isEmpty)
         XCTAssertTrue(store.groupedTweaks.isEmpty)
+    }
+
+    private func titleTweak(value: TinkerbleValue) -> TinkerbleTweak {
+        TinkerbleTweak(
+            id: "Title",
+            category: nil,
+            name: "Title",
+            value: value,
+            valueKind: value.kind,
+            control: .automatic
+        )
     }
 }
 

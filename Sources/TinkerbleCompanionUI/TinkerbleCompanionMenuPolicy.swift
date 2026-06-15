@@ -2,14 +2,16 @@ import AppKit
 
 public enum TinkerbleCompanionMenuPolicy {
     static let hiddenTopLevelMenuTitles: Set<String> = [
-        "Edit",
         "Format",
         "View",
         "Help",
     ]
 
     static let hiddenMenuItemTitles: Set<String> = [
+        "AutoFill",
+        "Emoji & Symbols",
         "New Window",
+        "Start Dictation",
     ]
 
     public static func apply(to mainMenu: NSMenu?) {
