@@ -21,7 +21,7 @@ struct BasicDemoView: View {
     @TinkerbleState(category: "Palette", name: "Accent Color", screen: "Basic")
     private var accentColor = Color.blue
 
-    @TinkerbleState(category: "Layout", name: "Card Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+    @TinkerbleState(category: "Layout", name: "Card Count", screen: "Basic")
     private var cardCount = 3
 
     @TinkerbleState(category: "Layout", name: "Opacity", screen: "Basic", control: .slider(0.0...1.0))
