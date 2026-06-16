@@ -52,6 +52,7 @@ xcodebuild \
   -scheme "$SCHEME" \
   -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
   -clonedSourcePackagesDirPath "$PACKAGE_CACHE" \
+  -skipMacroValidation \
   build
 
 APP_PATH="$(xcodebuild \
@@ -59,6 +60,7 @@ APP_PATH="$(xcodebuild \
   -scheme "$SCHEME" \
   -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
   -clonedSourcePackagesDirPath "$PACKAGE_CACHE" \
+  -skipMacroValidation \
   -showBuildSettings 2>/dev/null \
   | awk -F ' = ' '/TARGET_BUILD_DIR/ {build=$2} /WRAPPER_NAME/ {wrapper=$2} END {print build "/" wrapper}')"
 

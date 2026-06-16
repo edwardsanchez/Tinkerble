@@ -262,6 +262,7 @@ struct SchemeText {
 set -euo pipefail
 
 CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
+DERIVED_DATA_DIR=""
 if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
   DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
   CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
@@ -558,6 +559,7 @@ if [[ "${CONFIG}" != "Debug" ]]; then
 fi
 
 CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
+DERIVED_DATA_DIR=""
 if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
   DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
   CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
@@ -583,7 +585,16 @@ if [[ -n "${CHECKOUT_ROOT}" ]]; then
 else
   "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh"
 fi
-"${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
+
+COMPANION_SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-}"
+if [[ -z "${COMPANION_SCRATCH_PATH}" && -n "${DERIVED_DATA_DIR}" ]]; then
+  COMPANION_SCRATCH_PATH="${DERIVED_DATA_DIR}/TinkerbleCompanionBuild"
+fi
+if [[ -z "${COMPANION_SCRATCH_PATH}" ]]; then
+  COMPANION_SCRATCH_PATH="${PACKAGE_DIR}/.build/tinkerble-companion"
+fi
+
+TINKERBLE_COMPANION_SCRATCH_PATH="${COMPANION_SCRATCH_PATH}" "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
 """#
     }
 

@@ -8,6 +8,7 @@ BUNDLE_ID="${TINKERBLE_COMPANION_BUNDLE_ID:-app.amorfati.Tinkerble.Companion}"
 VERSION="${TINKERBLE_COMPANION_VERSION:-0.1.0}"
 BUILD_NUMBER="${TINKERBLE_COMPANION_BUILD:-1}"
 CONFIGURATION="${CONFIGURATION:-debug}"
+SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-$ROOT_DIR/.build/tinkerble-companion}"
 APP_BUNDLE="$ROOT_DIR/build/Tinkerble.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -54,14 +55,16 @@ case "$CONFIGURATION" in
     ;;
 esac
 
-SWIFT_BUILD_FLAGS=(--package-path "$ROOT_DIR" --product "$EXECUTABLE_NAME")
+SWIFT_PACKAGE_FLAGS=(--package-path "$ROOT_DIR" --scratch-path "$SCRATCH_PATH")
+SWIFT_BUILD_FLAGS=("${SWIFT_PACKAGE_FLAGS[@]}" --product "$EXECUTABLE_NAME")
 if [[ "$CONFIGURATION" == "release" ]]; then
   SWIFT_BUILD_FLAGS+=(-c release)
 fi
 
-"$ROOT_DIR/Scripts/patch-rsocket-checkouts.sh" "$ROOT_DIR/.build/checkouts" >&2 || true
+swift_package package "${SWIFT_PACKAGE_FLAGS[@]}" resolve >&2
+"$ROOT_DIR/Scripts/patch-rsocket-checkouts.sh" "$SCRATCH_PATH/checkouts" >&2 || true
 swift_package build "${SWIFT_BUILD_FLAGS[@]}" >&2
-SHOW_BIN_PATH_FLAGS=(--package-path "$ROOT_DIR" --show-bin-path)
+SHOW_BIN_PATH_FLAGS=("${SWIFT_PACKAGE_FLAGS[@]}" --show-bin-path)
 if [[ "$CONFIGURATION" == "release" ]]; then
   SHOW_BIN_PATH_FLAGS+=(-c release)
 fi

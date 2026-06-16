@@ -55,6 +55,26 @@ final class XcodeProjectInstallerTests: XCTestCase {
         XCTAssertEqual(result.targetNames, ["MainApp"])
     }
 
+    func testCompanionBuildPhaseUsesIsolatedScratchPath() throws {
+        let projectURL = try makeFixtureProject()
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: [], dryRun: false)
+        let scripts = try companionBuildPhaseScripts(in: readProject(projectURL))
+
+        XCTAssertEqual(scripts.count, 2)
+        for script in scripts {
+            XCTAssertTrue(script.contains("DERIVED_DATA_DIR=\"${BUILD_DIR%/Build/*}\""))
+            XCTAssertTrue(script.contains("COMPANION_SCRATCH_PATH=\"${DERIVED_DATA_DIR}/TinkerbleCompanionBuild\""))
+            XCTAssertTrue(script.contains("COMPANION_SCRATCH_PATH=\"${PACKAGE_DIR}/.build/tinkerble-companion\""))
+            XCTAssertTrue(
+                script.contains(
+                    "TINKERBLE_COMPANION_SCRATCH_PATH=\"${COMPANION_SCRATCH_PATH}\" \"${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh\" --restart"
+                )
+            )
+        }
+    }
+
     func testDiscoversAndPatchesUserLocalDebugScheme() throws {
         let projectURL = try makeFixtureProject(includeSharedSchemes: false)
         let userSchemeDirectory = projectURL.appending(path: "xcuserdata/edwardsanchez.xcuserdatad/xcschemes")
@@ -131,6 +151,66 @@ final class XcodeProjectInstallerTests: XCTestCase {
             encoding: .utf8
         )
     }
+
+    private func companionBuildPhaseScripts(in project: String) throws -> [String] {
+        var scripts: [String] = []
+        var searchIndex = project.startIndex
+
+        while let nameRange = project[searchIndex...].range(
+            of: "name = \"\(TinkerbleInstallerConstants.companionBuildPhaseName)\";"
+        ) {
+            guard let shellScriptRange = project[nameRange.upperBound...].range(of: "\n\t\t\tshellScript = \"") else {
+                throw ProjectDecodeError.missingShellScriptField
+            }
+
+            scripts.append(try decodePBXQuotedString(in: project, from: shellScriptRange.upperBound))
+            searchIndex = shellScriptRange.upperBound
+        }
+
+        return scripts
+    }
+
+    private func decodePBXQuotedString(in project: String, from startIndex: String.Index) throws -> String {
+        var decoded = ""
+        var index = startIndex
+        var isEscaped = false
+
+        while index < project.endIndex {
+            let character = project[index]
+            defer { index = project.index(after: index) }
+
+            if isEscaped {
+                switch character {
+                case "n":
+                    decoded.append("\n")
+                case "\"", "\\":
+                    decoded.append(character)
+                default:
+                    decoded.append(character)
+                }
+                isEscaped = false
+                continue
+            }
+
+            if character == "\\" {
+                isEscaped = true
+                continue
+            }
+
+            if character == "\"" {
+                return decoded
+            }
+
+            decoded.append(character)
+        }
+
+        throw ProjectDecodeError.unterminatedQuotedString
+    }
+}
+
+private enum ProjectDecodeError: Error {
+    case missingShellScriptField
+    case unterminatedQuotedString
 }
 
 private extension String {
