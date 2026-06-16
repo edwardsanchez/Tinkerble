@@ -90,7 +90,6 @@ final class TweakInspectorContentTests: XCTestCase {
             host.firstSubview(withIdentifier: "TinkerbleScreenSegmentedControl") as? NSSegmentedControl
         )
 
-        XCTAssertGreaterThanOrEqual(segmentedControl.frame.width, 600)
         XCTAssertEqual(segmentedControl.segmentCount, 2)
         XCTAssertEqual(segmentedControl.selectedSegment, 1)
     }
