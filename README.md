@@ -1,4 +1,4 @@
-[![Watch the Tinkerble demo](Documentation/Assets/tinkerble-demo-video-poster.png)](https://youtu.be/QhzZxTYLpzw)
+[![Watch the Tinkerble demo](Documentation/Assets/tinkerble-youtube-demo-poster.png)](https://youtu.be/QhzZxTYLpzw)
 
 # Tinkerble
 Tinkerble is debug companion system for SwiftUI apps on Apple platforms. It lets an app register tweakable values and actions, send logs to a macOS companion app, receive live value edits back from the Mac, and trigger app-side commands during development.
