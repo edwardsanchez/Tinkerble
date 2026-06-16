@@ -16,6 +16,13 @@ struct TweakInspectorView: View {
                 isEmpty: store.tweaks.isEmpty,
                 screens: store.screens,
                 selectedScreen: selectedScreenBinding,
+                versions: store.versions,
+                selectedVersionID: selectedVersionBinding,
+                canDeleteSelectedVersion: store.canDeleteSelectedVersion,
+                canResetSelectedVersion: store.canResetSelectedVersion,
+                createVersion: store.createVersion,
+                resetSelectedVersion: store.resetSelectedVersion,
+                deleteSelectedVersion: store.deleteSelectedVersion,
                 updateTweak: store.updateTweak,
                 beginCoalescedTweakUpdate: store.beginCoalescedTweakUpdate,
                 updateCoalescedTweak: store.updateCoalescedTweak,
@@ -29,6 +36,13 @@ struct TweakInspectorView: View {
                 isEmpty: store.tweaks.isEmpty,
                 screens: store.screens,
                 selectedScreen: selectedScreenBinding,
+                versions: store.versions,
+                selectedVersionID: selectedVersionBinding,
+                canDeleteSelectedVersion: store.canDeleteSelectedVersion,
+                canResetSelectedVersion: store.canResetSelectedVersion,
+                createVersion: store.createVersion,
+                resetSelectedVersion: store.resetSelectedVersion,
+                deleteSelectedVersion: store.deleteSelectedVersion,
                 updateTweak: store.updateTweak,
                 beginCoalescedTweakUpdate: store.beginCoalescedTweakUpdate,
                 updateCoalescedTweak: store.updateCoalescedTweak,
@@ -51,6 +65,16 @@ struct TweakInspectorView: View {
             set: { store.selectScreen($0) }
         )
     }
+
+    private var selectedVersionBinding: Binding<UUID?> {
+        Binding(
+            get: { store.selectedVersionID },
+            set: { versionID in
+                guard let versionID else { return }
+                store.selectVersion(versionID)
+            }
+        )
+    }
 }
 
 struct TweakInspectorContent: View {
@@ -58,6 +82,13 @@ struct TweakInspectorContent: View {
     var isEmpty: Bool
     var screens: [String]
     @Binding var selectedScreen: String
+    var versions: [TinkerbleSavedVersion]
+    @Binding var selectedVersionID: UUID?
+    var canDeleteSelectedVersion: Bool
+    var canResetSelectedVersion: Bool
+    var createVersion: () -> Void
+    var resetSelectedVersion: () -> Void
+    var deleteSelectedVersion: () -> Void
     var updateTweak: (String, TinkerbleValue) -> Void
     var beginCoalescedTweakUpdate: (String) -> Void
     var updateCoalescedTweak: (String, TinkerbleValue) -> Void
@@ -69,6 +100,13 @@ struct TweakInspectorContent: View {
         isEmpty: Bool,
         screens: [String] = [],
         selectedScreen: Binding<String> = .constant(TinkerbleTweak.defaultScreenName),
+        versions: [TinkerbleSavedVersion] = [],
+        selectedVersionID: Binding<UUID?> = .constant(nil),
+        canDeleteSelectedVersion: Bool = false,
+        canResetSelectedVersion: Bool = false,
+        createVersion: @escaping () -> Void = {},
+        resetSelectedVersion: @escaping () -> Void = {},
+        deleteSelectedVersion: @escaping () -> Void = {},
         updateTweak: @escaping (String, TinkerbleValue) -> Void,
         beginCoalescedTweakUpdate: @escaping (String) -> Void = { _ in },
         updateCoalescedTweak: @escaping (String, TinkerbleValue) -> Void = { _, _ in },
@@ -79,6 +117,13 @@ struct TweakInspectorContent: View {
         self.isEmpty = isEmpty
         self.screens = screens
         _selectedScreen = selectedScreen
+        self.versions = versions
+        _selectedVersionID = selectedVersionID
+        self.canDeleteSelectedVersion = canDeleteSelectedVersion
+        self.canResetSelectedVersion = canResetSelectedVersion
+        self.createVersion = createVersion
+        self.resetSelectedVersion = resetSelectedVersion
+        self.deleteSelectedVersion = deleteSelectedVersion
         self.updateTweak = updateTweak
         self.beginCoalescedTweakUpdate = beginCoalescedTweakUpdate
         self.updateCoalescedTweak = updateCoalescedTweak
@@ -90,6 +135,18 @@ struct TweakInspectorContent: View {
         VStack(alignment: .leading, spacing: 18) {
             if screens.count > 1 {
                 TweakScreenSelectorView(screens: screens, selectedScreen: $selectedScreen)
+            }
+
+            if TinkerbleVersionControlContent.isVisible(isEmpty: isEmpty, versions: versions) {
+                TinkerbleVersionControlBarView(
+                    versions: versions,
+                    selectedVersionID: $selectedVersionID,
+                    canDeleteSelectedVersion: canDeleteSelectedVersion,
+                    canResetSelectedVersion: canResetSelectedVersion,
+                    createVersion: createVersion,
+                    resetSelectedVersion: resetSelectedVersion,
+                    deleteSelectedVersion: deleteSelectedVersion
+                )
             }
 
             ForEach(groups) { group in
@@ -135,27 +192,8 @@ private struct TweakScreenSelectorView: View {
     @Binding var selectedScreen: String
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            Picker("", selection: $selectedScreen) {
-                ForEach(screens, id: \.self) { screen in
-                    Text(screen)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .tag(screen)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-
-            Picker("", selection: $selectedScreen) {
-                ForEach(screens, id: \.self) { screen in
-                    Text(screen)
-                        .tag(screen)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
+        TinkerbleScreenSegmentedControlView(screens: screens, selectedScreen: $selectedScreen)
+            .frame(maxWidth: .infinity)
     }
 }
 

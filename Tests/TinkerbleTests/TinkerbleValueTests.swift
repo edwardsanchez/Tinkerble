@@ -64,6 +64,16 @@ final class TinkerbleValueTests: XCTestCase {
         XCTAssertEqual(decoded, .register(tweak))
     }
 
+    func testRSocketPayloadCodecRoundTripsHelloProjectIdentity() throws {
+        let codec = TinkerbleRSocketPayloadCodec()
+        let project = TinkerbleProjectIdentity(id: "app.test", displayName: "Test App")
+
+        let payload = try codec.payload(for: .hello(role: .iOSApp, version: "0.1.0", project: project))
+        let decoded = try codec.message(from: payload)
+
+        XCTAssertEqual(decoded, .hello(role: .iOSApp, version: "0.1.0", project: project))
+    }
+
     func testTweakDefaultsMissingScreenToDefaultDuringDecoding() throws {
         let encoded = try JSONEncoder().encode(
             TinkerbleTweak(

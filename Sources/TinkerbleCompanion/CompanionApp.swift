@@ -13,7 +13,7 @@ struct TinkerbleCompanionApp: App {
     private let launchMode: CompanionLaunchMode
 
     init() {
-        let store = TinkerbleCompanionStore()
+        let store = TinkerbleCompanionStore(versionRepository: Self.makeVersionRepository())
         _store = State(wrappedValue: store)
         launchMode = CompanionLaunchMode(arguments: ProcessInfo.processInfo.arguments)
         if launchMode == .companion {
@@ -62,6 +62,14 @@ struct TinkerbleCompanionApp: App {
             CommandGroup(after: .windowArrangement) {
                 Toggle("Keep Window on Top", isOn: $windowLevel.keepsWindowOnTop)
             }
+        }
+    }
+
+    private static func makeVersionRepository() -> any TinkerbleVersionRepository {
+        do {
+            return try TinkerbleSwiftDataVersionRepository()
+        } catch {
+            return TinkerbleInMemoryVersionRepository()
         }
     }
 }

@@ -3,7 +3,10 @@ import Tinkerble
 import TinkerbleCompanionCore
 
 public struct TinkerbleComponentPreviewPageView: View {
+    private static let previewVersionID = UUID()
+
     @State private var tweaks = TinkerbleComponentPreviewFixture.tweaks
+    @State private var selectedVersionID: UUID? = Self.previewVersionID
 
     public init() {}
 
@@ -13,6 +16,9 @@ public struct TinkerbleComponentPreviewPageView: View {
                 TweakInspectorContent(
                     groups: TinkerbleTweakGrouping.groupedTweaks(from: tweaks),
                     isEmpty: tweaks.isEmpty,
+                    versions: [TinkerbleSavedVersion(id: Self.previewVersionID, ordinal: 1)],
+                    selectedVersionID: $selectedVersionID,
+                    canResetSelectedVersion: true,
                     updateTweak: updateTweak
                 )
             }

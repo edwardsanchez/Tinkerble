@@ -12,13 +12,19 @@ public final class TinkerbleCompanionStore {
     public private(set) var logs: [TinkerbleLogEntry] = []
     public private(set) var canUndo = false
     public private(set) var canRedo = false
+    public private(set) var versions: [TinkerbleSavedVersion] = []
+    public private(set) var selectedVersionID: UUID?
 
     @ObservationIgnored
     private let codec = TinkerbleRSocketPayloadCodec()
     @ObservationIgnored
+    private let versionRepository: any TinkerbleVersionRepository
+    @ObservationIgnored
     private var server: TinkerbleRSocketCompanionServer?
     @ObservationIgnored
     private var tweaksByID: [String: TinkerbleTweak] = [:]
+    @ObservationIgnored
+    private var defaultValuesByID: [String: TinkerbleValue] = [:]
     @ObservationIgnored
     private var outboundStream: UnidirectionalStream?
     @ObservationIgnored
@@ -27,8 +33,16 @@ public final class TinkerbleCompanionStore {
     private var redoStack: [TinkerbleTweakUndoEntry] = []
     @ObservationIgnored
     private var coalescedUndoStartValues: [String: TinkerbleValue] = [:]
+    @ObservationIgnored
+    private var projectIdentity = TinkerbleProjectIdentity.fallback
 
-    public init() {}
+    public convenience init() {
+        self.init(versionRepository: TinkerbleInMemoryVersionRepository())
+    }
+
+    public init(versionRepository: any TinkerbleVersionRepository) {
+        self.versionRepository = versionRepository
+    }
 
     public var groupedTweaks: [TinkerbleTweakGroup] {
         TinkerbleTweakGrouping.groupedTweaks(from: visibleTweaks)
@@ -54,14 +68,86 @@ public final class TinkerbleCompanionStore {
         screens.count > 1
     }
 
+    public var canDeleteSelectedVersion: Bool {
+        selectedVersion?.isProtected == false
+    }
+
+    public var canResetSelectedVersion: Bool {
+        selectedVersion?.isProtected == true
+    }
+
     private var visibleTweaks: [TinkerbleTweak] {
         guard showsScreenSelector else { return tweaks }
         return tweaks.filter { $0.screen == selectedScreen }
     }
 
+    private var selectedVersion: TinkerbleSavedVersion? {
+        versions.first { $0.id == selectedVersionID }
+    }
+
+    private var versionedVisibleTweaks: [TinkerbleTweak] {
+        visibleTweaks.filter { $0.value.kind != .action }
+    }
+
     public func selectScreen(_ screen: String) {
         guard screens.contains(screen) else { return }
         selectedScreen = screen
+        clearUndoHistory()
+        reloadVersionsForSelectedScreen()
+        applySelectedVersion()
+    }
+
+    public func selectVersion(_ id: UUID) {
+        guard versions.contains(where: { $0.id == id }) else { return }
+        selectedVersionID = id
+        clearUndoHistory()
+        applySelectedVersion()
+    }
+
+    public func createVersion() {
+        let values = Dictionary(uniqueKeysWithValues: versionedVisibleTweaks.map { ($0.id, $0.value) })
+        do {
+            versions = try versionRepository.createVersion(
+                projectID: projectIdentity.id,
+                screen: selectedScreen,
+                values: values
+            )
+            selectedVersionID = versions.last?.id
+            clearUndoHistory()
+        } catch {
+            recordVersionPersistenceError(error)
+        }
+    }
+
+    public func deleteSelectedVersion() {
+        guard let selectedVersion, !selectedVersion.isProtected else { return }
+        do {
+            versions = try versionRepository.deleteVersion(
+                projectID: projectIdentity.id,
+                screen: selectedScreen,
+                versionID: selectedVersion.id
+            )
+            selectedVersionID = versions.last { $0.ordinal < selectedVersion.ordinal }?.id ?? versions.first?.id
+            clearUndoHistory()
+            applySelectedVersion()
+        } catch {
+            recordVersionPersistenceError(error)
+        }
+    }
+
+    public func resetSelectedVersion() {
+        guard let selectedVersion, selectedVersion.isProtected else { return }
+        do {
+            try versionRepository.resetVersion(
+                projectID: projectIdentity.id,
+                screen: selectedScreen,
+                versionID: selectedVersion.id
+            )
+            clearUndoHistory()
+            applySelectedVersion()
+        } catch {
+            recordVersionPersistenceError(error)
+        }
     }
 
     public func start(host: String = "0.0.0.0", port: Int = 7777) {
@@ -97,6 +183,7 @@ public final class TinkerbleCompanionStore {
         undoStack.append(.init(id: id, previousValue: currentValue, nextValue: value))
         redoStack.removeAll()
         updateStoredTweak(id: id, value: value)
+        saveCurrentVersionValue(id: id, value: value)
         send(.update(id: id, value: value))
         updateUndoAvailability()
     }
@@ -109,6 +196,7 @@ public final class TinkerbleCompanionStore {
     public func updateCoalescedTweak(id: String, value: TinkerbleValue) {
         guard let currentValue = tweaksByID[id]?.value, currentValue != value else { return }
         updateStoredTweak(id: id, value: value)
+        saveCurrentVersionValue(id: id, value: value)
         send(.update(id: id, value: value))
     }
 
@@ -133,6 +221,7 @@ public final class TinkerbleCompanionStore {
     public func undo() {
         while let entry = undoStack.popLast() {
             guard updateStoredTweak(id: entry.id, value: entry.previousValue) else { continue }
+            saveCurrentVersionValue(id: entry.id, value: entry.previousValue)
             send(.update(id: entry.id, value: entry.previousValue))
             redoStack.append(entry)
             break
@@ -143,6 +232,7 @@ public final class TinkerbleCompanionStore {
     public func redo() {
         while let entry = redoStack.popLast() {
             guard updateStoredTweak(id: entry.id, value: entry.nextValue) else { continue }
+            saveCurrentVersionValue(id: entry.id, value: entry.nextValue)
             send(.update(id: entry.id, value: entry.nextValue))
             undoStack.append(entry)
             break
@@ -156,21 +246,31 @@ public final class TinkerbleCompanionStore {
         }
 
         switch message {
-        case .hello:
+        case let .hello(_, _, project):
+            projectIdentity = project ?? .fallback
             connectionStatus = .connected("iOS app connected")
+            reloadVersionsForSelectedScreen()
+            applySelectedVersion()
         case let .snapshot(tweaks):
             tweaksByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0) })
+            defaultValuesByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0.value) })
             pruneUndoHistory(toValidTweakIDs: Set(tweaksByID.keys))
             publishTweaks()
+            applySelectedVersion()
         case let .register(tweak):
             tweaksByID[tweak.id] = tweak
+            defaultValuesByID[tweak.id] = tweak.value
             publishTweaks()
+            applySelectedVersion()
         case let .unregister(id):
             tweaksByID.removeValue(forKey: id)
+            defaultValuesByID.removeValue(forKey: id)
             removeUndoHistory(for: id)
             publishTweaks()
         case let .update(id, value):
+            defaultValuesByID[id] = value
             updateStoredTweak(id: id, value: value)
+            applySelectedVersionValueIfNeeded(id: id)
         case .trigger:
             break
         case let .log(entry):
@@ -213,7 +313,83 @@ public final class TinkerbleCompanionStore {
         canRedo = !redoStack.isEmpty
     }
 
+    private func reloadVersionsForSelectedScreen() {
+        do {
+            versions = try versionRepository.ensureVersions(projectID: projectIdentity.id, screen: selectedScreen)
+            if let selectedVersionID, versions.contains(where: { $0.id == selectedVersionID }) {
+                return
+            }
+            selectedVersionID = versions.first?.id
+        } catch {
+            recordVersionPersistenceError(error)
+        }
+    }
+
+    private func applySelectedVersion() {
+        guard selectedVersionID != nil else {
+            reloadVersionsForSelectedScreen()
+            return
+        }
+
+        for tweak in versionedVisibleTweaks {
+            applySelectedVersionValueIfNeeded(id: tweak.id)
+        }
+    }
+
+    private func applySelectedVersionValueIfNeeded(id: String) {
+        guard let selectedVersionID,
+              let tweak = tweaksByID[id],
+              tweak.screen == selectedScreen,
+              tweak.value.kind != .action
+        else {
+            return
+        }
+
+        do {
+            let savedValue = try versionRepository.value(
+                projectID: projectIdentity.id,
+                screen: selectedScreen,
+                versionID: selectedVersionID,
+                tweakID: id
+            )
+            let targetValue = savedValue.flatMap { $0.kind == tweak.value.kind ? $0 : nil }
+                ?? defaultValuesByID[id].flatMap { $0.kind == tweak.value.kind ? $0 : nil }
+            guard let targetValue, targetValue != tweak.value else {
+                return
+            }
+            updateStoredTweak(id: id, value: targetValue)
+            send(.update(id: id, value: targetValue))
+        } catch {
+            recordVersionPersistenceError(error)
+        }
+    }
+
+    private func saveCurrentVersionValue(id: String, value: TinkerbleValue) {
+        guard let tweak = tweaksByID[id], tweak.screen == selectedScreen, value.kind != .action else { return }
+        if selectedVersionID == nil {
+            reloadVersionsForSelectedScreen()
+        }
+        guard let selectedVersionID else { return }
+
+        do {
+            try versionRepository.saveValue(
+                projectID: projectIdentity.id,
+                screen: selectedScreen,
+                versionID: selectedVersionID,
+                tweakID: id,
+                value: value
+            )
+        } catch {
+            recordVersionPersistenceError(error)
+        }
+    }
+
+    private func recordVersionPersistenceError(_ error: Swift.Error) {
+        logs.append(.init(message: "Version persistence failed: \(error.localizedDescription)"))
+    }
+
     private func publishTweaks() {
+        let previousSelectedScreen = selectedScreen
         tweaks = tweaksByID.values.sorted { left, right in
             if left.screen != right.screen {
                 return left.screen.localizedCaseInsensitiveCompare(right.screen) == .orderedAscending
@@ -237,6 +413,12 @@ public final class TinkerbleCompanionStore {
             selectedScreen = firstScreen
         } else if screens.isEmpty {
             selectedScreen = TinkerbleTweak.defaultScreenName
+        }
+        if previousSelectedScreen != selectedScreen {
+            clearUndoHistory()
+            reloadVersionsForSelectedScreen()
+        } else if !tweaks.isEmpty && versions.isEmpty {
+            reloadVersionsForSelectedScreen()
         }
     }
 

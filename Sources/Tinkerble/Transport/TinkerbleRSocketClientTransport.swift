@@ -13,8 +13,11 @@ public final class TinkerbleRSocketClientTransport: TinkerbleClientTransport {
     private var outboundStream: UnidirectionalStream?
     private var pendingMessages: [TinkerbleWireMessage] = []
     private var endpointDescription: String?
+    private let projectIdentity: TinkerbleProjectIdentity
 
-    public init() {}
+    public init(projectIdentity: TinkerbleProjectIdentity = .current) {
+        self.projectIdentity = projectIdentity
+    }
 
     public func connect(host: String = "127.0.0.1", port: Int = 7777) {
         let endpoint = "\(host):\(port)"
@@ -28,7 +31,12 @@ public final class TinkerbleRSocketClientTransport: TinkerbleClientTransport {
                     transport: TCPTransport(),
                     config: .mobileToServer
                 )
-                let setupPayload = try self.codec.payload(for: .hello(role: .iOSApp, version: "0.1.0"))
+                let hello = TinkerbleWireMessage.hello(
+                    role: .iOSApp,
+                    version: "0.1.0",
+                    project: self.projectIdentity
+                )
+                let setupPayload = try self.codec.payload(for: hello)
                 let client = try bootstrap
                     .connect(to: .init(host: host, port: port), payload: setupPayload, responder: nil)
                     .wait()
