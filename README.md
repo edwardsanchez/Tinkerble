@@ -322,6 +322,9 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
 - The companion UI is intentionally basic.
 - The RSocket Swift upstream package currently requires checkout workarounds under Xcode 26.5.
 
+## License
+Tinkerble is available under the Apache License 2.0. See `LICENSE` for details.
+
 ## Future Work
 - Bonjour discovery and remembered device selection.
 - Reconnect and connection health details.
