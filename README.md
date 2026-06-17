@@ -23,6 +23,11 @@ Tinkerble's client library is designed to be platform-agnostic across Apple Swif
 The current repository has first-class demo coverage for iOS Simulator and a macOS companion app, and the package currently declares iOS and macOS minimums.
 There are not yet tvOS, watchOS, or visionOS demo projects in this repo, so those platforms should be treated as expected-compatible rather than separately demo-verified.
 
+## Debug And Release Builds
+Tinkerble's app-facing behavior is compiled for `DEBUG` builds only. In Release builds, the public API stays available so app source code does not need conditional imports or wrappers, but runtime behavior is intentionally inert: `Tinkerble.shared` does not connect, register, send updates, or forward logs; `@TinkerbleState` falls back to ordinary SwiftUI `@State`; `.tinkerbleAction` passes the view through; and observable/action macro registration helpers do not activate.
+
+The Release implementation is also shaped to minimize what reaches the app binary. The socket transport compiles as a no-op stub without the `Network` framework path, and the debug-only registry, remote update handlers, action boxes, and observable tracking machinery are kept behind `#if DEBUG`. Some public value types and signatures remain because consumer code references them, but the development transport and companion registration behavior should not be reachable from a Release app build.
+
 ## Install Tinkerble In Your App
 Install the `tinkerble` command:
 ```sh

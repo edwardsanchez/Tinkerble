@@ -1,4 +1,6 @@
 import Foundation
+
+#if DEBUG
 import Network
 
 public final class TinkerbleSocketClientTransport: TinkerbleClientTransport, @unchecked Sendable {
@@ -238,3 +240,28 @@ public final class TinkerbleSocketClientTransport: TinkerbleClientTransport, @un
         }
     }
 }
+#else
+public final class TinkerbleSocketClientTransport: TinkerbleClientTransport, @unchecked Sendable {
+    public var onMessage: ((TinkerbleWireMessage) -> Void)?
+    public var onStatusChange: ((TinkerbleConnectionStatus) -> Void)?
+
+    public init(
+        projectIdentity: TinkerbleProjectIdentity = .fallback,
+        serviceType: String = ""
+    ) {
+        _ = projectIdentity
+        _ = serviceType
+    }
+
+    public func connect(host: String? = nil, port: Int = TinkerbleNetworkConfiguration.defaultPort) {
+        _ = host
+        _ = port
+    }
+
+    public func send(_ message: TinkerbleWireMessage) {
+        _ = message
+    }
+
+    public func disconnect() {}
+}
+#endif

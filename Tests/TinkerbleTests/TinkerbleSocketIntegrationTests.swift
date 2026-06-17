@@ -5,6 +5,9 @@ import XCTest
 @MainActor
 final class TinkerbleSocketIntegrationTests: XCTestCase {
     func testSocketLoopRegistersLogsAndAppliesRemoteUpdates() async throws {
+#if !DEBUG
+        throw XCTSkip("Socket transport is intentionally disabled in Release builds.")
+#else
         let port = 7877
         let companion = TinkerbleCompanionStore()
         companion.start(port: port)
@@ -61,9 +64,13 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
             companion.tweaks.map(\.id) == ["Title"]
         }
         XCTAssertTrue(removedUnregisteredTweak, "Companion did not remove unregistered tweak")
+#endif
     }
 
     func testSocketLoopDiscoversCompanionWithBonjour() async throws {
+#if !DEBUG
+        throw XCTSkip("Socket transport is intentionally disabled in Release builds.")
+#else
         let serviceType = "_tbtest._tcp"
         let companion = TinkerbleCompanionStore()
         companion.start(port: 0, serviceType: serviceType)
@@ -95,6 +102,7 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
             companion.tweaks.map(\.id) == ["Device/Title"]
         }
         XCTAssertTrue(discoveredTweaks, "iOS transport did not discover the Bonjour companion")
+#endif
     }
 
     private func waitUntil(

@@ -10,37 +10,60 @@ public final class Tinkerble {
     public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
     public private(set) var registeredTweaks: [TinkerbleTweak] = []
 
+#if DEBUG
     @ObservationIgnored
     private var liveRegistrationsByID: [String: LiveTweakRegistration] = [:]
     @ObservationIgnored
     private var transport: TinkerbleClientTransport
+#endif
 
     public init(transport: TinkerbleClientTransport = TinkerbleSocketClientTransport()) {
+#if DEBUG
         self.transport = transport
         bindTransport(transport)
+#else
+        _ = transport
+#endif
     }
 
     public func useTransport(_ transport: TinkerbleClientTransport) {
+#if DEBUG
         self.transport.disconnect()
         self.transport = transport
         bindTransport(transport)
+#else
+        _ = transport
+#endif
     }
 
     internal func resetForTesting(transport: TinkerbleClientTransport = TinkerbleSocketClientTransport()) {
+#if DEBUG
         self.transport.disconnect()
         self.transport = transport
         liveRegistrationsByID.removeAll()
         registeredTweaks.removeAll()
         connectionStatus = .disconnected
         bindTransport(transport)
+#else
+        _ = transport
+        registeredTweaks.removeAll()
+        connectionStatus = .disconnected
+#endif
     }
 
     public func connect(host: String? = nil, port: Int = TinkerbleNetworkConfiguration.defaultPort) {
+#if DEBUG
         transport.connect(host: host, port: port)
+#else
+        _ = host
+        _ = port
+#endif
     }
 
     public func disconnect() {
+#if DEBUG
         transport.disconnect()
+#endif
     }
 
     @discardableResult
@@ -53,6 +76,7 @@ public final class Tinkerble {
         control: TinkerbleControl<Value>,
         applyRemoteValue: @escaping (Value) -> Void
     ) -> TinkerbleRegistrationToken {
+#if DEBUG
         let tweak = TinkerbleTweak(
             id: id,
             screen: screen,
@@ -84,6 +108,15 @@ public final class Tinkerble {
         publishTweaks()
         transport.send(.register(tweak))
         return token
+#else
+        _ = screen
+        _ = category
+        _ = name
+        _ = value
+        _ = control
+        _ = applyRemoteValue
+        return TinkerbleRegistrationToken(tweakID: id)
+#endif
     }
 
     @discardableResult
@@ -94,6 +127,7 @@ public final class Tinkerble {
         name: String,
         perform: @escaping () -> Void
     ) -> TinkerbleRegistrationToken {
+#if DEBUG
         let tweak = TinkerbleTweak(
             id: id,
             screen: screen,
@@ -118,8 +152,16 @@ public final class Tinkerble {
         publishTweaks()
         transport.send(.register(tweak))
         return token
+#else
+        _ = screen
+        _ = category
+        _ = name
+        _ = perform
+        return TinkerbleRegistrationToken(tweakID: id)
+#endif
     }
 
+#if DEBUG
     private func resolvedControlDescriptor<Value: TinkerbleValueConvertible>(
         _ descriptor: TinkerbleControlDescriptor,
         for valueType: Value.Type
@@ -131,8 +173,10 @@ public final class Tinkerble {
             descriptor
         }
     }
+#endif
 
     internal func unregister(_ token: TinkerbleRegistrationToken) {
+#if DEBUG
         guard var liveRegistration = liveRegistrationsByID[token.tweakID] else { return }
 
         liveRegistration.remoteAppliers.removeValue(forKey: token.instanceID)
@@ -145,21 +189,39 @@ public final class Tinkerble {
         liveRegistrationsByID.removeValue(forKey: token.tweakID)
         publishTweaks()
         transport.send(.unregister(id: token.tweakID))
+#else
+        _ = token
+#endif
     }
 
     internal func updateLocalValue<Value: TinkerbleValueConvertible>(id: String, value: Value) {
+#if DEBUG
         updateLocalValue(id: id, value: value.tinkerbleValue)
+#else
+        _ = id
+        _ = value
+#endif
     }
 
     internal func updateLocalValue(id: String, value: TinkerbleValue) {
+#if DEBUG
         updateStoredValue(id: id, value: value)
         transport.send(.update(id: id, value: value))
+#else
+        _ = id
+        _ = value
+#endif
     }
 
     public func log(_ message: String) {
+#if DEBUG
         transport.send(.log(.init(message: message)))
+#else
+        _ = message
+#endif
     }
 
+#if DEBUG
     private func bindTransport(_ transport: TinkerbleClientTransport) {
         transport.onMessage = { [weak self] message in
             Task { @MainActor in
@@ -241,4 +303,5 @@ public final class Tinkerble {
         var remoteAppliers: [UUID: (TinkerbleValue) -> Void] = [:]
         var actionHandlers: [UUID: () -> Void] = [:]
     }
+#endif
 }

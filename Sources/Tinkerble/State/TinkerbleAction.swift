@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 
+#if DEBUG
 @Observable
 @MainActor
 final class TinkerbleActionBox {
@@ -54,6 +55,7 @@ private struct TinkerbleActionModifier: ViewModifier {
         return content
     }
 }
+#endif
 
 public extension View {
     func tinkerbleAction(
@@ -62,6 +64,14 @@ public extension View {
         category: String? = nil,
         perform: @escaping () -> Void
     ) -> some View {
-        modifier(TinkerbleActionModifier(name: name, screen: screen, category: category, perform: perform))
+#if DEBUG
+        return modifier(TinkerbleActionModifier(name: name, screen: screen, category: category, perform: perform))
+#else
+        _ = name
+        _ = screen
+        _ = category
+        _ = perform
+        return self
+#endif
     }
 }

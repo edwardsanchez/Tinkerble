@@ -3,6 +3,7 @@ import Observation
 
 @MainActor
 public final class TinkerbleObservableStateRegistration {
+#if DEBUG
     private var id: String?
     private var isRegistered = false
     private var isApplyingRemoteValue = false
@@ -10,9 +11,11 @@ public final class TinkerbleObservableStateRegistration {
     private var trackedValueReader: (() -> TinkerbleValue)?
     private var trackedValueObserver: (() -> Void)?
     private var registrationToken: TinkerbleRegistrationToken?
+#endif
 
     public init() {}
 
+#if DEBUG
     deinit {
         if let registrationToken {
             Task { @MainActor in
@@ -20,6 +23,7 @@ public final class TinkerbleObservableStateRegistration {
             }
         }
     }
+#endif
 
     public func activate<Owner: AnyObject, Value: TinkerbleValueConvertible>(
         owner: Owner,
@@ -31,6 +35,7 @@ public final class TinkerbleObservableStateRegistration {
         readValue: ((Owner) -> Value)? = nil,
         applyRemoteValue: @escaping (Owner, Value) -> Void
     ) {
+#if DEBUG
         guard !isRegistered else { return }
 
         let id = TinkerbleTweak.makeID(screen: screen, category: category, name: name)
@@ -65,6 +70,16 @@ public final class TinkerbleObservableStateRegistration {
             }
             observe(owner: owner, readValue: readValue)
         }
+#else
+        _ = owner
+        _ = initialValue
+        _ = name
+        _ = screen
+        _ = category
+        _ = control
+        _ = readValue
+        _ = applyRemoteValue
+#endif
     }
 
     public func activate<Owner: AnyObject, Value: TinkerbleValueConvertible>(
@@ -112,9 +127,14 @@ public final class TinkerbleObservableStateRegistration {
     }
 
     public func updateLocalValue<Value: TinkerbleValueConvertible>(_ value: Value) {
+#if DEBUG
         updateLocalTinkerbleValue(value.tinkerbleValue)
+#else
+        _ = value
+#endif
     }
 
+#if DEBUG
     private func updateLocalTinkerbleValue(_ value: TinkerbleValue) {
         guard let id, !isApplyingRemoteValue else { return }
         guard value != lastObservedValue else { return }
@@ -140,4 +160,5 @@ public final class TinkerbleObservableStateRegistration {
             }
         }
     }
+#endif
 }

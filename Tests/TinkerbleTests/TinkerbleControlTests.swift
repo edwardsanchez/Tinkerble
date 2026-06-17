@@ -158,6 +158,7 @@ final class TinkerbleControlTests: XCTestCase {
         )
     }
 
+#if DEBUG
     @MainActor
     func testAutomaticNumericRegistrationResolvesToPlainControl() {
         Tinkerble.shared.resetForTesting()
@@ -213,4 +214,5 @@ final class TinkerbleControlTests: XCTestCase {
             TinkerbleControl<Date>.dateAndTime.descriptor
         )
     }
+#endif
 }

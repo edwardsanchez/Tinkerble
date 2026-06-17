@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 
+#if DEBUG
 @Observable
 @MainActor
 final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
@@ -43,23 +44,41 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
     }
 
 }
+#endif
 
 @propertyWrapper
 @MainActor
 public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty {
+#if DEBUG
     @State private var box: TinkerbleStateBox<Value>
+#else
+    @State private var storage: Value
+#endif
 
+#if DEBUG
     public var wrappedValue: Value {
         get { box.value }
         nonmutating set { box.set(newValue) }
     }
+#else
+    public var wrappedValue: Value {
+        get { storage }
+        nonmutating set { storage = newValue }
+    }
+#endif
 
+#if DEBUG
     public var projectedValue: Binding<Value> {
         Binding(
             get: { box.value },
             set: { box.set($0) }
         )
     }
+#else
+    public var projectedValue: Binding<Value> {
+        $storage
+    }
+#endif
 
     public init(
         wrappedValue: Value,
@@ -68,6 +87,7 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
+#if DEBUG
         _box = State(
             wrappedValue: TinkerbleStateBox(
                 initialValue: wrappedValue,
@@ -77,6 +97,13 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
                 control: control
             )
         )
+#else
+        _ = name
+        _ = screen
+        _ = category
+        _ = control
+        _storage = State(wrappedValue: wrappedValue)
+#endif
     }
 
     public init(

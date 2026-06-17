@@ -2,11 +2,14 @@ import Foundation
 
 @MainActor
 public final class TinkerbleActionRegistration {
+#if DEBUG
     private var registrationToken: TinkerbleRegistrationToken?
     private var isRegistered = false
+#endif
 
     public init() {}
 
+#if DEBUG
     deinit {
         if let registrationToken {
             Task { @MainActor in
@@ -14,6 +17,7 @@ public final class TinkerbleActionRegistration {
             }
         }
     }
+#endif
 
     public func activate<Owner: AnyObject>(
         owner: Owner,
@@ -22,6 +26,7 @@ public final class TinkerbleActionRegistration {
         category: String? = nil,
         perform: @escaping (Owner) -> Void
     ) {
+#if DEBUG
         guard !isRegistered else { return }
 
         isRegistered = true
@@ -35,6 +40,13 @@ public final class TinkerbleActionRegistration {
                 perform(owner)
             }
         )
+#else
+        _ = owner
+        _ = name
+        _ = screen
+        _ = category
+        _ = perform
+#endif
     }
 
     public func activate<Owner: AnyObject>(

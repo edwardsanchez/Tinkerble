@@ -36,9 +36,14 @@ final class TinkerbleObservableCompatibilityTests: XCTestCase {
         let model = ObservableDemoModel()
 
         XCTAssertEqual(model.count, 1)
+#if DEBUG
         XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), [Self.observableTweakID])
         XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.screen), ["Basic"])
         XCTAssertEqual(transport.sentMessages.compactMap(\.observableRegisteredTweak).map(\.id), [Self.observableTweakID])
+#else
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+#endif
         #else
         XCTAssertTrue(true)
         #endif
@@ -56,10 +61,16 @@ final class TinkerbleObservableCompatibilityTests: XCTestCase {
 
         model.count = 4
 
+#if DEBUG
         await waitUntil {
             transport.sentMessages.contains(.update(id: Self.observableTweakID, value: .number(4)))
         }
         XCTAssertEqual(transport.sentMessages, [.update(id: Self.observableTweakID, value: .number(4))])
+#else
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(model.count, 4)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+#endif
         #else
         XCTAssertTrue(true)
         #endif
@@ -77,10 +88,16 @@ final class TinkerbleObservableCompatibilityTests: XCTestCase {
 
         transport.receive(.update(id: Self.observableTweakID, value: .number(7)))
 
+#if DEBUG
         await waitUntil { model.count == 7 }
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(model.count, 7)
         XCTAssertTrue(transport.sentMessages.isEmpty)
+#else
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(model.count, 1)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+#endif
         #else
         XCTAssertTrue(true)
         #endif
@@ -99,10 +116,15 @@ final class TinkerbleObservableCompatibilityTests: XCTestCase {
 
         model = nil
 
+#if DEBUG
         await waitUntil {
             transport.sentMessages.contains(.unregister(id: Self.observableTweakID))
         }
         XCTAssertEqual(transport.sentMessages, [.unregister(id: Self.observableTweakID)])
+#else
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+#endif
         #else
         XCTAssertTrue(true)
         #endif

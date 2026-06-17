@@ -3,6 +3,7 @@ import XCTest
 
 @MainActor
 final class TinkerbleRegistrationLifetimeTests: XCTestCase {
+#if DEBUG
     func testTinkerbleStateBoxUnregistersWhenDeallocated() async {
         let transport = LifetimeRecordingTransport()
         Tinkerble.shared.resetForTesting(transport: transport)
@@ -190,6 +191,97 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
         XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
         XCTAssertEqual(transport.sentMessages, [.unregister(id: "Shared/Title")])
     }
+#else
+    func testReleaseRegistryDoesNotRegisterSendUpdateOrBindTransport() {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+        var remoteValue = "Initial"
+
+        let token = Tinkerble.shared.register(
+            id: "Release/Title",
+            category: "Release",
+            name: "Title",
+            value: remoteValue,
+            control: .automatic,
+            applyRemoteValue: { remoteValue = $0 }
+        )
+
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+
+        Tinkerble.shared.updateLocalValue(id: "Release/Title", value: "Updated")
+        Tinkerble.shared.log("Release log")
+        Tinkerble.shared.connect(host: "127.0.0.1", port: 7777)
+        Tinkerble.shared.disconnect()
+        transport.receive(.update(id: "Release/Title", value: .string("Remote")))
+        Tinkerble.shared.unregister(token)
+
+        XCTAssertEqual(remoteValue, "Initial")
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+    }
+
+    func testReleaseStateWrapperCompilesWithoutRegistering() {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+
+        let state = TinkerbleState(wrappedValue: "Initial", name: "Title", category: "Release")
+
+        XCTAssertEqual(state.wrappedValue, "Initial")
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+    }
+
+    func testReleaseRegistrationHelpersDoNotRegisterObserveOrRunActions() {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+        let stateOwner = ScreenRegistrationOwner()
+        let stateRegistration = TinkerbleObservableStateRegistration()
+        let actionOwner = ActionRegistrationOwner()
+        let actionRegistration = TinkerbleActionRegistration()
+
+        stateRegistration.activate(
+            owner: stateOwner,
+            initialValue: "Loaded",
+            name: "Title",
+            screen: "Basic",
+            category: "Layout",
+            control: .automatic,
+            readValue: { owner in owner.value },
+            applyRemoteValue: { owner, value in
+                owner.value = value
+            }
+        )
+        actionRegistration.activate(
+            owner: actionOwner,
+            name: "Toggle Fan",
+            screen: "Fan Deck",
+            category: "Animation",
+            perform: { owner in
+                owner.runCount += 1
+            }
+        )
+
+        stateOwner.value = "Local"
+        stateRegistration.updateLocalValue(stateOwner.value)
+        transport.receive(.update(id: "Basic/Layout/Title", value: .string("Remote")))
+        transport.receive(.trigger(id: "Fan Deck/Animation/Toggle Fan"))
+
+        XCTAssertEqual(stateOwner.value, "Local")
+        XCTAssertEqual(actionOwner.runCount, 0)
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+        XCTAssertTrue(transport.sentMessages.isEmpty)
+    }
+#endif
 
     private func waitUntil(
         timeout: TimeInterval = 5,
