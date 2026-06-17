@@ -4,7 +4,7 @@ import Tinkerble
 public struct TinkerbleLogRow: Equatable, Identifiable {
     public var id: String { latest.valueID }
     public var name: String { latest.name }
-    public var displayValue: String { latest.value.displayValue }
+    public var displayValue: String { latest.displayValue }
     public var latest: TinkerbleLogEntry
     public var history: [TinkerbleLogEntry]
 
@@ -42,7 +42,7 @@ public struct TinkerbleLogCard: Equatable, Identifiable {
                 entry.screen,
                 entry.category,
                 entry.name,
-                entry.value.displayValue
+                entry.displayValue
             ]
             .map(Self.escapedTSVField)
             .joined(separator: "\t")

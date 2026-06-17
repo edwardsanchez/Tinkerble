@@ -8,10 +8,17 @@ public enum TinkerLog {
         name: String,
         value: Value,
         screen: String? = nil,
-        category: String? = nil
+        category: String? = nil,
+        decimalPlaces: Int = TinkerbleLogValue.defaultDecimalPlaces
     ) {
-        let entry = TinkerbleLogEntry(screen: screen, category: category, name: name, value: value)
-        logger.debug("\(entry.name, privacy: .public): \(entry.value.displayValue, privacy: .public)")
+        let entry = TinkerbleLogEntry(
+            screen: screen,
+            category: category,
+            name: name,
+            value: value,
+            decimalPlaces: decimalPlaces
+        )
+        logger.debug("\(entry.name, privacy: .public): \(entry.displayValue, privacy: .public)")
 #if DEBUG
         Task { @MainActor in
             Tinkerble.shared.log(entry)

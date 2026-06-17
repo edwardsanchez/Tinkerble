@@ -43,7 +43,7 @@ private struct TinkerbleLogWindowConfigurator: NSViewRepresentable {
     private func configure(_ window: NSWindow?) {
         guard let window else { return }
 
-        window.title = "Tinkerble logs"
+        window.title = "Tinkerble Logs"
         window.titlebarAppearsTransparent = true
         window.isOpaque = false
         window.backgroundColor = .clear

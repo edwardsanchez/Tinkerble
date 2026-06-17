@@ -9,15 +9,20 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
     public var category: String
     public var name: String
     public var value: TinkerbleLogValue
+    public var decimalPlaces: Int
     public var date: Date
 
     public var valueID: String {
         Self.makeValueID(screen: screen, category: category, name: name)
     }
 
-    @available(*, deprecated, message: "Use value.displayValue instead.")
+    public var displayValue: String {
+        value.displayValue(decimalPlaces: decimalPlaces)
+    }
+
+    @available(*, deprecated, message: "Use displayValue instead.")
     public var message: String {
-        value.displayValue
+        displayValue
     }
 
     public init<Value: TinkerbleLogValueConvertible>(
@@ -26,6 +31,7 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
         category: String? = nil,
         name: String,
         value: Value,
+        decimalPlaces: Int = TinkerbleLogValue.defaultDecimalPlaces,
         date: Date = Date()
     ) {
         self.init(
@@ -33,7 +39,8 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
             screen: screen,
             category: category,
             name: name,
-            value: value.tinkerbleLogValue,
+            value: value.tinkerbleLogValue(decimalPlaces: decimalPlaces),
+            decimalPlaces: decimalPlaces,
             date: date
         )
     }
@@ -44,6 +51,7 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
         category: String? = nil,
         name: String,
         value: TinkerbleLogValue,
+        decimalPlaces: Int = TinkerbleLogValue.defaultDecimalPlaces,
         date: Date = Date()
     ) {
         self.id = id
@@ -51,6 +59,7 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
         self.category = Self.normalizedCategory(category)
         self.name = Self.normalizedName(name)
         self.value = value
+        self.decimalPlaces = Self.normalizedDecimalPlaces(decimalPlaces)
         self.date = date
     }
 
@@ -73,6 +82,10 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
         return normalizedName.isEmpty ? defaultName : normalizedName
     }
 
+    public static func normalizedDecimalPlaces(_ decimalPlaces: Int) -> Int {
+        min(max(0, decimalPlaces), TinkerbleLogValue.maximumDecimalPlaces)
+    }
+
     public static func makeValueID(screen: String? = nil, category: String? = nil, name: String) -> String {
         let screen = TinkerbleTweak.normalizedScreen(screen)
         let category = normalizedCategory(category)
@@ -86,6 +99,7 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
         case category
         case name
         case value
+        case decimalPlaces
         case date
         case message
     }
@@ -100,11 +114,16 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
             category = Self.normalizedCategory(try container.decodeIfPresent(String.self, forKey: .category))
             name = Self.normalizedName(try container.decodeIfPresent(String.self, forKey: .name) ?? Self.defaultName)
             self.value = value
+            decimalPlaces = Self.normalizedDecimalPlaces(
+                try container.decodeIfPresent(Int.self, forKey: .decimalPlaces)
+                    ?? TinkerbleLogValue.defaultDecimalPlaces
+            )
         } else {
             screen = TinkerbleTweak.defaultScreenName
             category = Self.defaultCategoryName
             name = Self.defaultName
             value = .string(try container.decode(String.self, forKey: .message))
+            decimalPlaces = TinkerbleLogValue.defaultDecimalPlaces
         }
     }
 
@@ -115,6 +134,7 @@ public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
         try container.encode(category, forKey: .category)
         try container.encode(name, forKey: .name)
         try container.encode(value, forKey: .value)
+        try container.encode(decimalPlaces, forKey: .decimalPlaces)
         try container.encode(date, forKey: .date)
     }
 }

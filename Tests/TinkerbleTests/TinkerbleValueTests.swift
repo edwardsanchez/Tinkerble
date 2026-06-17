@@ -198,6 +198,46 @@ final class TinkerbleValueTests: XCTestCase {
         XCTAssertTrue(buffer.isEmpty)
     }
 
+    func testSocketMessageCodecRoundTripsColorLogValues() throws {
+        let codec = TinkerbleSocketMessageCodec()
+        let logEntry = TinkerbleLogEntry(
+            screen: "Logs Demo",
+            category: "Color",
+            name: "Resolved Color",
+            value: TinkerbleLogValue.color(TinkerbleColor(red: 1, green: 0.5, blue: 0, alpha: 0.25))
+        )
+
+        let data = try codec.data(for: .log(logEntry))
+        let decoded = try codec.message(from: data)
+
+        XCTAssertEqual(decoded, .log(logEntry))
+    }
+
+    func testSocketMessageCodecRoundTripsComponentLogValues() throws {
+        let codec = TinkerbleSocketMessageCodec()
+        let logEntry = TinkerbleLogEntry(
+            screen: "Logs Demo",
+            category: "Motion",
+            name: "Velocity",
+            value: CGVector(dx: -12.5, dy: 3)
+        )
+
+        let data = try codec.data(for: .log(logEntry))
+        let decoded = try codec.message(from: data)
+
+        XCTAssertEqual(decoded, .log(logEntry))
+    }
+
+    func testSocketMessageCodecRoundTripsLogDecimalPlaces() throws {
+        let codec = TinkerbleSocketMessageCodec()
+        let logEntry = TinkerbleLogEntry(name: "Velocity", value: 12.999, decimalPlaces: 2)
+
+        let data = try codec.data(for: .log(logEntry))
+        let decoded = try codec.message(from: data)
+
+        XCTAssertEqual(decoded, .log(logEntry))
+    }
+
     func testSocketMessageCodecRejectsOversizedInboundFrame() {
         let codec = TinkerbleSocketMessageCodec()
         var oversizedLength = UInt32(TinkerbleSocketMessageCodec.maximumPayloadSize + 1).bigEndian

@@ -21,6 +21,12 @@ struct ContentView: View {
                     FanDeckDemoView()
                 }
             }
+
+            Tab("Logs", systemImage: "list.dash.header.rectangle.fill") {
+                NavigationStack {
+                    LogsDemoView()
+                }
+            }
         }
     }
 }
@@ -32,5 +38,11 @@ struct ContentView: View {
 #Preview("Basic Demo") {
     NavigationStack {
         BasicDemoView()
+    }
+}
+
+#Preview("Logs Demo") {
+    NavigationStack {
+        LogsDemoView()
     }
 }

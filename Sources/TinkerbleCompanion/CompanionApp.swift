@@ -9,6 +9,7 @@ import TinkerbleCompanionUI
 struct TinkerbleCompanionApp: App {
     @NSApplicationDelegateAdaptor(CompanionAppDelegate.self) private var appDelegate
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     @State private var store: TinkerbleCompanionStore
     @State private var windowLevel = HudWindowLevelState()
     @State private var logWindowPresentation = TinkerbleLogWindowPresentationState()
@@ -32,7 +33,9 @@ struct TinkerbleCompanionApp: App {
                     keepsWindowOnTop: windowLevel.keepsWindowOnTop
                 )
                 .onChange(of: store.logs.count, initial: true) { _, logCount in
-                    if logWindowPresentation.shouldOpenLogsWindow(logCount: logCount) {
+                    if logWindowPresentation.shouldCloseLogsWindow(logCount: logCount) {
+                        dismissWindow(id: "logs")
+                    } else if logWindowPresentation.shouldOpenLogsWindow(logCount: logCount) {
                         openWindow(id: "logs")
                     }
                 }
@@ -81,10 +84,16 @@ struct TinkerbleCompanionApp: App {
             }
         }
 
-        Window("Tinkerble logs", id: "logs") {
+        Window("Tinkerble Logs", id: "logs") {
             TinkerbleLogWindowView(logs: store.logs)
+                .onChange(of: store.logs.count, initial: true) { _, logCount in
+                    if logWindowPresentation.shouldCloseLogsWindow(logCount: logCount) {
+                        dismissWindow(id: "logs")
+                    }
+                }
         }
         .defaultSize(width: 640, height: 480)
+        .restorationBehavior(.disabled)
     }
 
     private static func makeVersionRepository() -> any TinkerbleVersionRepository {

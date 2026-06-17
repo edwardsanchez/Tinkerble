@@ -16,7 +16,8 @@ The package is intentionally small and modular:
 5. Editing a companion control sends an update back to the app.
 6. Tapping an action button sends a trigger back to the app.
 7. The app applies value updates or runs the registered action closure.
-8. `TinkerLog.value` sends named string, numeric, or common geometry values to the companion logs window.
+8. `TinkerLog.value` sends named string, numeric, color, or common geometry values to the companion.
+9. The companion opens the logs window when the first log value arrives and closes it when no logs remain.
 
 ## Platform Support
 Tinkerble's client library is designed to be platform-agnostic across Apple SwiftUI apps. The same `Tinkerble` product should work from iOS, macOS, tvOS, watchOS, and visionOS apps as long as the app can import SwiftUI and Observation and open a TCP connection to the Mac running the companion.
@@ -231,12 +232,41 @@ enum DemoMode: String, CaseIterable, TinkerbleEnum {
 private var mode = DemoMode.compact
 ```
 
-Send named log values:
+## Logging Values
+Use `TinkerLog.value` when you want to watch live values without turning them into editable controls:
+
 ```swift
 TinkerLog.value(name: "Visible Cards", value: cards.count, screen: "Cards", category: "Deck")
 TinkerLog.value(name: "Current Opacity", value: opacity, screen: "Cards")
 TinkerLog.value(name: "Card Frame", value: cardFrame, screen: "Cards", category: "Layout")
 ```
+
+![Tinkerble logs window showing live app values](Documentation/Assets/tinkerble-logs.gif)
+
+Each log entry has a `screen`, `category`, `name`, typed `value`, `decimalPlaces`, and timestamp. `screen` and `category` are optional: missing screens use the default screen, and missing categories appear in the `Default` card. The logs window groups entries by screen first, then category, and each named value row shows the latest value while retaining its timestamped history for copy and export.
+
+The companion's main tweak window does not show an empty logs window. The logs window opens automatically the first time at least one log arrives, stays available while logs exist, and closes when the companion log list becomes empty. After the first automatic open, new logs update the existing logs state instead of repeatedly forcing a fresh window open.
+
+Supported log values:
+- `String`
+- `Int`
+- `Double`, `Float`, and `CGFloat`
+- `Color`, `TinkerbleColor`, plus `UIColor` or `NSColor` where that framework is available
+- `CGPoint`, `CGSize`, `CGRect`, `CGVector`, and `CGAffineTransform`
+
+Numeric log values default to one decimal place. Pass `decimalPlaces:` to control display precision for decimal values and Core Graphics component values:
+
+```swift
+TinkerLog.value(name: "FPS", value: fps, decimalPlaces: 0)
+TinkerLog.value(name: "Velocity", value: velocity, screen: "Cards", category: "Motion", decimalPlaces: 2)
+Tinkerble.shared.log(name: "Drag Vector", value: dragVector, decimalPlaces: 2)
+```
+
+`decimalPlaces` is clamped to the supported `0...9` range, and decimal display is truncated rather than rounded. For example, `12.999` with `decimalPlaces: 2` displays as `12.99`. Integer log values ignore decimal precision because they are already whole-number values.
+
+Core Graphics values render as labeled components so related measurements stay together in one row. For example, `CGPoint(x: 12.5, y: 48)` displays as `x 12.5, y 48.0`, and `CGVector(dx: -6.5, dy: 7)` keeps the sign on the negative component. Color values render as RGBA components, for example `R 255 G 128 B 000 A 0.25`.
+
+Each log category card includes copy and export actions. Export writes tab-separated text with timestamp, screen, category, name, and formatted value columns, using the same display formatting shown in the companion.
 
 ## Text Controls
 Strings use a regular input field by default:
@@ -327,6 +357,6 @@ Tinkerble is available under the Apache License 2.0. See `LICENSE` for details.
 - Remembered manual device selection for networks where Bonjour is unavailable.
 - Reconnect and connection health details.
 - Multiple client sessions.
-- Log categories, levels, grouping, typed values, colors, filtering, search, timestamps, and export.
+- Log levels, filtering, search, and richer retention controls.
 - Better enum display customization.
 - Packaged macOS app bundle with entitlements and plist.
