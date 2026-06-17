@@ -3,8 +3,8 @@ import XCTest
 @testable import TinkerbleCompanionCore
 
 @MainActor
-final class TinkerbleRSocketIntegrationTests: XCTestCase {
-    func testRSocketLoopRegistersLogsAndAppliesRemoteUpdates() async throws {
+final class TinkerbleSocketIntegrationTests: XCTestCase {
+    func testSocketLoopRegistersLogsAndAppliesRemoteUpdates() async throws {
         let port = 7877
         let companion = TinkerbleCompanionStore()
         companion.start(port: port)
@@ -15,7 +15,7 @@ final class TinkerbleRSocketIntegrationTests: XCTestCase {
         let companionStarted = await waitUntil { companion.connectionStatus.isConnected }
         XCTAssertTrue(companionStarted, "Companion did not start listening")
 
-        let client = Tinkerble(transport: TinkerbleRSocketClientTransport())
+        let client = Tinkerble(transport: TinkerbleSocketClientTransport())
         var remoteTitle = "Original"
 
         client.register(
@@ -37,7 +37,7 @@ final class TinkerbleRSocketIntegrationTests: XCTestCase {
             applyRemoteValue: { _ in }
         )
 
-        client.connect(port: port)
+        client.connect(host: "127.0.0.1", port: port)
         client.log("Integration log")
         addTeardownBlock { @MainActor in
             client.disconnect()
@@ -61,6 +61,40 @@ final class TinkerbleRSocketIntegrationTests: XCTestCase {
             companion.tweaks.map(\.id) == ["Title"]
         }
         XCTAssertTrue(removedUnregisteredTweak, "Companion did not remove unregistered tweak")
+    }
+
+    func testSocketLoopDiscoversCompanionWithBonjour() async throws {
+        let serviceType = "_tbtest._tcp"
+        let companion = TinkerbleCompanionStore()
+        companion.start(port: 0, serviceType: serviceType)
+        addTeardownBlock { @MainActor in
+            companion.stop()
+        }
+
+        let companionStarted = await waitUntil { companion.connectionStatus.isConnected }
+        XCTAssertTrue(companionStarted, "Companion did not start listening")
+
+        let client = Tinkerble(
+            transport: TinkerbleSocketClientTransport(serviceType: serviceType)
+        )
+        client.register(
+            id: "Device/Title",
+            category: "Device",
+            name: "Title",
+            value: "Bonjour",
+            control: .automatic,
+            applyRemoteValue: { _ in }
+        )
+
+        client.connect()
+        addTeardownBlock { @MainActor in
+            client.disconnect()
+        }
+
+        let discoveredTweaks = await waitUntil(timeout: 10) {
+            companion.tweaks.map(\.id) == ["Device/Title"]
+        }
+        XCTAssertTrue(discoveredTweaks, "iOS transport did not discover the Bonjour companion")
     }
 
     private func waitUntil(

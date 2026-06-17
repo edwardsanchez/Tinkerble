@@ -218,7 +218,7 @@ private final class LifetimeRecordingTransport: TinkerbleClientTransport {
     var onStatusChange: ((TinkerbleConnectionStatus) -> Void)?
     var sentMessages: [TinkerbleWireMessage] = []
 
-    func connect(host: String, port: Int) {}
+    func connect(host: String?, port: Int) {}
 
     func send(_ message: TinkerbleWireMessage) {
         sentMessages.append(message)

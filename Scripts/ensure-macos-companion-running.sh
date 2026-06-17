@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROCESS_NAME="${TINKERBLE_COMPANION_PROCESS_NAME:-TinkerbleCompanion}"
-PORT="${TINKERBLE_COMPANION_PORT:-7777}"
 WAIT_TIMEOUT="${TINKERBLE_COMPANION_WAIT_TIMEOUT:-20}"
 RESTART=0
 
@@ -45,11 +44,11 @@ running_pids() {
   pgrep -x "$PROCESS_NAME" || true
 }
 
-is_port_listening() {
+is_companion_listening() {
   local pid
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
-    if lsof -Pan -p "$pid" -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    if lsof -Pan -p "$pid" -iTCP -sTCP:LISTEN >/dev/null 2>&1; then
       return 0
     fi
   done < <(running_pids)
@@ -74,7 +73,7 @@ wait_for_launch() {
   local deadline=$((SECONDS + WAIT_TIMEOUT))
 
   while [[ $SECONDS -lt $deadline ]]; do
-    if [[ -n "$(running_pids)" ]] && is_port_listening; then
+    if [[ -n "$(running_pids)" ]] && is_companion_listening; then
       return 0
     fi
     sleep 0.25
@@ -106,8 +105,8 @@ else
 fi
 
 if ! wait_for_launch; then
-  echo "Timed out waiting for $PROCESS_NAME to listen on port $PORT." >&2
+  echo "Timed out waiting for $PROCESS_NAME to listen for socket connections." >&2
   exit 1
 fi
 
-echo "Tinkerble companion is running from $APP_BUNDLE on port $PORT."
+echo "Tinkerble companion is running from $APP_BUNDLE."

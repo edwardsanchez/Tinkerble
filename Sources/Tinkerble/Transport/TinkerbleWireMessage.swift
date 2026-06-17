@@ -53,7 +53,12 @@ public protocol TinkerbleClientTransport: AnyObject {
     var onMessage: ((TinkerbleWireMessage) -> Void)? { get set }
     var onStatusChange: ((TinkerbleConnectionStatus) -> Void)? { get set }
 
-    func connect(host: String, port: Int)
+    func connect(host: String?, port: Int)
     func send(_ message: TinkerbleWireMessage)
     func disconnect()
+}
+
+public enum TinkerbleNetworkConfiguration {
+    public static let defaultPort = 7777
+    public static let bonjourServiceType = "_tinkerble._tcp"
 }

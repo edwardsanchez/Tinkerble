@@ -15,7 +15,7 @@ public final class Tinkerble {
     @ObservationIgnored
     private var transport: TinkerbleClientTransport
 
-    public init(transport: TinkerbleClientTransport = TinkerbleRSocketClientTransport()) {
+    public init(transport: TinkerbleClientTransport = TinkerbleSocketClientTransport()) {
         self.transport = transport
         bindTransport(transport)
     }
@@ -26,7 +26,7 @@ public final class Tinkerble {
         bindTransport(transport)
     }
 
-    internal func resetForTesting(transport: TinkerbleClientTransport = TinkerbleRSocketClientTransport()) {
+    internal func resetForTesting(transport: TinkerbleClientTransport = TinkerbleSocketClientTransport()) {
         self.transport.disconnect()
         self.transport = transport
         liveRegistrationsByID.removeAll()
@@ -35,7 +35,7 @@ public final class Tinkerble {
         bindTransport(transport)
     }
 
-    public func connect(host: String = "127.0.0.1", port: Int = 7777) {
+    public func connect(host: String? = nil, port: Int = TinkerbleNetworkConfiguration.defaultPort) {
         transport.connect(host: host, port: port)
     }
 

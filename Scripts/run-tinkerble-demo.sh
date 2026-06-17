@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT_DIR/Tinkerble Demo/Tinkerble Demo.xcodeproj"
 SCHEME="Tinkerble Demo"
-PACKAGE_CACHE="$ROOT_DIR/.build"
+PACKAGE_CACHE="${TINKERBLE_DEMO_PACKAGE_CACHE:-$ROOT_DIR/.build-demo-run}"
 APP_BUNDLE_ID="app.amorfati.Tinkerble-Demo"
 
 choose_simulator() {
@@ -39,8 +39,6 @@ choose_simulator() {
   fi
   echo "${devices[$((choice - 1))]#*|}"
 }
-
-"$ROOT_DIR/Scripts/patch-rsocket-checkouts.sh" "$PACKAGE_CACHE/checkouts" || true
 
 "$ROOT_DIR/Scripts/launch-macos-companion.sh"
 

@@ -41,13 +41,13 @@ final class TinkerbleValueTests: XCTestCase {
             DemoMode.tinkerbleEnumOptions,
             [
                 TinkerbleEnumOption(id: "compact", displayName: "Compact"),
-                TinkerbleEnumOption(id: "expanded", displayName: "Expanded"),
+                TinkerbleEnumOption(id: "expanded", displayName: "Expanded")
             ]
         )
     }
 
-    func testRSocketPayloadCodecRoundTripsMessages() throws {
-        let codec = TinkerbleRSocketPayloadCodec()
+    func testSocketMessageCodecRoundTripsMessages() throws {
+        let codec = TinkerbleSocketMessageCodec()
         let tweak = TinkerbleTweak(
             id: "Layout/Opacity",
             screen: "Fan Deck",
@@ -58,18 +58,18 @@ final class TinkerbleValueTests: XCTestCase {
             control: TinkerbleControl<Double>.slider(0...1).descriptor
         )
 
-        let payload = try codec.payload(for: .register(tweak))
-        let decoded = try codec.message(from: payload)
+        let data = try codec.data(for: .register(tweak))
+        let decoded = try codec.message(from: data)
 
         XCTAssertEqual(decoded, .register(tweak))
     }
 
-    func testRSocketPayloadCodecRoundTripsHelloProjectIdentity() throws {
-        let codec = TinkerbleRSocketPayloadCodec()
+    func testSocketMessageCodecRoundTripsHelloProjectIdentity() throws {
+        let codec = TinkerbleSocketMessageCodec()
         let project = TinkerbleProjectIdentity(id: "app.test", displayName: "Test App")
 
-        let payload = try codec.payload(for: .hello(role: .iOSApp, version: "0.1.0", project: project))
-        let decoded = try codec.message(from: payload)
+        let data = try codec.data(for: .hello(role: .iOSApp, version: "0.1.0", project: project))
+        let decoded = try codec.message(from: data)
 
         XCTAssertEqual(decoded, .hello(role: .iOSApp, version: "0.1.0", project: project))
     }
@@ -109,26 +109,26 @@ final class TinkerbleValueTests: XCTestCase {
         )
     }
 
-    func testRSocketPayloadCodecRoundTripsUnregisterMessages() throws {
-        let codec = TinkerbleRSocketPayloadCodec()
+    func testSocketMessageCodecRoundTripsUnregisterMessages() throws {
+        let codec = TinkerbleSocketMessageCodec()
 
-        let payload = try codec.payload(for: .unregister(id: "Lifetime State/Message"))
-        let decoded = try codec.message(from: payload)
+        let data = try codec.data(for: .unregister(id: "Lifetime State/Message"))
+        let decoded = try codec.message(from: data)
 
         XCTAssertEqual(decoded, .unregister(id: "Lifetime State/Message"))
     }
 
-    func testRSocketPayloadCodecRoundTripsTriggerMessages() throws {
-        let codec = TinkerbleRSocketPayloadCodec()
+    func testSocketMessageCodecRoundTripsTriggerMessages() throws {
+        let codec = TinkerbleSocketMessageCodec()
 
-        let payload = try codec.payload(for: .trigger(id: "Fan Deck/Animation/Toggle Fan"))
-        let decoded = try codec.message(from: payload)
+        let data = try codec.data(for: .trigger(id: "Fan Deck/Animation/Toggle Fan"))
+        let decoded = try codec.message(from: data)
 
         XCTAssertEqual(decoded, .trigger(id: "Fan Deck/Animation/Toggle Fan"))
     }
 
-    func testRSocketPayloadCodecRoundTripsTextControlDescriptors() throws {
-        let codec = TinkerbleRSocketPayloadCodec()
+    func testSocketMessageCodecRoundTripsTextControlDescriptors() throws {
+        let codec = TinkerbleSocketMessageCodec()
         let tweak = TinkerbleTweak(
             id: "Copy/Message",
             category: "Copy",
@@ -138,14 +138,14 @@ final class TinkerbleValueTests: XCTestCase {
             control: TinkerbleControl<String>.text(.automatic).descriptor
         )
 
-        let payload = try codec.payload(for: .register(tweak))
-        let decoded = try codec.message(from: payload)
+        let data = try codec.data(for: .register(tweak))
+        let decoded = try codec.message(from: data)
 
         XCTAssertEqual(decoded, .register(tweak))
     }
 
-    func testRSocketPayloadCodecRoundTripsAngleAndDateControlDescriptors() throws {
-        let codec = TinkerbleRSocketPayloadCodec()
+    func testSocketMessageCodecRoundTripsAngleAndDateControlDescriptors() throws {
+        let codec = TinkerbleSocketMessageCodec()
         let tweaks = [
             TinkerbleTweak(
                 id: "Layout/Rotation",
@@ -162,12 +162,67 @@ final class TinkerbleValueTests: XCTestCase {
                 value: Date(timeIntervalSinceReferenceDate: 804_729_600).tinkerbleValue,
                 valueKind: .date,
                 control: TinkerbleControl<Date>.datePicker(.dateAndTime).descriptor
-            ),
+            )
         ]
 
-        let payload = try codec.payload(for: .snapshot(tweaks))
-        let decoded = try codec.message(from: payload)
+        let data = try codec.data(for: .snapshot(tweaks))
+        let decoded = try codec.message(from: data)
 
         XCTAssertEqual(decoded, .snapshot(tweaks))
+    }
+
+    func testSocketMessageCodecDecodesMultipleLengthPrefixedFramesFromBuffer() throws {
+        let codec = TinkerbleSocketMessageCodec()
+        let logEntry = TinkerbleLogEntry(message: "First")
+        var buffer = Data()
+        buffer.append(try codec.frame(for: .log(logEntry)))
+        buffer.append(try codec.frame(for: .trigger(id: "Actions/Refresh")))
+
+        let messages = try codec.messages(fromBufferedData: &buffer)
+
+        XCTAssertEqual(messages, [.log(logEntry), .trigger(id: "Actions/Refresh")])
+        XCTAssertTrue(buffer.isEmpty)
+    }
+
+    func testSocketMessageCodecKeepsPartialFrameBuffered() throws {
+        let codec = TinkerbleSocketMessageCodec()
+        let logEntry = TinkerbleLogEntry(message: "Partial")
+        let frame = try codec.frame(for: .log(logEntry))
+        var buffer = Data(frame.prefix(frame.count - 2))
+
+        XCTAssertEqual(try codec.messages(fromBufferedData: &buffer), [])
+
+        buffer.append(frame.suffix(2))
+
+        XCTAssertEqual(try codec.messages(fromBufferedData: &buffer), [.log(logEntry)])
+        XCTAssertTrue(buffer.isEmpty)
+    }
+
+    func testSocketMessageCodecRejectsOversizedInboundFrame() {
+        let codec = TinkerbleSocketMessageCodec()
+        var oversizedLength = UInt32(TinkerbleSocketMessageCodec.maximumPayloadSize + 1).bigEndian
+        var buffer = Data()
+        withUnsafeBytes(of: &oversizedLength) { bytes in
+            buffer.append(contentsOf: bytes)
+        }
+
+        XCTAssertThrowsError(try codec.messages(fromBufferedData: &buffer)) { error in
+            XCTAssertEqual(
+                error as? TinkerbleSocketMessageCodecError,
+                .payloadTooLarge(TinkerbleSocketMessageCodec.maximumPayloadSize + 1)
+            )
+        }
+    }
+
+    func testSocketMessageCodecRejectsOversizedOutboundFrame() {
+        let codec = TinkerbleSocketMessageCodec()
+        let message = String(repeating: "x", count: TinkerbleSocketMessageCodec.maximumPayloadSize + 1)
+
+        XCTAssertThrowsError(try codec.frame(for: .log(TinkerbleLogEntry(message: message)))) { error in
+            guard case .payloadTooLarge = error as? TinkerbleSocketMessageCodecError else {
+                XCTFail("Expected oversized payload error, got \(error)")
+                return
+            }
+        }
     }
 }

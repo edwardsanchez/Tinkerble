@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import RSocketCore
 import Tinkerble
 
 @Observable
@@ -16,17 +15,15 @@ public final class TinkerbleCompanionStore {
     public private(set) var selectedVersionID: UUID?
 
     @ObservationIgnored
-    private let codec = TinkerbleRSocketPayloadCodec()
-    @ObservationIgnored
     private let versionRepository: any TinkerbleVersionRepository
     @ObservationIgnored
-    private var server: TinkerbleRSocketCompanionServer?
+    private var server: TinkerbleSocketCompanionServer?
     @ObservationIgnored
     private var tweaksByID: [String: TinkerbleTweak] = [:]
     @ObservationIgnored
     private var defaultValuesByID: [String: TinkerbleValue] = [:]
     @ObservationIgnored
-    private var outboundStream: UnidirectionalStream?
+    private var outboundChannel: TinkerbleCompanionOutboundChannel?
     @ObservationIgnored
     private var undoStack: [TinkerbleTweakUndoEntry] = []
     @ObservationIgnored
@@ -150,14 +147,19 @@ public final class TinkerbleCompanionStore {
         }
     }
 
-    public func start(host: String = "0.0.0.0", port: Int = 7777) {
+    public func start(
+        host: String = "0.0.0.0",
+        port: Int = 7777,
+        serviceType: String = TinkerbleNetworkConfiguration.bonjourServiceType
+    ) {
         guard server == nil else { return }
-        let server = TinkerbleRSocketCompanionServer(
+        let server = TinkerbleSocketCompanionServer(
             host: host,
             port: port,
-            onMessage: { [weak self] message, outbound in
+            serviceType: serviceType,
+            onMessage: { [weak self] message, outboundChannel in
                 Task { @MainActor in
-                    self?.handle(message, outbound: outbound)
+                    self?.handle(message, outboundChannel: outboundChannel)
                 }
             },
             onStatusChange: { [weak self] status in
@@ -173,7 +175,7 @@ public final class TinkerbleCompanionStore {
     public func stop() {
         server?.stop()
         server = nil
-        outboundStream = nil
+        outboundChannel = nil
         connectionStatus = .disconnected
         clearUndoHistory()
     }
@@ -240,9 +242,9 @@ public final class TinkerbleCompanionStore {
         updateUndoAvailability()
     }
 
-    internal func handle(_ message: TinkerbleWireMessage, outbound: UnidirectionalStream?) {
-        if let outbound {
-            outboundStream = outbound
+    internal func handle(_ message: TinkerbleWireMessage, outboundChannel: TinkerbleCompanionOutboundChannel?) {
+        if let outboundChannel {
+            self.outboundChannel = outboundChannel
         }
 
         switch message {
@@ -423,12 +425,7 @@ public final class TinkerbleCompanionStore {
     }
 
     private func send(_ message: TinkerbleWireMessage) {
-        guard let outboundStream else { return }
-        do {
-            outboundStream.onNext(try codec.payload(for: message), isCompletion: false)
-        } catch {
-            connectionStatus = .failed("Could not encode update: \(error.localizedDescription)")
-        }
+        outboundChannel?.send(message)
     }
 }
 

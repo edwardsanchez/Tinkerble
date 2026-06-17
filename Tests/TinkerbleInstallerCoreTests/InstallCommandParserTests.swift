@@ -5,7 +5,7 @@ final class InstallCommandParserTests: XCTestCase {
     func testParsesExplicitProjectAndTarget() throws {
         let options = try InstallCommandParser.parse([
             "--project", "MyApp.xcodeproj",
-            "--target", "MyApp",
+            "--target", "MyApp"
         ])
 
         XCTAssertEqual(options.projectPath, "MyApp.xcodeproj")
@@ -19,14 +19,11 @@ final class InstallCommandParserTests: XCTestCase {
             "--workspace", "MyApp.xcworkspace",
             "--target", "MyApp",
             "--target", "DemoApp",
-            "--scheme", "MyApp Debug",
-            "--scheme", "Demo Debug",
-            "--dry-run",
+            "--dry-run"
         ])
 
         XCTAssertEqual(options.workspacePath, "MyApp.xcworkspace")
         XCTAssertEqual(options.targetNames, ["MyApp", "DemoApp"])
-        XCTAssertEqual(options.schemeNames, ["MyApp Debug", "Demo Debug"])
         XCTAssertTrue(options.isDryRun)
     }
 

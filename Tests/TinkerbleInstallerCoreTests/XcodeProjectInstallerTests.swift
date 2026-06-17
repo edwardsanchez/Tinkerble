@@ -7,23 +7,21 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
         XCTAssertEqual(try installer.appTargetNames, ["AdminApp", "MainApp"])
-        XCTAssertEqual(try installer.debugSchemeNames(targetNames: ["MainApp", "AdminApp"]), ["MainApp"])
 
-        let result = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: ["MainApp"], dryRun: false)
+        let result = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
 
         XCTAssertFalse(result.isDryRun)
         XCTAssertEqual(result.targetNames, ["MainApp", "AdminApp"])
-        XCTAssertEqual(result.schemeNames, ["MainApp"])
     }
 
     func testInstallIsIdempotent() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: ["MainApp"], dryRun: false)
+        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let once = try readProject(projectURL)
         let schemeOnce = try readScheme(projectURL, name: "MainApp")
-        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: ["MainApp"], dryRun: false)
+        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let twice = try readProject(projectURL)
         let schemeTwice = try readScheme(projectURL, name: "MainApp")
 
@@ -36,7 +34,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let before = try readProject(projectURL)
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        let result = try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp"], dryRun: true)
+        let result = try installer.install(targetNames: ["MainApp"], dryRun: true)
         let after = try readProject(projectURL)
         let scheme = try readScheme(projectURL, name: "MainApp")
 
@@ -49,7 +47,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let projectURL = try makeFixtureProject(projectText: fixtureProjectWithoutPackageLists)
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        let result = try installer.install(targetNames: ["MainApp"], schemeNames: [], dryRun: false)
+        let result = try installer.install(targetNames: ["MainApp"], dryRun: false)
 
         XCTAssertFalse(result.isDryRun)
         XCTAssertEqual(result.targetNames, ["MainApp"])
@@ -59,59 +57,25 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], schemeNames: [], dryRun: false)
+        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let scripts = try companionBuildPhaseScripts(in: readProject(projectURL))
 
         XCTAssertEqual(scripts.count, 2)
         for script in scripts {
-            XCTAssertTrue(script.contains("DERIVED_DATA_DIR=\"${BUILD_DIR%/Build/*}\""))
-            XCTAssertTrue(script.contains("COMPANION_SCRATCH_PATH=\"${DERIVED_DATA_DIR}/TinkerbleCompanionBuild\""))
-            XCTAssertTrue(script.contains("COMPANION_SCRATCH_PATH=\"${PACKAGE_DIR}/.build/tinkerble-companion\""))
-            XCTAssertTrue(
-                script.contains(
-                    "TINKERBLE_COMPANION_SCRATCH_PATH=\"${COMPANION_SCRATCH_PATH}\" \"${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh\" --restart"
-                )
-            )
+            let lines = Set(script.split(separator: "\n").map(String.init))
+            XCTAssertTrue(lines.contains("  DERIVED_DATA_DIR=\"${BUILD_DIR%/Build/*}\""))
+            XCTAssertTrue(lines.contains("  COMPANION_SCRATCH_PATH=\"${DERIVED_DATA_DIR}/TinkerbleCompanionBuild\""))
+            XCTAssertTrue(lines.contains("  COMPANION_SCRATCH_PATH=\"${PACKAGE_DIR}/.build/tinkerble-companion\""))
+            XCTAssertTrue(lines.contains("TINKERBLE_COMPANION_SCRATCH_PATH=\"${COMPANION_SCRATCH_PATH}\" \"${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh\" --restart"))
         }
-    }
-
-    func testDiscoversAndPatchesUserLocalDebugScheme() throws {
-        let projectURL = try makeFixtureProject(includeSharedSchemes: false)
-        let userSchemeDirectory = projectURL.appending(path: "xcuserdata/edwardsanchez.xcuserdatad/xcschemes")
-        try FileManager.default.createDirectory(at: userSchemeDirectory, withIntermediateDirectories: true)
-        try fixtureScheme.write(
-            to: userSchemeDirectory.appending(path: "MainApp Dev.xcscheme"),
-            atomically: true,
-            encoding: .utf8
-        )
-        let installer = try XcodeProjectInstaller(projectURL: projectURL)
-
-        XCTAssertEqual(try installer.debugSchemeNames(targetNames: ["MainApp"]), ["MainApp Dev"])
-
-        let result = try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp Dev"], dryRun: false)
-
-        XCTAssertEqual(result.schemeNames, ["MainApp Dev"])
     }
 
     func testThrowsForMissingTarget() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        XCTAssertThrowsError(try installer.install(targetNames: ["Missing"], schemeNames: [], dryRun: false)) { error in
+        XCTAssertThrowsError(try installer.install(targetNames: ["Missing"], dryRun: false)) { error in
             XCTAssertEqual(error as? TinkerbleInstallError, .targetNotFound("Missing"))
-        }
-    }
-
-    func testThrowsForReleaseSchemeSelection() throws {
-        let projectURL = try makeFixtureProject()
-        let installer = try XcodeProjectInstaller(projectURL: projectURL)
-
-        XCTAssertEqual(try installer.debugSchemeNames(targetNames: ["MainApp"]), ["MainApp"])
-        XCTAssertThrowsError(try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp Release"], dryRun: false)) { error in
-            XCTAssertEqual(
-                error as? TinkerbleInstallError,
-                .invalidArguments("Scheme MainApp Release is not a Debug scheme.")
-            )
         }
     }
 

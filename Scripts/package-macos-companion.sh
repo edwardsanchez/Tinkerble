@@ -62,7 +62,6 @@ if [[ "$CONFIGURATION" == "release" ]]; then
 fi
 
 swift_package package "${SWIFT_PACKAGE_FLAGS[@]}" resolve >&2
-"$ROOT_DIR/Scripts/patch-rsocket-checkouts.sh" "$SCRATCH_PATH/checkouts" >&2 || true
 swift_package build "${SWIFT_BUILD_FLAGS[@]}" >&2
 SHOW_BIN_PATH_FLAGS=("${SWIFT_PACKAGE_FLAGS[@]}" --show-bin-path)
 if [[ "$CONFIGURATION" == "release" ]]; then

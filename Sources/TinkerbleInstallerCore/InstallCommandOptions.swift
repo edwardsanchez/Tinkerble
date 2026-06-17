@@ -4,7 +4,6 @@ public struct InstallCommandOptions: Equatable, Sendable {
     public var projectPath: String?
     public var workspacePath: String?
     public var targetNames: [String]
-    public var schemeNames: [String]
     public var isDryRun: Bool
     public var shouldShowHelp: Bool
 
@@ -12,14 +11,12 @@ public struct InstallCommandOptions: Equatable, Sendable {
         projectPath: String? = nil,
         workspacePath: String? = nil,
         targetNames: [String] = [],
-        schemeNames: [String] = [],
         isDryRun: Bool = false,
         shouldShowHelp: Bool = false
     ) {
         self.projectPath = projectPath
         self.workspacePath = workspacePath
         self.targetNames = targetNames
-        self.schemeNames = schemeNames
         self.isDryRun = isDryRun
         self.shouldShowHelp = shouldShowHelp
     }
@@ -40,8 +37,6 @@ public enum InstallCommandParser {
                 options.workspacePath = try value(after: argument, in: arguments, advancing: &index)
             case "--target":
                 options.targetNames.append(try value(after: argument, in: arguments, advancing: &index))
-            case "--scheme":
-                options.schemeNames.append(try value(after: argument, in: arguments, advancing: &index))
             case "--dry-run":
                 options.isDryRun = true
             case "-h", "--help":

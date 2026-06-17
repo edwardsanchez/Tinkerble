@@ -25,7 +25,7 @@ final class TinkerbleInstallCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.targetNames, ["MainApp"])
     }
 
-    func testInteractiveInstallPromptsForDebugSchemesAndInstallsOnlySelectedScheme() throws {
+    func testInteractiveInstallDoesNotPromptForDebugSchemePatchSelection() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "TinkerbleCoordinatorTests-\(UUID().uuidString)")
         let projectURL = root.appending(path: "Fixture.xcodeproj")
@@ -43,21 +43,17 @@ final class TinkerbleInstallCoordinatorTests: XCTestCase {
             encoding: .utf8
         )
 
-        var output: [String] = []
         let coordinator = TinkerbleInstallCoordinator(
             currentDirectory: root,
-            standardInput: { "2" },
-            standardOutput: { output.append($0) }
+            standardInput: { nil },
+            standardOutput: { _ in }
         )
 
         let result = try coordinator.install(
             options: InstallCommandOptions(projectPath: "Fixture.xcodeproj", targetNames: ["MainApp"])
         )
 
-        XCTAssertEqual(result.schemeNames, ["MainApp Dev"])
-        XCTAssertTrue(output.contains("Select Debug schemes for Tinkerble package patch pre-action:"))
-        XCTAssertTrue(output.contains("1. MainApp Debug"))
-        XCTAssertTrue(output.contains("2. MainApp Dev"))
+        XCTAssertEqual(result.targetNames, ["MainApp"])
     }
 }
 

@@ -23,35 +23,10 @@ public final class XcodeProjectInstaller {
         }
     }
 
-    public func debugSchemeNames(targetNames: [String]) throws -> [String] {
-        let text = try readProject()
-        let editor = ProjectText(text)
-        let targetIDs = try Set(targetNames.map { targetName in
-            guard let target = editor.nativeTarget(named: targetName) else {
-                throw TinkerbleInstallError.targetNotFound(targetName)
-            }
-            return target.id
-        })
-
-        return try schemeURLs()
-            .compactMap { schemeURL -> String? in
-                let schemeName = schemeURL.deletingPathExtension().lastPathComponent
-                let scheme = try String(contentsOf: schemeURL, encoding: .utf8)
-                guard targetIDs.contains(where: { scheme.contains("BlueprintIdentifier = \"\($0)\"") }),
-                      SchemeText(text: scheme).isDebugScheme(named: schemeName) else {
-                    return nil
-                }
-
-                return schemeName
-            }
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-    }
-
-    public func install(targetNames: [String], schemeNames: [String], dryRun: Bool) throws -> TinkerbleInstallResult {
+    public func install(targetNames: [String], dryRun: Bool) throws -> TinkerbleInstallResult {
         var text = try readProject()
         var editor = ProjectText(text)
         var changes: [String] = []
-        var installedTargets: [NativeTarget] = []
 
         let packageID = try editor.ensureRemotePackageReference(changes: &changes)
         let productID = try editor.ensurePackageProductDependency(packageID: packageID, changes: &changes)
@@ -59,21 +34,16 @@ public final class XcodeProjectInstaller {
 
         for targetName in targetNames {
             try editor.ensureInstall(targetName: targetName, productID: productID, buildFileID: buildFileID, changes: &changes)
-            if let target = editor.nativeTarget(named: targetName) {
-                installedTargets.append(target)
-            }
         }
 
         text = editor.text
         if !dryRun {
             try text.write(to: projectFileURL, atomically: true, encoding: .utf8)
         }
-        try ensureSchemePreActions(targets: installedTargets, schemeNames: schemeNames, dryRun: dryRun, changes: &changes)
 
         return TinkerbleInstallResult(
             projectPath: projectURL.path,
             targetNames: targetNames,
-            schemeNames: schemeNames,
             changes: changes.isEmpty ? ["Tinkerble already installed."] : changes,
             isDryRun: dryRun
         )
@@ -83,229 +53,6 @@ public final class XcodeProjectInstaller {
         try String(contentsOf: projectFileURL, encoding: .utf8)
     }
 
-    private func ensureSchemePreActions(
-        targets: [NativeTarget],
-        schemeNames: [String],
-        dryRun: Bool,
-        changes: inout [String]
-    ) throws {
-        guard !schemeNames.isEmpty else {
-            return
-        }
-
-        let targetIDs = Set(targets.map(\.id))
-        var schemesByName: [String: URL] = [:]
-        for schemeURL in try schemeURLs() {
-            let schemeName = schemeURL.deletingPathExtension().lastPathComponent
-            if schemesByName[schemeName] == nil {
-                schemesByName[schemeName] = schemeURL
-            }
-        }
-
-        for schemeName in schemeNames {
-            guard let schemeURL = schemesByName[schemeName] else {
-                throw TinkerbleInstallError.invalidArguments("Scheme not found: \(schemeName)")
-            }
-
-            var scheme = try String(contentsOf: schemeURL, encoding: .utf8)
-            guard targetIDs.contains(where: { scheme.contains("BlueprintIdentifier = \"\($0)\"") }) else {
-                throw TinkerbleInstallError.invalidArguments("Scheme \(schemeName) does not build the selected target.")
-            }
-            guard SchemeText(text: scheme).isDebugScheme(named: schemeName) else {
-                throw TinkerbleInstallError.invalidArguments("Scheme \(schemeName) is not a Debug scheme.")
-            }
-
-            let updated = SchemeText(text: scheme).ensuringTinkerblePatchPreAction()
-            guard updated != scheme else {
-                continue
-            }
-
-            scheme = updated
-            if !dryRun {
-                try scheme.write(to: schemeURL, atomically: true, encoding: .utf8)
-            }
-            changes.append("Added Tinkerble package patch pre-action to \(schemeURL.deletingPathExtension().lastPathComponent).")
-        }
-    }
-
-    private func schemeURLs() throws -> [URL] {
-        let schemeDirectories = try [
-            projectURL.appending(path: "xcshareddata/xcschemes"),
-        ] + userSchemeDirectories()
-
-        let schemeURLs = try schemeDirectories.flatMap { schemeDirectory in
-            guard FileManager.default.fileExists(atPath: schemeDirectory.path) else {
-                return [URL]()
-            }
-
-            return try FileManager.default.contentsOfDirectory(
-                at: schemeDirectory,
-                includingPropertiesForKeys: nil
-            )
-            .filter { $0.pathExtension == "xcscheme" }
-        }
-
-        return schemeURLs.sorted { lhs, rhs in
-            let nameOrder = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
-            if nameOrder != .orderedSame {
-                return nameOrder == .orderedAscending
-            }
-
-            return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
-        }
-    }
-
-    private func userSchemeDirectories() throws -> [URL] {
-        let userDataDirectory = projectURL.appending(path: "xcuserdata")
-        guard FileManager.default.fileExists(atPath: userDataDirectory.path) else {
-            return []
-        }
-
-        return try FileManager.default.contentsOfDirectory(
-            at: userDataDirectory,
-            includingPropertiesForKeys: nil
-        )
-        .filter { $0.pathExtension == "xcuserdatad" }
-        .map { $0.appending(path: "xcschemes") }
-        .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-    }
-}
-
-struct SchemeText {
-    var text: String
-
-    func isDebugScheme(named schemeName: String) -> Bool {
-        !schemeName.isReleaseStyleSchemeName
-            && (
-                actionBuildConfiguration(named: "LaunchAction") == "Debug"
-                    || actionBuildConfiguration(named: "TestAction") == "Debug"
-            )
-    }
-
-    func ensuringTinkerblePatchPreAction() -> String {
-        if text.contains(TinkerbleInstallerConstants.schemePreActionTitle) {
-            return replacingExistingPreAction()
-        }
-
-        guard let buildActionOpenEnd = text.range(of: "<BuildAction")?.lowerBound,
-              let openTagEnd = text[buildActionOpenEnd...].firstIndex(of: ">") else {
-            return text
-        }
-
-        let insertionIndex = text.index(after: openTagEnd)
-        var updated = text
-        updated.insert(contentsOf: "\n\(preActionsBlock)", at: insertionIndex)
-        return updated
-    }
-
-    private func replacingExistingPreAction() -> String {
-        guard let executionRange = tinkerbleExecutionActionRange else {
-            return text
-        }
-
-        var updated = text
-        updated.replaceSubrange(executionRange, with: executionActionBlock)
-        return updated
-    }
-
-    private var tinkerbleExecutionActionRange: Range<String.Index>? {
-        guard let titleRange = text.range(of: "title = \"\(TinkerbleInstallerConstants.schemePreActionTitle.xmlEscaped)\""),
-              let start = text[..<titleRange.lowerBound].range(of: "         <ExecutionAction", options: .backwards)?.lowerBound,
-              let end = text[titleRange.upperBound...].range(of: "         </ExecutionAction>")?.upperBound else {
-            return nil
-        }
-
-        return start..<end
-    }
-
-    private func actionBuildConfiguration(named actionName: String) -> String? {
-        guard let actionStart = text.range(of: "<\(actionName)")?.lowerBound,
-              let actionEnd = text[actionStart...].range(of: "</\(actionName)>")?.upperBound else {
-            return nil
-        }
-
-        let block = text[actionStart..<actionEnd]
-        guard let keyRange = block.range(of: "buildConfiguration = \"") else {
-            return nil
-        }
-
-        let valueStart = keyRange.upperBound
-        guard let valueEnd = block[valueStart...].firstIndex(of: "\"") else {
-            return nil
-        }
-
-        return String(block[valueStart..<valueEnd])
-    }
-
-    private var preActionsBlock: String {
-        """
-      <PreActions>
-\(executionActionBlock)
-      </PreActions>
-"""
-    }
-
-    private var executionActionBlock: String {
-        """
-         <ExecutionAction
-            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
-            <ActionContent
-               title = "\(TinkerbleInstallerConstants.schemePreActionTitle.xmlEscaped)"
-               scriptText = "\(schemePreActionScript.xmlEscaped)">
-            </ActionContent>
-         </ExecutionAction>
-"""
-    }
-
-    private var schemePreActionScript: String {
-        #"""
-set -euo pipefail
-
-CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
-DERIVED_DATA_DIR=""
-if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
-  DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
-  CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
-fi
-
-PACKAGE_DIR="${TINKERBLE_PACKAGE_DIR:-}"
-if [[ -z "${PACKAGE_DIR}" && -n "${CHECKOUT_ROOT}" ]]; then
-  for candidate in "${CHECKOUT_ROOT}/Tinkerble" "${CHECKOUT_ROOT}/tinkerble" "${CHECKOUT_ROOT}/Tinker"; do
-    if [[ -x "${candidate}/Scripts/patch-rsocket-checkouts.sh" ]]; then
-      PACKAGE_DIR="${candidate}"
-      break
-    fi
-  done
-fi
-
-if [[ -z "${PACKAGE_DIR}" ]]; then
-  echo "Skipping Tinkerble package patch; package checkout not found yet."
-  exit 0
-fi
-
-if [[ -n "${CHECKOUT_ROOT}" ]]; then
-  "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh" "${CHECKOUT_ROOT}"
-else
-  "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh"
-fi
-"""#
-    }
-}
-
-private extension String {
-    var isReleaseStyleSchemeName: Bool {
-        let normalized = lowercased()
-            .replacing("-", with: " ")
-            .replacing("_", with: " ")
-        let terms = normalized.split { !$0.isLetter && !$0.isNumber }
-
-        return terms.contains("release")
-            || terms.contains("testflight")
-            || terms.contains("archive")
-            || terms.contains("production")
-            || normalized.contains("app store")
-            || normalized.contains("appstore")
-    }
 }
 
 struct ProjectText {
@@ -578,12 +325,6 @@ fi
 if [[ -z "${PACKAGE_DIR}" ]]; then
   echo "Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path." >&2
   exit 1
-fi
-
-if [[ -n "${CHECKOUT_ROOT}" ]]; then
-  "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh" "${CHECKOUT_ROOT}"
-else
-  "${PACKAGE_DIR}/Scripts/patch-rsocket-checkouts.sh"
 fi
 
 COMPANION_SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-}"
