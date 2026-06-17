@@ -213,9 +213,34 @@ public final class Tinkerble {
 #endif
     }
 
+    public func log<Value: TinkerbleLogValueConvertible>(
+        name: String,
+        value: Value,
+        screen: String? = nil,
+        category: String? = nil
+    ) {
+#if DEBUG
+        log(.init(screen: screen, category: category, name: name, value: value))
+#else
+        _ = name
+        _ = value
+        _ = screen
+        _ = category
+#endif
+    }
+
+    public func log(_ entry: TinkerbleLogEntry) {
+#if DEBUG
+        transport.send(.log(entry))
+#else
+        _ = entry
+#endif
+    }
+
+    @available(*, deprecated, message: "Use log(name:value:screen:category:) for live log values.")
     public func log(_ message: String) {
 #if DEBUG
-        transport.send(.log(.init(message: message)))
+        log(.init(name: TinkerbleLogEntry.defaultName, value: message))
 #else
         _ = message
 #endif

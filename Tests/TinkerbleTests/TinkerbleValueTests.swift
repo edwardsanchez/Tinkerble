@@ -173,7 +173,7 @@ final class TinkerbleValueTests: XCTestCase {
 
     func testSocketMessageCodecDecodesMultipleLengthPrefixedFramesFromBuffer() throws {
         let codec = TinkerbleSocketMessageCodec()
-        let logEntry = TinkerbleLogEntry(message: "First")
+        let logEntry = TinkerbleLogEntry(name: "First", value: "Ready")
         var buffer = Data()
         buffer.append(try codec.frame(for: .log(logEntry)))
         buffer.append(try codec.frame(for: .trigger(id: "Actions/Refresh")))
@@ -186,7 +186,7 @@ final class TinkerbleValueTests: XCTestCase {
 
     func testSocketMessageCodecKeepsPartialFrameBuffered() throws {
         let codec = TinkerbleSocketMessageCodec()
-        let logEntry = TinkerbleLogEntry(message: "Partial")
+        let logEntry = TinkerbleLogEntry(name: "Partial", value: "Buffered")
         let frame = try codec.frame(for: .log(logEntry))
         var buffer = Data(frame.prefix(frame.count - 2))
 
@@ -218,7 +218,9 @@ final class TinkerbleValueTests: XCTestCase {
         let codec = TinkerbleSocketMessageCodec()
         let message = String(repeating: "x", count: TinkerbleSocketMessageCodec.maximumPayloadSize + 1)
 
-        XCTAssertThrowsError(try codec.frame(for: .log(TinkerbleLogEntry(message: message)))) { error in
+        let entry = TinkerbleLogEntry(name: "Oversized", value: message)
+
+        XCTAssertThrowsError(try codec.frame(for: .log(entry))) { error in
             guard case .payloadTooLarge = error as? TinkerbleSocketMessageCodecError else {
                 XCTFail("Expected oversized payload error, got \(error)")
                 return

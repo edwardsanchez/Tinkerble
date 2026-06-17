@@ -92,18 +92,6 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable {
     }
 }
 
-public struct TinkerbleLogEntry: Codable, Equatable, Hashable, Identifiable {
-    public var id: UUID
-    public var message: String
-    public var date: Date
-
-    public init(id: UUID = UUID(), message: String, date: Date = Date()) {
-        self.id = id
-        self.message = message
-        self.date = date
-    }
-}
-
 public struct TinkerbleTweakGroup: Identifiable, Equatable {
     public var id: String { category ?? "__uncategorized" }
     public var category: String?

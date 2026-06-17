@@ -213,7 +213,7 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
         XCTAssertTrue(transport.sentMessages.isEmpty)
 
         Tinkerble.shared.updateLocalValue(id: "Release/Title", value: "Updated")
-        Tinkerble.shared.log("Release log")
+        Tinkerble.shared.log(name: "Release", value: "Release log")
         Tinkerble.shared.connect(host: "127.0.0.1", port: 7777)
         Tinkerble.shared.disconnect()
         transport.receive(.update(id: "Release/Title", value: .string("Remote")))

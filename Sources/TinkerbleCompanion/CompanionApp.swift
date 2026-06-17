@@ -8,8 +8,10 @@ import TinkerbleCompanionUI
 @MainActor
 struct TinkerbleCompanionApp: App {
     @NSApplicationDelegateAdaptor(CompanionAppDelegate.self) private var appDelegate
+    @Environment(\.openWindow) private var openWindow
     @State private var store: TinkerbleCompanionStore
     @State private var windowLevel = HudWindowLevelState()
+    @State private var logWindowPresentation = TinkerbleLogWindowPresentationState()
     private let launchMode: CompanionLaunchMode
 
     init() {
@@ -29,6 +31,11 @@ struct TinkerbleCompanionApp: App {
                     store: store,
                     keepsWindowOnTop: windowLevel.keepsWindowOnTop
                 )
+                .onChange(of: store.logs.count, initial: true) { _, logCount in
+                    if logWindowPresentation.shouldOpenLogsWindow(logCount: logCount) {
+                        openWindow(id: "logs")
+                    }
+                }
             case .allComponents:
                 TinkerbleComponentPreviewPageView()
             }
@@ -54,8 +61,18 @@ struct TinkerbleCompanionApp: App {
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 .disabled(!store.canRedo)
             }
-            CommandGroup(replacing: .pasteboard) {}
-            CommandGroup(replacing: .textEditing) {}
+            CommandGroup(replacing: .pasteboard) {
+                Button("Copy") {
+                    NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("c", modifiers: .command)
+            }
+            CommandGroup(replacing: .textEditing) {
+                Button("Select All") {
+                    NSApp.sendAction(#selector(NSResponder.selectAll(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("a", modifiers: .command)
+            }
             CommandGroup(replacing: .textFormatting) {}
             CommandGroup(replacing: .toolbar) {}
             CommandGroup(replacing: .help) {}
@@ -63,6 +80,11 @@ struct TinkerbleCompanionApp: App {
                 Toggle("Keep Window on Top", isOn: $windowLevel.keepsWindowOnTop)
             }
         }
+
+        Window("Tinkerble logs", id: "logs") {
+            TinkerbleLogWindowView(logs: store.logs)
+        }
+        .defaultSize(width: 640, height: 480)
     }
 
     private static func makeVersionRepository() -> any TinkerbleVersionRepository {

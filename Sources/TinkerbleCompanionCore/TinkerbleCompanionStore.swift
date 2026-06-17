@@ -387,7 +387,9 @@ public final class TinkerbleCompanionStore {
     }
 
     private func recordVersionPersistenceError(_ error: Swift.Error) {
-        logs.append(.init(message: "Version persistence failed: \(error.localizedDescription)"))
+        logs.append(
+            .init(name: "Version Persistence", value: "Version persistence failed: \(error.localizedDescription)")
+        )
     }
 
     private func publishTweaks() {

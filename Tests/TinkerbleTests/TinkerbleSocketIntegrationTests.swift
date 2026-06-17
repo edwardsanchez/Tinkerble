@@ -41,7 +41,7 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
         )
 
         client.connect(host: "127.0.0.1", port: port)
-        client.log("Integration log")
+        client.log(name: "Integration", value: "Integration log")
         addTeardownBlock { @MainActor in
             client.disconnect()
         }
@@ -50,7 +50,11 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
         XCTAssertTrue(receivedTweaks, "Companion did not receive registered tweaks")
         XCTAssertEqual(companion.groupedTweaks.map(\.category), [nil, "Layout"])
 
-        let receivedLog = await waitUntil { companion.logs.contains { $0.message == "Integration log" } }
+        let receivedLog = await waitUntil {
+            companion.logs.contains {
+                $0.name == "Integration" && $0.value == .string("Integration log")
+            }
+        }
         XCTAssertTrue(receivedLog, "Companion did not receive log")
 
         companion.updateTweak(id: "Title", value: .string("Updated from Mac"))

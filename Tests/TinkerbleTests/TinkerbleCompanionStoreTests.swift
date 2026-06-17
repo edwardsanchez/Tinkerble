@@ -101,9 +101,9 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertEqual(store.groupedTweaks.flatMap(\.tweaks).map(\.name), ["Title"])
     }
 
-    func testCompanionStoresIncomingLogs() {
+    func testCompanionStoresIncomingLogValues() {
         let store = TinkerbleCompanionStore()
-        let entry = TinkerbleLogEntry(message: "User tapped Save")
+        let entry = TinkerbleLogEntry(screen: "Cards", category: "Deck", name: "Visible Cards", value: 7)
 
         store.handle(.log(entry), outboundChannel: nil)
 

@@ -16,7 +16,7 @@ The package is intentionally small and modular:
 5. Editing a companion control sends an update back to the app.
 6. Tapping an action button sends a trigger back to the app.
 7. The app applies value updates or runs the registered action closure.
-8. `TinkerLog.print` and `TinkerLog.log` send strings to the companion console.
+8. `TinkerLog.value` sends named string, numeric, or common geometry values to the companion logs window.
 
 ## Platform Support
 Tinkerble's client library is designed to be platform-agnostic across Apple SwiftUI apps. The same `Tinkerble` product should work from iOS, macOS, tvOS, watchOS, and visionOS apps as long as the app can import SwiftUI and Observation and open a TCP connection to the Mac running the companion.
@@ -231,10 +231,11 @@ enum DemoMode: String, CaseIterable, TinkerbleEnum {
 private var mode = DemoMode.compact
 ```
 
-Send logs:
+Send named log values:
 ```swift
-TinkerLog.print("User tapped Save")
-TinkerLog.log("Current opacity: \(opacity)")
+TinkerLog.value(name: "Visible Cards", value: cards.count, screen: "Cards", category: "Deck")
+TinkerLog.value(name: "Current Opacity", value: opacity, screen: "Cards")
+TinkerLog.value(name: "Card Frame", value: cardFrame, screen: "Cards", category: "Layout")
 ```
 
 ## Text Controls
