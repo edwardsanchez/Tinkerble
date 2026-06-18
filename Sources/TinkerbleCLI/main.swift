@@ -45,13 +45,14 @@ private func printHelp() {
 private func printInstallHelp() {
     print(
         """
-        Usage: tinkerble install [--project PATH] [--workspace PATH] [--target NAME ...] [--dry-run]
+        Usage: tinkerble install [--project PATH] [--workspace PATH] [--target NAME ...] [--scheme NAME ...] [--dry-run]
 
         Options:
           --project PATH     Xcode project to edit.
           --workspace PATH   Xcode workspace context. Pass --project for the project to edit.
           --target NAME      App target to install into. Can be repeated.
-          --dry-run          Print planned changes without writing project.pbxproj.
+          --scheme NAME      Shared run scheme to copy into a + Tinkerble scheme. Can be repeated.
+          --dry-run          Print planned changes without writing files.
         """
     )
 }

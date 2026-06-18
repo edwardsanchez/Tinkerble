@@ -70,7 +70,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6D24A85C2FCF8D8F0035FF2F /* Build configuration list for PBXNativeTarget "Tinkerble Demo" */;
 			buildPhases = (
-				6D24A8632FD360EF0035FF2F /* Rebuild Tinkerble Companion */,
 				6D24A84D2FCF8D8F0035FF2F /* Sources */,
 				6D24A84E2FCF8D8F0035FF2F /* Frameworks */,
 				6D24A84F2FCF8D8F0035FF2F /* Resources */,
@@ -136,28 +135,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		6D24A8632FD360EF0035FF2F /* Rebuild Tinkerble Companion */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Rebuild Tinkerble Companion";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "set -euo pipefail\n\nROOT_DIR=\"$(cd \"${SRCROOT}/..\" && pwd)\"\nCONFIG=\"${CONFIGURATION:-${BUILD_STYLE:-Debug}}\"\nDERIVED_DATA_DIR=\"\"\nif [[ -n \"${BUILD_DIR:-}\" ]]; then\n  DERIVED_DATA_DIR=\"${BUILD_DIR%/Build/*}\"\nfi\nCOMPANION_SCRATCH_PATH=\"${TINKERBLE_COMPANION_SCRATCH_PATH:-}\"\nif [[ -z \"${COMPANION_SCRATCH_PATH}\" && -n \"${DERIVED_DATA_DIR}\" ]]; then\n  COMPANION_SCRATCH_PATH=\"${DERIVED_DATA_DIR}/TinkerbleCompanionBuild\"\nfi\nif [[ -z \"${COMPANION_SCRATCH_PATH}\" ]]; then\n  COMPANION_SCRATCH_PATH=\"${ROOT_DIR}/.build/tinkerble-companion\"\nfi\n\nif [[ \"${CONFIG}\" == \"Debug\" ]]; then\n  TINKERBLE_COMPANION_SCRATCH_PATH=\"${COMPANION_SCRATCH_PATH}\" \"${ROOT_DIR}/Scripts/ensure-macos-companion-running.sh\" --restart\nelse\n  echo \"Skipping Tinkerble companion rebuild for ${CONFIG} build.\"\nfi\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		6D24A84D2FCF8D8F0035FF2F /* Sources */ = {

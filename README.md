@@ -41,12 +41,13 @@ cd /path/to/MyApp
 tinkerble install
 ```
 
-The installer adds the Tinkerble Swift package, links the `Tinkerble` product to your selected app target, adds the local-network plist setup, and adds a Debug-only build phase that launches the macOS companion from the resolved package checkout.
-Xcode still owns normal package updates after installation: update Tinkerble through Xcode's package UI and the build phase will continue to use the scripts from the resolved package version.
+The installer adds the Tinkerble Swift package, links the `Tinkerble` product to your selected app target, adds the local-network plist setup, and creates a separate `MyApp + Tinkerble` shared scheme. Use the `+ Tinkerble` scheme when you want Xcode Run to launch the macOS companion first. Keep using your normal app scheme for SwiftUI previews and ordinary builds.
+Xcode still owns normal package updates after installation: update Tinkerble through Xcode's package UI and the `+ Tinkerble` scheme will continue to launch the scripts from the resolved package version.
 Use explicit flags when scripting the install or working in a repo with multiple projects or app targets:
 ```sh
 tinkerble install --project MyApp.xcodeproj --target MyApp
 tinkerble install --project MyApp.xcodeproj --target MyApp --target DemoApp
+tinkerble install --project MyApp.xcodeproj --target MyApp --scheme "MyApp Dev"
 tinkerble install --project MyApp.xcodeproj --target MyApp --dry-run
 ```
 
@@ -57,10 +58,7 @@ From the package root:
 swift test
 ```
 
-Then build and run `Tinkerble Demo` in Xcode. The shared demo scheme builds the macOS companion and restarts it automatically for Debug builds before the app target builds. You can opt out for a build with:
-```sh
-TINKERBLE_COMPANION_AUTOLAUNCH=0 xcodebuild ...
-```
+Then build and run `Tinkerble Demo + Tinkerble` in Xcode when you want the macOS companion to launch automatically. Use `Tinkerble Demo` for SwiftUI previews and normal app builds. Set `TINKERBLE_COMPANION_AUTOLAUNCH=0` in a run environment or command-line helper flow to opt out of companion launch.
 
 You can also run both apps from the command line:
 ```sh
@@ -87,7 +85,8 @@ xcodebuild \
 In Xcode:
 1. Add the local package at the repository root, or add the remote repository URL.
 2. Link the `Tinkerble` product to the app target.
-3. Add a Debug-only build script that calls `Scripts/ensure-macos-companion-running.sh` from the package checkout. That hook packages and launches the macOS companion automatically when your app target builds.
+3. Duplicate your normal shared run scheme as `MyApp + Tinkerble`.
+4. Add a Debug-only Launch pre-action to the `+ Tinkerble` scheme that calls `Scripts/ensure-macos-companion-running.sh` from the resolved package checkout. Keep the normal scheme free of Tinkerble launch hooks for SwiftUI previews and ordinary builds.
 
 In `Package.swift`:
 ```swift

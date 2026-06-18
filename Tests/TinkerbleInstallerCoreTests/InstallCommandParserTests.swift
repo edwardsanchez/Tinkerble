@@ -19,11 +19,14 @@ final class InstallCommandParserTests: XCTestCase {
             "--workspace", "MyApp.xcworkspace",
             "--target", "MyApp",
             "--target", "DemoApp",
+            "--scheme", "MyApp",
+            "--scheme", "DemoApp",
             "--dry-run"
         ])
 
         XCTAssertEqual(options.workspacePath, "MyApp.xcworkspace")
         XCTAssertEqual(options.targetNames, ["MyApp", "DemoApp"])
+        XCTAssertEqual(options.schemeNames, ["MyApp", "DemoApp"])
         XCTAssertTrue(options.isDryRun)
     }
 

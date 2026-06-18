@@ -6,6 +6,8 @@ public enum TinkerbleInstallError: Error, CustomStringConvertible, Equatable {
     case multipleProjectsFound([String])
     case noTargetsFound
     case targetNotFound(String)
+    case schemeNotFound(String)
+    case schemeSelectionRequired(target: String, schemes: [String])
     case nonInteractiveSelectionRequired([String])
     case unsupportedWorkspace(String)
     case malformedProject(String)
@@ -22,6 +24,10 @@ public enum TinkerbleInstallError: Error, CustomStringConvertible, Equatable {
             "No app targets were found in the selected project."
         case .targetNotFound(let target):
             "Target not found: \(target)"
+        case .schemeNotFound(let scheme):
+            "Scheme not found: \(scheme)"
+        case .schemeSelectionRequired(let target, let schemes):
+            "Multiple shared schemes reference \(target). Pass --scheme with one of: \(schemes.joined(separator: ", "))."
         case .nonInteractiveSelectionRequired(let targets):
             "Pass --target with one or more app targets: \(targets.joined(separator: ", "))."
         case .unsupportedWorkspace(let path):

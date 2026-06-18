@@ -21,12 +21,15 @@ final class XcodeProjectInstallerTests: XCTestCase {
         _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let once = try readProject(projectURL)
         let schemeOnce = try readScheme(projectURL, name: "MainApp")
+        let tinkerbleSchemeOnce = try readScheme(projectURL, name: "MainApp + Tinkerble")
         _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
         let twice = try readProject(projectURL)
         let schemeTwice = try readScheme(projectURL, name: "MainApp")
+        let tinkerbleSchemeTwice = try readScheme(projectURL, name: "MainApp + Tinkerble")
 
         XCTAssertEqual(twice, once)
         XCTAssertEqual(schemeTwice, schemeOnce)
+        XCTAssertEqual(tinkerbleSchemeTwice, tinkerbleSchemeOnce)
     }
 
     func testDryRunDoesNotWriteProject() throws {
@@ -41,6 +44,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
         XCTAssertTrue(result.isDryRun)
         XCTAssertEqual(after, before)
         XCTAssertEqual(scheme, fixtureScheme)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: projectURL.appending(path: "xcshareddata/xcschemes/MainApp + Tinkerble.xcscheme").path))
     }
 
     func testInstallsIntoProjectWithoutExistingSwiftPackageLists() throws {
@@ -53,21 +57,61 @@ final class XcodeProjectInstallerTests: XCTestCase {
         XCTAssertEqual(result.targetNames, ["MainApp"])
     }
 
-    func testCompanionBuildPhaseUsesIsolatedScratchPath() throws {
+    func testInstallerCreatesRunSchemeWithoutTargetBuildPhase() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
 
-        _ = try installer.install(targetNames: ["MainApp", "AdminApp"], dryRun: false)
-        let scripts = try companionBuildPhaseScripts(in: readProject(projectURL))
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
 
-        XCTAssertEqual(scripts.count, 2)
-        for script in scripts {
-            let lines = Set(script.split(separator: "\n").map(String.init))
-            XCTAssertTrue(lines.contains("  DERIVED_DATA_DIR=\"${BUILD_DIR%/Build/*}\""))
-            XCTAssertTrue(lines.contains("  COMPANION_SCRATCH_PATH=\"${DERIVED_DATA_DIR}/TinkerbleCompanionBuild\""))
-            XCTAssertTrue(lines.contains("  COMPANION_SCRATCH_PATH=\"${PACKAGE_DIR}/.build/tinkerble-companion\""))
-            XCTAssertTrue(lines.contains("TINKERBLE_COMPANION_SCRATCH_PATH=\"${COMPANION_SCRATCH_PATH}\" \"${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh\" --restart"))
+        let target = try XCTUnwrap(ProjectText(try readProject(projectURL)).nativeTarget(named: "MainApp"))
+        XCTAssertEqual(target.buildPhaseIDs, ["000000000000000000000010"])
+
+        let originalScheme = try SchemeDocument(text: readScheme(projectURL, name: "MainApp"))
+        let tinkerbleScheme = try SchemeDocument(text: readScheme(projectURL, name: "MainApp + Tinkerble"))
+
+        XCTAssertFalse(originalScheme.containsElement(named: "ActionContent", attributes: ["title": "Launch Tinkerble Companion"]))
+        XCTAssertTrue(tinkerbleScheme.containsElement(named: "ActionContent", attributes: ["title": "Launch Tinkerble Companion"]))
+        XCTAssertTrue(tinkerbleScheme.containsElement(named: "BuildableReference", attributes: ["BlueprintIdentifier": "000000000000000000000030"]))
+    }
+
+    func testInstallerMigratesLegacyCompanionBuildPhase() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithLegacyCompanionBuildPhase)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let target = try XCTUnwrap(ProjectText(try readProject(projectURL)).nativeTarget(named: "MainApp"))
+        XCTAssertEqual(target.buildPhaseIDs, ["000000000000000000000010"])
+    }
+
+    func testInstallerRequiresExplicitSchemeSelectionWhenSharedSchemesAreAmbiguous() throws {
+        let projectURL = try makeFixtureProject(includeSharedSchemes: false)
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        try FileManager.default.createDirectory(at: schemeDirectory, withIntermediateDirectories: true)
+        try fixtureScheme.write(to: schemeDirectory.appending(path: "MainApp Debug.xcscheme"), atomically: true, encoding: .utf8)
+        try fixtureScheme.write(to: schemeDirectory.appending(path: "MainApp Dev.xcscheme"), atomically: true, encoding: .utf8)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        XCTAssertThrowsError(try installer.install(targetNames: ["MainApp"], dryRun: false)) { error in
+            XCTAssertEqual(
+                error as? TinkerbleInstallError,
+                .schemeSelectionRequired(target: "MainApp", schemes: ["MainApp Debug", "MainApp Dev"])
+            )
         }
+    }
+
+    func testInstallerUsesExplicitSchemeSelection() throws {
+        let projectURL = try makeFixtureProject(includeSharedSchemes: false)
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        try FileManager.default.createDirectory(at: schemeDirectory, withIntermediateDirectories: true)
+        try fixtureScheme.write(to: schemeDirectory.appending(path: "MainApp Debug.xcscheme"), atomically: true, encoding: .utf8)
+        try fixtureScheme.write(to: schemeDirectory.appending(path: "MainApp Dev.xcscheme"), atomically: true, encoding: .utf8)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], schemeNames: ["MainApp Dev"], dryRun: false)
+
+        let tinkerbleScheme = try SchemeDocument(text: readScheme(projectURL, name: "MainApp + Tinkerble"))
+        XCTAssertTrue(tinkerbleScheme.containsElement(named: "ActionContent", attributes: ["title": "Launch Tinkerble Companion"]))
     }
 
     func testThrowsForMissingTarget() throws {
@@ -116,71 +160,53 @@ final class XcodeProjectInstallerTests: XCTestCase {
         )
     }
 
-    private func companionBuildPhaseScripts(in project: String) throws -> [String] {
-        var scripts: [String] = []
-        var searchIndex = project.startIndex
+}
 
-        while let nameRange = project[searchIndex...].range(
-            of: "name = \"\(TinkerbleInstallerConstants.companionBuildPhaseName)\";"
-        ) {
-            guard let shellScriptRange = project[nameRange.upperBound...].range(of: "\n\t\t\tshellScript = \"") else {
-                throw ProjectDecodeError.missingShellScriptField
-            }
+private struct SchemeElement {
+    let name: String
+    let attributes: [String: String]
+}
 
-            scripts.append(try decodePBXQuotedString(in: project, from: shellScriptRange.upperBound))
-            searchIndex = shellScriptRange.upperBound
+private final class SchemeDocument: NSObject, XMLParserDelegate {
+    private(set) var elements: [SchemeElement] = []
+    private var parserError: Error?
+
+    init(text: String) throws {
+        super.init()
+
+        let parser = XMLParser(data: Data(text.utf8))
+        parser.delegate = self
+
+        if !parser.parse() {
+            throw parser.parserError ?? parserError ?? SchemeDocumentError.invalidXML
         }
-
-        return scripts
     }
 
-    private func decodePBXQuotedString(in project: String, from startIndex: String.Index) throws -> String {
-        var decoded = ""
-        var index = startIndex
-        var isEscaped = false
-
-        while index < project.endIndex {
-            let character = project[index]
-            defer { index = project.index(after: index) }
-
-            if isEscaped {
-                switch character {
-                case "n":
-                    decoded.append("\n")
-                case "\"", "\\":
-                    decoded.append(character)
-                default:
-                    decoded.append(character)
-                }
-                isEscaped = false
-                continue
+    func containsElement(named name: String, attributes requiredAttributes: [String: String] = [:]) -> Bool {
+        elements.contains { element in
+            element.name == name && requiredAttributes.allSatisfy { key, value in
+                element.attributes[key] == value
             }
-
-            if character == "\\" {
-                isEscaped = true
-                continue
-            }
-
-            if character == "\"" {
-                return decoded
-            }
-
-            decoded.append(character)
         }
+    }
 
-        throw ProjectDecodeError.unterminatedQuotedString
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        elements.append(SchemeElement(name: elementName, attributes: attributeDict))
+    }
+
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+        parserError = parseError
     }
 }
 
-private enum ProjectDecodeError: Error {
-    case missingShellScriptField
-    case unterminatedQuotedString
-}
-
-private extension String {
-    func count(of needle: String) -> Int {
-        components(separatedBy: needle).count - 1
-    }
+private enum SchemeDocumentError: Error {
+    case invalidXML
 }
 
 private let fixtureProject = #"""
@@ -356,6 +382,28 @@ private let fixtureProject = #"""
 private let fixtureProjectWithoutPackageLists = fixtureProject
     .replacing("\t\t\tpackageProductDependencies = (\n\t\t\t);\n", with: "")
     .replacing("\t\t\tpackageReferences = (\n\t\t\t);\n", with: "")
+
+private let fixtureProjectWithLegacyCompanionBuildPhase = fixtureProject
+    .replacing(
+        "\t\t\tbuildPhases = (\n\t\t\t\t000000000000000000000010 /* Frameworks */,\n\t\t\t);",
+        with: "\t\t\tbuildPhases = (\n\t\t\t\t000000000000000000000099 /* Rebuild Tinkerble Companion */,\n\t\t\t\t000000000000000000000010 /* Frameworks */,\n\t\t\t);"
+    )
+    .replacing(
+        "/* Begin PBXProject section */",
+        with: #"""
+/* Begin PBXShellScriptBuildPhase section */
+		000000000000000000000099 /* Rebuild Tinkerble Companion */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			name = "Rebuild Tinkerble Companion";
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\n\"${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh\" --restart\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXProject section */
+"""#
+    )
 
 private let fixtureScheme = #"""
 <?xml version="1.0" encoding="UTF-8"?>

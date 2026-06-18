@@ -1,10 +1,12 @@
 import Foundation
 
 public final class XcodeProjectInstaller {
+    private let fileManager: FileManager
     private let projectURL: URL
     private let projectFileURL: URL
 
-    public init(projectURL: URL) throws {
+    public init(projectURL: URL, fileManager: FileManager = .default) throws {
+        self.fileManager = fileManager
         self.projectURL = projectURL
         self.projectFileURL = projectURL.appending(path: "project.pbxproj")
 
@@ -23,11 +25,12 @@ public final class XcodeProjectInstaller {
         }
     }
 
-    public func install(targetNames: [String], dryRun: Bool) throws -> TinkerbleInstallResult {
+    public func install(targetNames: [String], schemeNames: [String] = [], dryRun: Bool) throws -> TinkerbleInstallResult {
         var text = try readProject()
         var editor = ProjectText(text)
         var changes: [String] = []
 
+        let schemeSelections = try selectedSchemeNames(targetNames: targetNames, schemeNames: schemeNames)
         let packageID = try editor.ensureRemotePackageReference(changes: &changes)
         let productID = try editor.ensurePackageProductDependency(packageID: packageID, changes: &changes)
         let buildFileID = try editor.ensureFrameworkBuildFile(productID: productID, changes: &changes)
@@ -41,6 +44,13 @@ public final class XcodeProjectInstaller {
             try text.write(to: projectFileURL, atomically: true, encoding: .utf8)
         }
 
+        let schemeChanges = try ensureTinkerbleSchemes(
+            for: targetNames,
+            selectedSchemeNames: schemeSelections,
+            dryRun: dryRun
+        )
+        changes.append(contentsOf: schemeChanges)
+
         return TinkerbleInstallResult(
             projectPath: projectURL.path,
             targetNames: targetNames,
@@ -53,6 +63,213 @@ public final class XcodeProjectInstaller {
         try String(contentsOf: projectFileURL, encoding: .utf8)
     }
 
+    private func selectedSchemeNames(targetNames: [String], schemeNames: [String]) throws -> [String: String?] {
+        guard !schemeNames.isEmpty else {
+            return Dictionary(uniqueKeysWithValues: targetNames.map { ($0, nil) })
+        }
+
+        if targetNames.count == 1, schemeNames.count == 1 {
+            return [targetNames[0]: schemeNames[0]]
+        }
+
+        guard schemeNames.count == targetNames.count else {
+            throw TinkerbleInstallError.invalidArguments("--scheme can be used once for one target or once per selected target.")
+        }
+
+        return Dictionary(uniqueKeysWithValues: zip(targetNames, schemeNames).map { ($0, $1) })
+    }
+
+    private func ensureTinkerbleSchemes(
+        for targetNames: [String],
+        selectedSchemeNames: [String: String?],
+        dryRun: Bool
+    ) throws -> [String] {
+        let project = ProjectText(try readProject())
+        let schemes = try sharedSchemes()
+        var changes: [String] = []
+        let sharedSchemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+
+        for targetName in targetNames {
+            guard let target = project.nativeTarget(named: targetName) else {
+                throw TinkerbleInstallError.targetNotFound(targetName)
+            }
+
+            guard let sourceScheme = try sourceScheme(
+                for: target,
+                explicitName: selectedSchemeNames[targetName] ?? nil,
+                schemes: schemes
+            ) else {
+                changes.append("No shared run scheme found for \(target.name); create a shared scheme or pass --scheme, then rerun tinkerble install.")
+                continue
+            }
+
+            let tinkerbleSchemeName = "\(target.name) + Tinkerble"
+            let tinkerbleSchemeURL = sharedSchemeDirectory.appending(path: "\(tinkerbleSchemeName).xcscheme")
+            let buildableReference = sourceScheme.buildableReference(for: target)
+            let updated = sourceScheme
+                .text
+                .removingTinkerbleExecutionActions
+                .withTinkerbleLaunchPreAction(
+                    script: Self.companionLaunchScript,
+                    buildableReference: buildableReference
+                )
+
+            if fileManager.fileExists(atPath: tinkerbleSchemeURL.path),
+               try String(contentsOf: tinkerbleSchemeURL, encoding: .utf8) == updated {
+                continue
+            }
+
+            if !dryRun {
+                try fileManager.createDirectory(at: sharedSchemeDirectory, withIntermediateDirectories: true)
+                try updated.write(to: tinkerbleSchemeURL, atomically: true, encoding: .utf8)
+            }
+            changes.append("Created \(tinkerbleSchemeName) run scheme from \(sourceScheme.name).")
+        }
+
+        return changes
+    }
+
+    private func sourceScheme(
+        for target: NativeTarget,
+        explicitName: String?,
+        schemes: [XcodeScheme]
+    ) throws -> XcodeScheme? {
+        if let explicitName {
+            guard let scheme = schemes.first(where: { $0.name == explicitName || $0.name == "\(explicitName) + Tinkerble" }) else {
+                throw TinkerbleInstallError.schemeNotFound(explicitName)
+            }
+
+            return scheme
+        }
+
+        let matchingSchemes = schemes
+            .filter { !$0.name.hasSuffix(" + Tinkerble") && $0.references(target: target) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+        if let exactMatch = matchingSchemes.first(where: { $0.name == target.name }) {
+            return exactMatch
+        }
+
+        if matchingSchemes.count == 1 {
+            return matchingSchemes[0]
+        }
+
+        if matchingSchemes.isEmpty {
+            return nil
+        }
+
+        throw TinkerbleInstallError.schemeSelectionRequired(target: target.name, schemes: matchingSchemes.map(\.name))
+    }
+
+    private func sharedSchemes() throws -> [XcodeScheme] {
+        let schemeDirectory = projectURL.appending(path: "xcshareddata/xcschemes")
+        guard fileManager.fileExists(atPath: schemeDirectory.path) else {
+            return []
+        }
+
+        return try fileManager
+            .contentsOfDirectory(at: schemeDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "xcscheme" }
+            .map { url in
+                XcodeScheme(
+                    name: url.deletingPathExtension().lastPathComponent,
+                    url: url,
+                    text: try String(contentsOf: url, encoding: .utf8)
+                )
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private static var companionLaunchScript: String {
+        #"""
+set -euo pipefail
+
+CONFIG="${CONFIGURATION:-${BUILD_STYLE:-Debug}}"
+
+if [[ "${CONFIG}" != "Debug" ]]; then
+  echo "Skipping Tinkerble companion launch for ${CONFIG} run."
+  exit 0
+fi
+
+if [[ "${TINKERBLE_COMPANION_AUTOLAUNCH:-1}" == "0" ]]; then
+  echo "Tinkerble companion autolaunch disabled."
+  exit 0
+fi
+
+CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
+DERIVED_DATA_DIR=""
+if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
+  DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
+  CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
+fi
+
+PACKAGE_DIR="${TINKERBLE_PACKAGE_DIR:-}"
+if [[ -z "${PACKAGE_DIR}" && -n "${CHECKOUT_ROOT}" ]]; then
+  for candidate in "${CHECKOUT_ROOT}/Tinkerble" "${CHECKOUT_ROOT}/tinkerble" "${CHECKOUT_ROOT}/Tinker"; do
+    if [[ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]]; then
+      PACKAGE_DIR="${candidate}"
+      break
+    fi
+  done
+fi
+
+if [[ -z "${PACKAGE_DIR}" && -n "${SRCROOT:-}" ]]; then
+  for candidate in "${SRCROOT}" "${SRCROOT}/.." "${SRCROOT}/Tinkerble" "${SRCROOT}/../Tinkerble"; do
+    if [[ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]]; then
+      PACKAGE_DIR="$(cd "${candidate}" && pwd)"
+      break
+    fi
+  done
+fi
+
+if [[ -z "${PACKAGE_DIR}" ]]; then
+  echo "Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path." >&2
+  exit 1
+fi
+
+COMPANION_SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-}"
+if [[ -z "${COMPANION_SCRATCH_PATH}" && -n "${DERIVED_DATA_DIR}" ]]; then
+  COMPANION_SCRATCH_PATH="${DERIVED_DATA_DIR}/TinkerbleCompanionBuild"
+fi
+if [[ -z "${COMPANION_SCRATCH_PATH}" ]]; then
+  COMPANION_SCRATCH_PATH="${PACKAGE_DIR}/.build/tinkerble-companion"
+fi
+
+TINKERBLE_COMPANION_SCRATCH_PATH="${COMPANION_SCRATCH_PATH}" "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
+"""#
+    }
+
+}
+
+private struct XcodeScheme {
+    var name: String
+    var url: URL
+    var text: String
+
+    func references(target: NativeTarget) -> Bool {
+        text.contains("BlueprintIdentifier = \"\(target.id)\"")
+            || text.contains("BlueprintName = \"\(target.name)\"")
+    }
+
+    func buildableReference(for target: NativeTarget) -> String {
+        if let launchReference = text.buildableReference(in: "LaunchAction", for: target) {
+            return launchReference
+        }
+
+        if let buildReference = text.buildableReference(in: "BuildAction", for: target) {
+            return buildReference
+        }
+
+        return """
+        <BuildableReference
+           BuildableIdentifier = "primary"
+           BlueprintIdentifier = "\(target.id)"
+           BuildableName = "\(target.name).app"
+           BlueprintName = "\(target.name)"
+           ReferencedContainer = "container:\(url.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().lastPathComponent)">
+        </BuildableReference>
+"""
+    }
 }
 
 struct ProjectText {
@@ -78,7 +295,7 @@ struct ProjectText {
 
         try ensureTargetPackageDependency(targetID: target.id, productID: productID, changes: &changes)
         try ensureFrameworksBuildFile(frameworksPhaseID: target.frameworksPhaseID, buildFileID: buildFileID, changes: &changes)
-        try ensureCompanionBuildPhase(targetID: target.id, changes: &changes)
+        try removeCompanionBuildPhase(targetID: target.id, targetName: target.name, changes: &changes)
         try ensurePlistBuildSettings(configurationListID: target.buildConfigurationListID, changes: &changes)
     }
 
@@ -200,43 +417,40 @@ struct ProjectText {
         changes.append("Added Tinkerble to the frameworks build phase.")
     }
 
-    private mutating func ensureCompanionBuildPhase(targetID: String, changes: inout [String]) throws {
-        guard let target = nativeTarget(id: targetID) else {
-            throw TinkerbleInstallError.malformedProject("Missing target \(targetID).")
-        }
-
-        if let existingPhaseID = target.buildPhaseIDs.first(where: { phaseID in
-            guard let phase = object(id: phaseID, section: "PBXShellScriptBuildPhase") else { return false }
-            return phase.block.contains("name = \"\(TinkerbleInstallerConstants.companionBuildPhaseName)\";")
-                || phase.block.contains("name = \(TinkerbleInstallerConstants.companionBuildPhaseName.pbxQuoted);")
-        }) {
-            guard let phase = object(id: existingPhaseID, section: "PBXShellScriptBuildPhase") else {
-                throw TinkerbleInstallError.malformedProject("Missing shell script build phase \(existingPhaseID).")
+    private mutating func removeCompanionBuildPhase(
+        targetID: String,
+        targetName: String,
+        changes: inout [String]
+    ) throws {
+        while true {
+            guard let target = nativeTarget(id: targetID) else {
+                throw TinkerbleInstallError.malformedProject("Missing target \(targetID).")
             }
 
-            let updated = phaseBlock(id: existingPhaseID)
-            if phase.block != updated {
-                replace(phase.range, with: updated)
-                changes.append("Updated Tinkerble companion build phase for \(target.name).")
+            guard let phaseID = target.buildPhaseIDs.first(where: isCompanionBuildPhase(id:)) else {
+                return
             }
-            return
+
+            guard let phase = object(id: phaseID, section: "PBXShellScriptBuildPhase") else {
+                throw TinkerbleInstallError.malformedProject("Missing shell script build phase \(phaseID).")
+            }
+
+            guard phase.isTinkerbleGeneratedCompanionPhase else {
+                changes.append("Skipped build phase named \(TinkerbleInstallerConstants.companionBuildPhaseName) for \(targetName) because it was not generated by Tinkerble.")
+                return
+            }
+
+            let updatedTarget = target.block.removingListEntry(id: phaseID)
+            replace(target.range, with: updatedTarget)
+
+            guard let currentPhase = object(id: phaseID, section: "PBXShellScriptBuildPhase") else {
+                changes.append("Removed Tinkerble companion target build phase from \(targetName).")
+                continue
+            }
+
+            replace(currentPhase.range, with: "")
+            changes.append("Removed Tinkerble companion target build phase from \(targetName).")
         }
-
-        let phaseID = makeID()
-        insertObject(phaseBlock(id: phaseID), section: "PBXShellScriptBuildPhase")
-
-        guard let currentTarget = nativeTarget(id: targetID) else {
-            throw TinkerbleInstallError.malformedProject("Missing target \(targetID) after adding phase.")
-        }
-
-        let updatedTarget = try addingListEntry(
-            to: currentTarget.block,
-            listName: "buildPhases",
-            entry: "\t\t\t\t\(phaseID) /* \(TinkerbleInstallerConstants.companionBuildPhaseName) */,",
-            prepend: true
-        )
-        replace(currentTarget.range, with: updatedTarget)
-        changes.append("Added Tinkerble companion build phase to \(target.name).")
     }
 
     private mutating func ensurePlistBuildSettings(configurationListID: String, changes: inout [String]) throws {
@@ -270,73 +484,10 @@ struct ProjectText {
         }
     }
 
-    private func phaseBlock(id: String) -> String {
-        """
-\t\t\(id) /* \(TinkerbleInstallerConstants.companionBuildPhaseName) */ = {
-\t\t\tisa = PBXShellScriptBuildPhase;
-\t\t\talwaysOutOfDate = 1;
-\t\t\tbuildActionMask = 2147483647;
-\t\t\tfiles = (
-\t\t\t);
-\t\t\tinputFileListPaths = (
-\t\t\t);
-\t\t\tinputPaths = (
-\t\t\t);
-\t\t\tname = "\(TinkerbleInstallerConstants.companionBuildPhaseName)";
-\t\t\toutputFileListPaths = (
-\t\t\t);
-\t\t\toutputPaths = (
-\t\t\t);
-\t\t\trunOnlyForDeploymentPostprocessing = 0;
-\t\t\tshellPath = /bin/bash;
-\t\t\tshellScript = \(companionBuildPhaseScript.pbxQuoted);
-\t\t};
-"""
-    }
-
-    private var companionBuildPhaseScript: String {
-        #"""
-set -euo pipefail
-
-CONFIG="${CONFIGURATION:-${BUILD_STYLE:-Debug}}"
-
-if [[ "${CONFIG}" != "Debug" ]]; then
-  echo "Skipping Tinkerble companion rebuild for ${CONFIG} build."
-  exit 0
-fi
-
-CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
-DERIVED_DATA_DIR=""
-if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
-  DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
-  CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
-fi
-
-PACKAGE_DIR="${TINKERBLE_PACKAGE_DIR:-}"
-if [[ -z "${PACKAGE_DIR}" && -n "${CHECKOUT_ROOT}" ]]; then
-  for candidate in "${CHECKOUT_ROOT}/Tinkerble" "${CHECKOUT_ROOT}/tinkerble" "${CHECKOUT_ROOT}/Tinker"; do
-    if [[ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]]; then
-      PACKAGE_DIR="${candidate}"
-      break
-    fi
-  done
-fi
-
-if [[ -z "${PACKAGE_DIR}" ]]; then
-  echo "Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path." >&2
-  exit 1
-fi
-
-COMPANION_SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-}"
-if [[ -z "${COMPANION_SCRATCH_PATH}" && -n "${DERIVED_DATA_DIR}" ]]; then
-  COMPANION_SCRATCH_PATH="${DERIVED_DATA_DIR}/TinkerbleCompanionBuild"
-fi
-if [[ -z "${COMPANION_SCRATCH_PATH}" ]]; then
-  COMPANION_SCRATCH_PATH="${PACKAGE_DIR}/.build/tinkerble-companion"
-fi
-
-TINKERBLE_COMPANION_SCRATCH_PATH="${COMPANION_SCRATCH_PATH}" "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
-"""#
+    private func isCompanionBuildPhase(id: String) -> Bool {
+        guard let phase = object(id: id, section: "PBXShellScriptBuildPhase") else { return false }
+        return phase.block.contains("name = \"\(TinkerbleInstallerConstants.companionBuildPhaseName)\";")
+            || phase.block.contains("name = \(TinkerbleInstallerConstants.companionBuildPhaseName.pbxQuoted);")
     }
 
     private func ensureBuildSetting(in block: String, key: String, value: String) -> String {
@@ -623,11 +774,117 @@ struct ProjectObject {
             .last?
             .replacing("*/ = {", with: "")
             .trimmingCharacters(in: .whitespaces) ?? id
-        )
+            )
+    }
+
+    var isTinkerbleGeneratedCompanionPhase: Bool {
+        block.contains("ensure-macos-companion-running.sh")
+            || block.contains("patch-rsocket-checkouts.sh")
     }
 }
 
 private extension String {
+    var removingTinkerbleExecutionActions: String {
+        var updated = self
+        var searchIndex = updated.startIndex
+        while let actionRange = updated[searchIndex...].range(of: "<ExecutionAction"),
+              let actionEnd = updated[actionRange.lowerBound...].range(of: "</ExecutionAction>") {
+            let fullRange = actionRange.lowerBound..<actionEnd.upperBound
+            let action = updated[fullRange]
+            if action.contains("ensure-macos-companion-running.sh")
+                || action.contains("patch-rsocket-checkouts.sh")
+                || action.contains("Tinkerble Companion") {
+                updated.removeSubrange(fullRange)
+                searchIndex = updated.startIndex
+            } else {
+                searchIndex = actionEnd.upperBound
+            }
+        }
+
+        searchIndex = updated.startIndex
+        while let preActionsRange = updated[searchIndex...].range(of: "<PreActions>"),
+              let preActionsEnd = updated[preActionsRange.lowerBound...].range(of: "</PreActions>") {
+            let fullRange = preActionsRange.lowerBound..<preActionsEnd.upperBound
+            if updated[fullRange].contains("<ExecutionAction") {
+                searchIndex = preActionsEnd.upperBound
+            } else {
+                updated.removeSubrange(fullRange)
+                searchIndex = updated.startIndex
+            }
+        }
+
+        return updated
+    }
+
+    func withTinkerbleLaunchPreAction(script: String, buildableReference: String) -> String {
+        guard let launchStart = range(of: "<LaunchAction"),
+              let launchOpeningEnd = self[launchStart.lowerBound...].firstIndex(of: ">") else {
+            return self
+        }
+
+        let action = tinkerbleLaunchExecutionAction(
+            script: script,
+            buildableReference: buildableReference
+        )
+        let launchBodyStart = index(after: launchOpeningEnd)
+
+        if let launchEnd = self[launchBodyStart...].range(of: "</LaunchAction>"),
+           let preActionsStart = self[launchBodyStart..<launchEnd.lowerBound].range(of: "<PreActions>"),
+           let preActionsOpeningEnd = self[preActionsStart.lowerBound..<launchEnd.lowerBound].firstIndex(of: ">") {
+            var updated = self
+            updated.insert(contentsOf: "\n\(action)", at: index(after: preActionsOpeningEnd))
+            return updated
+        }
+
+        let preActions = "\n      <PreActions>\n\(action)\n      </PreActions>"
+        var updated = self
+        updated.insert(contentsOf: preActions, at: launchBodyStart)
+        return updated
+    }
+
+    func buildableReference(in actionName: String, for target: NativeTarget) -> String? {
+        guard let actionStart = range(of: "<\(actionName)"),
+              let actionEnd = self[actionStart.lowerBound...].range(of: "</\(actionName)>") else {
+            return nil
+        }
+
+        let action = self[actionStart.lowerBound..<actionEnd.upperBound]
+        guard action.contains("BlueprintIdentifier = \"\(target.id)\"")
+                || action.contains("BlueprintName = \"\(target.name)\""),
+              let referenceStart = action.range(of: "<BuildableReference"),
+              let referenceEnd = action[referenceStart.lowerBound...].range(of: "</BuildableReference>") else {
+            return nil
+        }
+
+        return String(action[referenceStart.lowerBound..<referenceEnd.upperBound])
+    }
+
+    func removingListEntry(id: String) -> String {
+        split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("\(id) ") }
+            .joined(separator: "\n")
+    }
+
+    private func tinkerbleLaunchExecutionAction(script: String, buildableReference: String) -> String {
+        let indentedReference = buildableReference
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { "                  \($0.trimmingCharacters(in: .whitespaces))" }
+            .joined(separator: "\n")
+
+        return """
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Launch Tinkerble Companion"
+               scriptText = "\(script.xmlEscaped)">
+               <EnvironmentBuildable>
+\(indentedReference)
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+"""
+    }
+
     var pbxQuoted: String {
         let escaped = replacing("\\", with: "\\\\")
             .replacing("\"", with: "\\\"")

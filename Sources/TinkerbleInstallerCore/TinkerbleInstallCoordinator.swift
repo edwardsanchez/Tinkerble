@@ -35,6 +35,7 @@ public struct TinkerbleInstallCoordinator {
 
         let result = try project.install(
             targetNames: selectedTargets,
+            schemeNames: options.schemeNames,
             dryRun: options.isDryRun
         )
         if options.isDryRun {
