@@ -58,7 +58,7 @@ The macOS companion advertises `_tinkerble._tcp` with Bonjour. The iOS app disco
 
 ## Tweak Registration
 
-`@TinkerbleState` requires an explicit `name` because Swift property wrappers cannot reliably infer the variable name for UI display. `category` is optional. The tweak ID is `category/name` when a category exists, otherwise `name`.
+`@TinkerbleState` requires an explicit display name as its first argument because Swift property wrappers cannot reliably infer the variable name for UI display. `screen` and `category` are optional and always labeled. The tweak ID is `screen/category/name` when screen and category exist, otherwise it omits missing segments and uses the default screen internally.
 
 Supported values are `String`, `Bool`, `Color`, `Int`, `Double`, `Float`, `CGFloat`, and enums conforming to `TinkerbleEnum`.
 

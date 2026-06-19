@@ -214,7 +214,7 @@ public final class Tinkerble {
     }
 
     public func log<Value: TinkerbleLogValueConvertible>(
-        name: String,
+        _ name: String,
         value: Value,
         screen: String? = nil,
         category: String? = nil
@@ -227,6 +227,16 @@ public final class Tinkerble {
         _ = screen
         _ = category
 #endif
+    }
+
+    @available(*, deprecated, message: "Use log(\"Name\", value: ..., screen: ..., category: ...) instead.")
+    public func log<Value: TinkerbleLogValueConvertible>(
+        name: String,
+        value: Value,
+        screen: String? = nil,
+        category: String? = nil
+    ) {
+        log(name, value: value, screen: screen, category: category)
     }
 
     public func log(_ entry: TinkerbleLogEntry) {

@@ -49,6 +49,26 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
         XCTAssertNotNil(box)
     }
 
+    func testTinkerbleStateWrapperRegistersUnlabeledNameWithLabeledCategoryAndScreen() {
+        let transport = LifetimeRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+
+        let state = TinkerbleState(
+            wrappedValue: "Loaded",
+            "Title",
+            screen: "Fan Deck",
+            category: "Deck"
+        )
+
+        XCTAssertEqual(state.wrappedValue, "Loaded")
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.id), ["Fan Deck/Deck/Title"])
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.map(\.screen), ["Fan Deck"])
+        XCTAssertEqual(transport.sentMessages.compactMap(\.registeredTweak).map(\.name), ["Title"])
+    }
+
     func testObservableStateRegistrationRegistersNamedScreen() {
         let transport = LifetimeRecordingTransport()
         Tinkerble.shared.resetForTesting(transport: transport)
@@ -213,7 +233,7 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
         XCTAssertTrue(transport.sentMessages.isEmpty)
 
         Tinkerble.shared.updateLocalValue(id: "Release/Title", value: "Updated")
-        Tinkerble.shared.log(name: "Release", value: "Release log")
+        Tinkerble.shared.log("Release", value: "Release log")
         Tinkerble.shared.connect(host: "127.0.0.1", port: 7777)
         Tinkerble.shared.disconnect()
         transport.receive(.update(id: "Release/Title", value: .string("Remote")))
@@ -231,7 +251,7 @@ final class TinkerbleRegistrationLifetimeTests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        let state = TinkerbleState(wrappedValue: "Initial", name: "Title", category: "Release")
+        let state = TinkerbleState(wrappedValue: "Initial", "Title", category: "Release")
 
         XCTAssertEqual(state.wrappedValue, "Initial")
         XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)

@@ -15,7 +15,7 @@ final class TinkerbleLogAPITests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        TinkerLog.value(name: "Visible Cards", value: 7, screen: "Cards", category: "Deck")
+        TinkerLog.value("Visible Cards", value: 7, screen: "Cards", category: "Deck")
 
         let sentEntry = await waitUntil {
             transport.sentMessages.compactMap(\.loggedEntry).first
@@ -34,7 +34,7 @@ final class TinkerbleLogAPITests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        TinkerLog.value(name: "Velocity", value: 12.999, decimalPlaces: 2)
+        TinkerLog.value("Velocity", value: 12.999, decimalPlaces: 2)
 
         let sentEntry = await waitUntil {
             transport.sentMessages.compactMap(\.loggedEntry).first
@@ -51,7 +51,7 @@ final class TinkerbleLogAPITests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        Tinkerble.shared.log(name: "FPS", value: 58.5)
+        Tinkerble.shared.log("FPS", value: 58.5)
 
         let entry = transport.sentMessages.compactMap(\.loggedEntry).first
 
@@ -88,7 +88,7 @@ final class TinkerbleLogAPITests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        Tinkerble.shared.log(name: "FPS", value: 58.999, decimalPlaces: 2)
+        Tinkerble.shared.log("FPS", value: 58.999, decimalPlaces: 2)
 
         let entry = transport.sentMessages.compactMap(\.loggedEntry).first
 
@@ -103,11 +103,11 @@ final class TinkerbleLogAPITests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        Tinkerble.shared.log(name: "Position", value: CGPoint(x: 12.5, y: 48))
-        Tinkerble.shared.log(name: "Size", value: CGSize(width: 320, height: 240.25))
-        Tinkerble.shared.log(name: "Frame", value: CGRect(x: 1, y: 2, width: 3, height: 4))
-        Tinkerble.shared.log(name: "Vector", value: CGVector(dx: -6.5, dy: 7))
-        Tinkerble.shared.log(name: "Transform", value: CGAffineTransform(a: 1, b: 2, c: 3, d: 4, tx: 5, ty: 6))
+        Tinkerble.shared.log("Position", value: CGPoint(x: 12.5, y: 48))
+        Tinkerble.shared.log("Size", value: CGSize(width: 320, height: 240.25))
+        Tinkerble.shared.log("Frame", value: CGRect(x: 1, y: 2, width: 3, height: 4))
+        Tinkerble.shared.log("Vector", value: CGVector(dx: -6.5, dy: 7))
+        Tinkerble.shared.log("Transform", value: CGAffineTransform(a: 1, b: 2, c: 3, d: 4, tx: 5, ty: 6))
 
         let sentValues = transport.sentMessages.compactMap(\.loggedEntry).map(\.value)
 
@@ -148,7 +148,7 @@ final class TinkerbleLogAPITests: XCTestCase {
             Tinkerble.shared.resetForTesting()
         }
 
-        Tinkerble.shared.log(name: "Position", value: CGPoint(x: 12.9, y: 48.1), decimalPlaces: 0)
+        Tinkerble.shared.log("Position", value: CGPoint(x: 12.9, y: 48.1), decimalPlaces: 0)
 
         let entry = transport.sentMessages.compactMap(\.loggedEntry).first
 
@@ -173,7 +173,7 @@ final class TinkerbleLogAPITests: XCTestCase {
         }
 
         Tinkerble.shared.log(
-            name: "Resolved Color",
+            "Resolved Color",
             value: Color(red: 0.25, green: 0.5, blue: 0.75, opacity: 0.8)
         )
 
@@ -205,7 +205,7 @@ final class TinkerbleLogAPITests: XCTestCase {
         }
 
         Tinkerble.shared.log(
-            name: "Resolved Color",
+            "Resolved Color",
             value: NSColor(srgbRed: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
         )
 

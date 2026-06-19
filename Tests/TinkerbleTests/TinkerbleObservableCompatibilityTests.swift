@@ -8,7 +8,7 @@ import Observation
 @Observable
 @MainActor
 private final class ObservableDemoModel {
-    @TinkerbleObservableState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+    @TinkerbleObservableState("Badge Count", screen: "Basic", category: "Observable", control: TinkerbleControl<Int>.plain)
     var count = 1
 }
 #endif

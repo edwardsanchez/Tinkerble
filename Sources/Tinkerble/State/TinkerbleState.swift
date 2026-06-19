@@ -82,7 +82,7 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
 
     public init(
         wrappedValue: Value,
-        name: String,
+        _ name: String,
         screen: String? = nil,
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic
@@ -106,6 +106,18 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
 #endif
     }
 
+    @available(*, deprecated, message: "Use @TinkerbleState(\"Name\", screen: ..., category: ...) instead.")
+    public init(
+        wrappedValue: Value,
+        name: String,
+        screen: String? = nil,
+        category: String? = nil,
+        control: TinkerbleControl<Value> = .automatic
+    ) {
+        self.init(wrappedValue: wrappedValue, name, screen: screen, category: category, control: control)
+    }
+
+    @available(*, deprecated, message: "Use @TinkerbleState(\"Name\", category: \"Category\") instead.")
     public init(
         wrappedValue: Value,
         category: String,
@@ -113,9 +125,10 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
-        self.init(wrappedValue: wrappedValue, name: name, screen: screen, category: category, control: control)
+        self.init(wrappedValue: wrappedValue, name, screen: screen, category: category, control: control)
     }
 
+    @available(*, deprecated, message: "Use @TinkerbleState(\"Name\", category: \"Category\"). The unlabeled argument is now the tweak name.")
     public init(
         wrappedValue: Value,
         _ category: String,
@@ -123,6 +136,6 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic
     ) {
-        self.init(wrappedValue: wrappedValue, name: name, screen: screen, category: category, control: control)
+        self.init(wrappedValue: wrappedValue, name, screen: screen, category: category, control: control)
     }
 }

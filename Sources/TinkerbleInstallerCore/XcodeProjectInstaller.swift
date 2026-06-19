@@ -31,12 +31,25 @@ public final class XcodeProjectInstaller {
         var changes: [String] = []
 
         let schemeSelections = try selectedSchemeNames(targetNames: targetNames, schemeNames: schemeNames)
-        let packageID = try editor.ensureRemotePackageReference(changes: &changes)
-        let productID = try editor.ensurePackageProductDependency(packageID: packageID, changes: &changes)
+        let productID: String
+        if let existingProductID = editor.packageProductDependencyID() {
+            productID = existingProductID
+        } else {
+            let packageID = try editor.ensureRemotePackageReference(changes: &changes)
+            productID = try editor.ensurePackageProductDependency(packageID: packageID, changes: &changes)
+        }
         let buildFileID = try editor.ensureFrameworkBuildFile(productID: productID, changes: &changes)
 
+        let projectDirectoryURL = projectURL.deletingLastPathComponent()
         for targetName in targetNames {
-            try editor.ensureInstall(targetName: targetName, productID: productID, buildFileID: buildFileID, changes: &changes)
+            try editor.ensureInstall(
+                targetName: targetName,
+                productID: productID,
+                buildFileID: buildFileID,
+                projectDirectoryURL: projectDirectoryURL,
+                fileManager: fileManager,
+                changes: &changes
+            )
         }
 
         text = editor.text
@@ -109,7 +122,7 @@ public final class XcodeProjectInstaller {
             let updated = sourceScheme
                 .text
                 .removingTinkerbleExecutionActions
-                .withTinkerbleLaunchPreAction(
+                .withTinkerbleBuildPreAction(
                     script: Self.companionLaunchScript,
                     buildableReference: buildableReference
                 )
@@ -182,61 +195,84 @@ public final class XcodeProjectInstaller {
 
     private static var companionLaunchScript: String {
         #"""
-set -euo pipefail
+        set -eu
 
-CONFIG="${CONFIGURATION:-${BUILD_STYLE:-Debug}}"
+        CONFIG="${CONFIGURATION:-${BUILD_STYLE:-Debug}}"
 
-if [[ "${CONFIG}" != "Debug" ]]; then
-  echo "Skipping Tinkerble companion launch for ${CONFIG} run."
-  exit 0
-fi
+        if [ "${CONFIG}" != "Debug" ]; then
+          echo "Skipping Tinkerble companion launch for ${CONFIG} run."
+          exit 0
+        fi
 
-if [[ "${TINKERBLE_COMPANION_AUTOLAUNCH:-1}" == "0" ]]; then
-  echo "Tinkerble companion autolaunch disabled."
-  exit 0
-fi
+        if [ "${TINKERBLE_COMPANION_AUTOLAUNCH:-1}" = "0" ]; then
+          echo "Tinkerble companion autolaunch disabled."
+          exit 0
+        fi
 
-CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
-DERIVED_DATA_DIR=""
-if [[ -z "${CHECKOUT_ROOT}" && -n "${BUILD_DIR:-}" ]]; then
-  DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
-  CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
-fi
+        CHECKOUT_ROOT="${TINKERBLE_SOURCE_PACKAGES_DIR:-}"
+        DERIVED_DATA_DIR=""
+        if [ -z "${CHECKOUT_ROOT}" ] && [ -n "${BUILD_DIR:-}" ]; then
+          DERIVED_DATA_DIR="${BUILD_DIR%/Build/*}"
+          CHECKOUT_ROOT="${DERIVED_DATA_DIR}/SourcePackages/checkouts"
+        fi
 
-PACKAGE_DIR="${TINKERBLE_PACKAGE_DIR:-}"
-if [[ -z "${PACKAGE_DIR}" && -n "${CHECKOUT_ROOT}" ]]; then
-  for candidate in "${CHECKOUT_ROOT}/Tinkerble" "${CHECKOUT_ROOT}/tinkerble" "${CHECKOUT_ROOT}/Tinker"; do
-    if [[ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]]; then
-      PACKAGE_DIR="${candidate}"
-      break
-    fi
-  done
-fi
+        PACKAGE_DIR="${TINKERBLE_PACKAGE_DIR:-}"
+        if [ -z "${PACKAGE_DIR}" ] && [ -n "${CHECKOUT_ROOT}" ]; then
+          for candidate in "${CHECKOUT_ROOT}/Tinkerble" "${CHECKOUT_ROOT}/tinkerble" "${CHECKOUT_ROOT}/Tinker"; do
+            if [ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]; then
+              PACKAGE_DIR="${candidate}"
+              break
+            fi
+          done
+        fi
 
-if [[ -z "${PACKAGE_DIR}" && -n "${SRCROOT:-}" ]]; then
-  for candidate in "${SRCROOT}" "${SRCROOT}/.." "${SRCROOT}/Tinkerble" "${SRCROOT}/../Tinkerble"; do
-    if [[ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]]; then
-      PACKAGE_DIR="$(cd "${candidate}" && pwd)"
-      break
-    fi
-  done
-fi
+        if [ -z "${PACKAGE_DIR}" ] && [ -n "${SRCROOT:-}" ]; then
+          for candidate in "${SRCROOT}" "${SRCROOT}/.." "${SRCROOT}/Tinkerble" "${SRCROOT}/../Tinkerble"; do
+            if [ -x "${candidate}/Scripts/ensure-macos-companion-running.sh" ]; then
+              PACKAGE_DIR="$(cd "${candidate}" && pwd)"
+              break
+            fi
+          done
+        fi
 
-if [[ -z "${PACKAGE_DIR}" ]]; then
-  echo "Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path." >&2
-  exit 1
-fi
+        if [ -z "${PACKAGE_DIR}" ]; then
+          echo "Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path." >&2
+          exit 1
+        fi
 
-COMPANION_SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-}"
-if [[ -z "${COMPANION_SCRATCH_PATH}" && -n "${DERIVED_DATA_DIR}" ]]; then
-  COMPANION_SCRATCH_PATH="${DERIVED_DATA_DIR}/TinkerbleCompanionBuild"
-fi
-if [[ -z "${COMPANION_SCRATCH_PATH}" ]]; then
-  COMPANION_SCRATCH_PATH="${PACKAGE_DIR}/.build/tinkerble-companion"
-fi
+        COMPANION_SCRATCH_PATH="${TINKERBLE_COMPANION_SCRATCH_PATH:-}"
+        if [ -z "${COMPANION_SCRATCH_PATH}" ] && [ -n "${DERIVED_DATA_DIR}" ]; then
+          COMPANION_SCRATCH_PATH="${DERIVED_DATA_DIR}/TinkerbleCompanionBuild"
+        fi
+        if [ -z "${COMPANION_SCRATCH_PATH}" ]; then
+          COMPANION_SCRATCH_PATH="${PACKAGE_DIR}/.build/tinkerble-companion"
+        fi
 
-TINKERBLE_COMPANION_SCRATCH_PATH="${COMPANION_SCRATCH_PATH}" "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
-"""#
+        env -i \
+          HOME="${HOME:-}" \
+          PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+          TMPDIR="${TMPDIR:-/tmp}" \
+          USER="${USER:-}" \
+          LOGNAME="${LOGNAME:-}" \
+          SHELL="${SHELL:-/bin/sh}" \
+          DEVELOPER_DIR="${DEVELOPER_DIR:-}" \
+          TOOLCHAINS="${TOOLCHAINS:-}" \
+          SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-}" \
+          CONFIGURATION="${CONFIG}" \
+          TINKERBLE_COMPANION_AUTOLAUNCH="${TINKERBLE_COMPANION_AUTOLAUNCH:-1}" \
+          TINKERBLE_COMPANION_PROCESS_NAME="${TINKERBLE_COMPANION_PROCESS_NAME:-}" \
+          TINKERBLE_COMPANION_WAIT_TIMEOUT="${TINKERBLE_COMPANION_WAIT_TIMEOUT:-}" \
+          TINKERBLE_COMPANION_APP_NAME="${TINKERBLE_COMPANION_APP_NAME:-}" \
+          TINKERBLE_COMPANION_BUNDLE_ID="${TINKERBLE_COMPANION_BUNDLE_ID:-}" \
+          TINKERBLE_COMPANION_VERSION="${TINKERBLE_COMPANION_VERSION:-}" \
+          TINKERBLE_COMPANION_BUILD="${TINKERBLE_COMPANION_BUILD:-}" \
+          TINKERBLE_COMPANION_SCRATCH_PATH="${COMPANION_SCRATCH_PATH}" \
+          TINKERBLE_ICON_SOURCE="${TINKERBLE_ICON_SOURCE:-}" \
+          TINKERBLE_ICON_ASSET_NAME="${TINKERBLE_ICON_ASSET_NAME:-}" \
+          TINKERBLE_SIGN_IDENTITY="${TINKERBLE_SIGN_IDENTITY:-}" \
+          TINKERBLE_SWIFT_EXECUTABLE="${TINKERBLE_SWIFT_EXECUTABLE:-}" \
+          "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
+        """#
     }
 
 }
@@ -287,6 +323,8 @@ struct ProjectText {
         targetName: String,
         productID: String,
         buildFileID: String,
+        projectDirectoryURL: URL,
+        fileManager: FileManager,
         changes: inout [String]
     ) throws {
         guard let target = nativeTarget(named: targetName) else {
@@ -296,7 +334,12 @@ struct ProjectText {
         try ensureTargetPackageDependency(targetID: target.id, productID: productID, changes: &changes)
         try ensureFrameworksBuildFile(frameworksPhaseID: target.frameworksPhaseID, buildFileID: buildFileID, changes: &changes)
         try removeCompanionBuildPhase(targetID: target.id, targetName: target.name, changes: &changes)
-        try ensurePlistBuildSettings(configurationListID: target.buildConfigurationListID, changes: &changes)
+        try ensurePlistBuildSettings(
+            configurationListID: target.buildConfigurationListID,
+            projectDirectoryURL: projectDirectoryURL,
+            fileManager: fileManager,
+            changes: &changes
+        )
     }
 
     mutating func ensureRemotePackageReference(changes: inout [String]) throws -> String {
@@ -325,11 +368,15 @@ struct ProjectText {
         return packageID
     }
 
-    mutating func ensurePackageProductDependency(packageID: String, changes: inout [String]) throws -> String {
-        if let existing = objectID(
+    func packageProductDependencyID() -> String? {
+        objectID(
             section: "XCSwiftPackageProductDependency",
             containing: "productName = \(TinkerbleInstallerConstants.productName);"
-        ) {
+        )
+    }
+
+    mutating func ensurePackageProductDependency(packageID: String, changes: inout [String]) throws -> String {
+        if let existing = packageProductDependencyID() {
             return existing
         }
 
@@ -453,7 +500,12 @@ struct ProjectText {
         }
     }
 
-    private mutating func ensurePlistBuildSettings(configurationListID: String, changes: inout [String]) throws {
+    private mutating func ensurePlistBuildSettings(
+        configurationListID: String,
+        projectDirectoryURL: URL,
+        fileManager: FileManager,
+        changes: inout [String]
+    ) throws {
         guard let configurationList = object(id: configurationListID, section: "XCConfigurationList") else {
             throw TinkerbleInstallError.malformedProject("Missing configuration list \(configurationListID).")
         }
@@ -465,23 +517,71 @@ struct ProjectText {
             }
 
             var updated = configuration.block
-            updated = ensureBuildSetting(
-                in: updated,
-                key: "INFOPLIST_KEY_NSLocalNetworkUsageDescription",
-                value: "\"\(TinkerbleInstallerConstants.localNetworkUsageDescription)\""
+            let plistCapabilities = infoPlistCapabilities(
+                for: configuration.block,
+                projectDirectoryURL: projectDirectoryURL,
+                fileManager: fileManager
             )
-            updated = ensureBuildSetting(
-                in: updated,
-                key: "INFOPLIST_KEY_NSBonjourServices",
-                value: TinkerbleInstallerConstants.bonjourService
-            )
-            updated = ensureBuildSetting(in: updated, key: "ENABLE_USER_SCRIPT_SANDBOXING", value: "NO")
+            if !plistCapabilities.hasLocalNetworkUsageDescription {
+                updated = ensureBuildSetting(
+                    in: updated,
+                    key: "INFOPLIST_KEY_NSLocalNetworkUsageDescription",
+                    value: "\"\(TinkerbleInstallerConstants.localNetworkUsageDescription)\""
+                )
+            }
+            if !plistCapabilities.hasBonjourService {
+                updated = ensureBuildSetting(
+                    in: updated,
+                    key: "INFOPLIST_KEY_NSBonjourServices",
+                    value: TinkerbleInstallerConstants.bonjourService
+                )
+            }
 
             if updated != configuration.block {
                 replace(configuration.range, with: updated)
                 changes.append("Updated Tinkerble plist/build settings for \(configuration.name).")
             }
         }
+    }
+
+    private func infoPlistCapabilities(
+        for configurationBlock: String,
+        projectDirectoryURL: URL,
+        fileManager: FileManager
+    ) -> InfoPlistCapabilities {
+        guard value(named: "GENERATE_INFOPLIST_FILE", in: configurationBlock) != "YES",
+              let plistPath = value(named: "INFOPLIST_FILE", in: configurationBlock),
+              let plistURL = infoPlistURL(path: plistPath, projectDirectoryURL: projectDirectoryURL),
+              fileManager.fileExists(atPath: plistURL.path),
+              let data = fileManager.contents(atPath: plistURL.path),
+              let propertyList = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let dictionary = propertyList as? [String: Any] else {
+            return .missing
+        }
+
+        let hasLocalNetworkUsageDescription = dictionary["NSLocalNetworkUsageDescription"] is String
+        let bonjourServices = dictionary["NSBonjourServices"] as? [String] ?? []
+        return InfoPlistCapabilities(
+            hasLocalNetworkUsageDescription: hasLocalNetworkUsageDescription,
+            hasBonjourService: bonjourServices.contains(TinkerbleInstallerConstants.bonjourService)
+        )
+    }
+
+    private func infoPlistURL(path: String, projectDirectoryURL: URL) -> URL? {
+        guard !path.isEmpty else { return nil }
+
+        let projectPath = projectDirectoryURL.path
+        let expandedPath = path
+            .replacing("$(SRCROOT)", with: projectPath)
+            .replacing("${SRCROOT}", with: projectPath)
+            .replacing("$(PROJECT_DIR)", with: projectPath)
+            .replacing("${PROJECT_DIR}", with: projectPath)
+
+        if expandedPath.hasPrefix("/") {
+            return URL(fileURLWithPath: expandedPath)
+        }
+
+        return projectDirectoryURL.appending(path: expandedPath)
     }
 
     private func isCompanionBuildPhase(id: String) -> Bool {
@@ -732,16 +832,19 @@ struct ProjectText {
     }
 
     private func value(named key: String, in block: String) -> String? {
-        guard let keyRange = block.range(of: "\(key) = ") else {
-            return nil
+        let prefix = "\(key) = "
+        for line in block.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix(prefix),
+                  let semicolon = trimmed.firstIndex(of: ";") else {
+                continue
+            }
+
+            let valueStart = trimmed.index(trimmed.startIndex, offsetBy: prefix.count)
+            return String(trimmed[valueStart..<semicolon]).pbxUnquoted
         }
 
-        let valueStart = keyRange.upperBound
-        guard let semicolon = block[valueStart...].firstIndex(of: ";") else {
-            return nil
-        }
-
-        return String(block[valueStart..<semicolon]).pbxUnquoted
+        return nil
     }
 
     private func makeID() -> String {
@@ -758,6 +861,16 @@ struct NativeTarget {
     var buildPhaseIDs: [String]
     var block: String
     var range: Range<String.Index>
+}
+
+struct InfoPlistCapabilities {
+    var hasLocalNetworkUsageDescription: Bool
+    var hasBonjourService: Bool
+
+    static let missing = InfoPlistCapabilities(
+        hasLocalNetworkUsageDescription: false,
+        hasBonjourService: false
+    )
 }
 
 struct ProjectObject {
@@ -816,9 +929,9 @@ private extension String {
         return updated
     }
 
-    func withTinkerbleLaunchPreAction(script: String, buildableReference: String) -> String {
-        guard let launchStart = range(of: "<LaunchAction"),
-              let launchOpeningEnd = self[launchStart.lowerBound...].firstIndex(of: ">") else {
+    func withTinkerbleBuildPreAction(script: String, buildableReference: String) -> String {
+        guard let buildStart = range(of: "<BuildAction"),
+              let buildOpeningEnd = self[buildStart.lowerBound...].firstIndex(of: ">") else {
             return self
         }
 
@@ -826,11 +939,11 @@ private extension String {
             script: script,
             buildableReference: buildableReference
         )
-        let launchBodyStart = index(after: launchOpeningEnd)
+        let buildBodyStart = index(after: buildOpeningEnd)
 
-        if let launchEnd = self[launchBodyStart...].range(of: "</LaunchAction>"),
-           let preActionsStart = self[launchBodyStart..<launchEnd.lowerBound].range(of: "<PreActions>"),
-           let preActionsOpeningEnd = self[preActionsStart.lowerBound..<launchEnd.lowerBound].firstIndex(of: ">") {
+        if let buildEnd = self[buildBodyStart...].range(of: "</BuildAction>"),
+           let preActionsStart = self[buildBodyStart..<buildEnd.lowerBound].range(of: "<PreActions>"),
+           let preActionsOpeningEnd = self[preActionsStart.lowerBound..<buildEnd.lowerBound].firstIndex(of: ">") {
             var updated = self
             updated.insert(contentsOf: "\n\(action)", at: index(after: preActionsOpeningEnd))
             return updated
@@ -838,7 +951,7 @@ private extension String {
 
         let preActions = "\n      <PreActions>\n\(action)\n      </PreActions>"
         var updated = self
-        updated.insert(contentsOf: preActions, at: launchBodyStart)
+        updated.insert(contentsOf: preActions, at: buildBodyStart)
         return updated
     }
 

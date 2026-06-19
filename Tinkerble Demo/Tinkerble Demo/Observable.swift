@@ -19,19 +19,19 @@ enum DemoMood: String, CaseIterable, TinkerbleEnum {
 @Observable
 @MainActor
 final class ObservableDemoModel {
-    @TinkerbleObservableState(category: "Observable", name: "Badge Text", screen: "Basic")
+    @TinkerbleObservableState("Badge Text", screen: "Basic", category: "Observable")
     var badgeText = "Observable Model"
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Enabled", screen: "Basic")
+    @TinkerbleObservableState("Badge Enabled", screen: "Basic", category: "Observable")
     var badgeEnabled = true
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+    @TinkerbleObservableState("Badge Count", screen: "Basic", category: "Observable", control: TinkerbleControl<Int>.plain)
     var badgeCount = 2
 
-    @TinkerbleObservableState("Observable", name: "Badge Opacity", screen: "Basic", control: .slider(0.0...1.0))
+    @TinkerbleObservableState("Badge Opacity", screen: "Basic", category: "Observable", control: .slider(0.0...1.0))
     var badgeOpacity = 0.9
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Mood", screen: "Basic")
+    @TinkerbleObservableState("Badge Mood", screen: "Basic", category: "Observable")
     var badgeMood = DemoMood.calm
 }
 
@@ -45,7 +45,7 @@ final class ActionDemoModel {
         activateTinkerbleActions()
     }
 
-    @TinkerbleAction(name: "Increment Action Count", screen: "Basic", category: "Observable")
+    @TinkerbleAction("Increment Action Count", screen: "Basic", category: "Observable")
     func incrementActionCount() {
         actionCount += 1
     }

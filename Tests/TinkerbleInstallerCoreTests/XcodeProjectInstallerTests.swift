@@ -57,6 +57,29 @@ final class XcodeProjectInstallerTests: XCTestCase {
         XCTAssertEqual(result.targetNames, ["MainApp"])
     }
 
+    func testInstallerReusesExistingLocalPackageProduct() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithLocalTinkerblePackage)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let packageReferences = packageReferenceSummary(in: try readProject(projectURL))
+        XCTAssertEqual(packageReferences.localNames, ["XCLocalSwiftPackageReference \"..\""])
+        XCTAssertEqual(packageReferences.remoteNames, [])
+    }
+
+    func testInstallerUsesExistingInfoPlistLocalNetworkEntries() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithInfoPlistFile)
+        try writeFixtureInfoPlist(for: projectURL)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let project = try readProject(projectURL)
+        XCTAssertEqual(buildSettingValues(named: "INFOPLIST_KEY_NSLocalNetworkUsageDescription", in: project), [])
+        XCTAssertEqual(buildSettingValues(named: "INFOPLIST_KEY_NSBonjourServices", in: project), [])
+    }
+
     func testInstallerCreatesRunSchemeWithoutTargetBuildPhase() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
@@ -70,8 +93,66 @@ final class XcodeProjectInstallerTests: XCTestCase {
         let tinkerbleScheme = try SchemeDocument(text: readScheme(projectURL, name: "MainApp + Tinkerble"))
 
         XCTAssertFalse(originalScheme.containsElement(named: "ActionContent", attributes: ["title": "Launch Tinkerble Companion"]))
-        XCTAssertTrue(tinkerbleScheme.containsElement(named: "ActionContent", attributes: ["title": "Launch Tinkerble Companion"]))
+        XCTAssertTrue(
+            tinkerbleScheme.containsElement(
+                named: "ActionContent",
+                attributes: ["title": "Launch Tinkerble Companion"],
+                pathSuffix: ["Scheme", "BuildAction", "PreActions", "ExecutionAction", "ActionContent"]
+            )
+        )
         XCTAssertTrue(tinkerbleScheme.containsElement(named: "BuildableReference", attributes: ["BlueprintIdentifier": "000000000000000000000030"]))
+    }
+
+    func testGeneratedRunSchemeLaunchScriptRunsWithSh() throws {
+        let projectURL = try makeFixtureProject()
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let scheme = try SchemeDocument(text: readScheme(projectURL, name: "MainApp + Tinkerble"))
+        let script = try XCTUnwrap(
+            scheme.attribute(
+                named: "scriptText",
+                fromElementNamed: "ActionContent",
+                matching: ["title": "Launch Tinkerble Companion"]
+            )
+        )
+        let sourceRoot = projectURL.deletingLastPathComponent().appending(path: "SourceRoot")
+        let packageURL = sourceRoot.appending(path: "Tinkerble")
+        let scriptURL = packageURL.appending(path: "Scripts/ensure-macos-companion-running.sh")
+        let scratchURL = packageURL.appending(path: ".build/tinkerble-companion")
+        let argumentsURL = scratchURL.appending(path: "arguments.txt")
+        let environmentURL = scratchURL.appending(path: "environment.txt")
+        try FileManager.default.createDirectory(
+            at: scriptURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try #"""
+        #!/bin/sh
+        mkdir -p "${TINKERBLE_COMPANION_SCRATCH_PATH}"
+        printf "%s" "$*" > "${TINKERBLE_COMPANION_SCRATCH_PATH}/arguments.txt"
+        env > "${TINKERBLE_COMPANION_SCRATCH_PATH}/environment.txt"
+        """#.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let result = try runShellScript(
+            script,
+            environment: [
+                "CONFIGURATION": "Debug",
+                "SRCROOT": sourceRoot.path,
+                "SWIFT_EXEC": "swiftc",
+                "SWIFT_DEBUG_INFORMATION_FORMAT": "dwarf",
+                "SWIFT_DEBUG_INFORMATION_VERSION": "compiler-default",
+            ]
+        )
+
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertEqual(try String(contentsOf: argumentsURL, encoding: .utf8), "--restart")
+        let environment = try environmentValues(from: String(contentsOf: environmentURL, encoding: .utf8))
+        XCTAssertEqual(environment["TINKERBLE_COMPANION_SCRATCH_PATH"], scratchURL.path)
+        XCTAssertNil(environment["SWIFT_EXEC"])
+        XCTAssertNil(environment["SWIFT_DEBUG_INFORMATION_FORMAT"])
+        XCTAssertNil(environment["SWIFT_DEBUG_INFORMATION_VERSION"])
     }
 
     func testInstallerMigratesLegacyCompanionBuildPhase() throws {
@@ -149,6 +230,26 @@ final class XcodeProjectInstallerTests: XCTestCase {
         return projectURL
     }
 
+    private func writeFixtureInfoPlist(for projectURL: URL) throws {
+        let plistURL = projectURL
+            .deletingLastPathComponent()
+            .appending(path: "MainApp/Info.plist")
+        try FileManager.default.createDirectory(
+            at: plistURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let propertyList: [String: Any] = [
+            "NSLocalNetworkUsageDescription": TinkerbleInstallerConstants.localNetworkUsageDescription,
+            "NSBonjourServices": [TinkerbleInstallerConstants.bonjourService],
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: propertyList,
+            format: .xml,
+            options: 0
+        )
+        try data.write(to: plistURL)
+    }
+
     private func readProject(_ projectURL: URL) throws -> String {
         try String(contentsOf: projectURL.appending(path: "project.pbxproj"), encoding: .utf8)
     }
@@ -160,15 +261,96 @@ final class XcodeProjectInstallerTests: XCTestCase {
         )
     }
 
+    private func runShellScript(
+        _ script: String,
+        environment additionalEnvironment: [String: String]
+    ) throws -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", script]
+
+        var environment = ProcessInfo.processInfo.environment
+        for (key, value) in additionalEnvironment {
+            environment[key] = value
+        }
+        process.environment = environment
+
+        let standardOutput = Pipe()
+        let standardError = Pipe()
+        process.standardOutput = standardOutput
+        process.standardError = standardError
+
+        try process.run()
+        process.waitUntilExit()
+
+        let output = String(data: standardOutput.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let error = String(data: standardError.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return (process.terminationStatus, output + error)
+    }
+
+    private func packageReferenceSummary(in project: String) -> (localNames: [String], remoteNames: [String]) {
+        let localNames = packageReferenceNames(in: project, section: "XCLocalSwiftPackageReference")
+        let remoteNames = packageReferenceNames(in: project, section: "XCRemoteSwiftPackageReference")
+        return (localNames, remoteNames)
+    }
+
+    private func packageReferenceNames(in project: String, section: String) -> [String] {
+        guard let begin = project.range(of: "/* Begin \(section) section */"),
+              let end = project.range(of: "/* End \(section) section */") else {
+            return []
+        }
+
+        return project[begin.upperBound..<end.lowerBound]
+            .split(separator: "\n")
+            .compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard let commentStart = trimmed.range(of: "/* "),
+                      let commentEnd = trimmed.range(of: " */ = {") else {
+                    return nil
+                }
+                return String(trimmed[commentStart.upperBound..<commentEnd.lowerBound])
+            }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    private func buildSettingValues(named key: String, in project: String) -> [String] {
+        project
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                let prefix = "\(key) = "
+                guard trimmed.hasPrefix(prefix), trimmed.hasSuffix(";") else {
+                    return nil
+                }
+
+                return String(trimmed.dropFirst(prefix.count).dropLast())
+            }
+    }
+
+    private func environmentValues(from text: String) -> [String: String] {
+        Dictionary(
+            uniqueKeysWithValues: text
+                .split(separator: "\n")
+                .compactMap { line -> (String, String)? in
+                    guard let separator = line.firstIndex(of: "=") else { return nil }
+                    let key = String(line[..<separator])
+                    let valueStart = line.index(after: separator)
+                    return (key, String(line[valueStart...]))
+                }
+        )
+    }
+
 }
 
 private struct SchemeElement {
     let name: String
     let attributes: [String: String]
+    let path: [String]
 }
 
 private final class SchemeDocument: NSObject, XMLParserDelegate {
     private(set) var elements: [SchemeElement] = []
+    private var path: [String] = []
     private var parserError: Error?
 
     init(text: String) throws {
@@ -182,12 +364,30 @@ private final class SchemeDocument: NSObject, XMLParserDelegate {
         }
     }
 
-    func containsElement(named name: String, attributes requiredAttributes: [String: String] = [:]) -> Bool {
+    func containsElement(
+        named name: String,
+        attributes requiredAttributes: [String: String] = [:],
+        pathSuffix requiredPathSuffix: [String] = []
+    ) -> Bool {
         elements.contains { element in
-            element.name == name && requiredAttributes.allSatisfy { key, value in
+            element.name == name
+                && (requiredPathSuffix.isEmpty || element.path.suffix(requiredPathSuffix.count) == requiredPathSuffix)
+                && requiredAttributes.allSatisfy { key, value in
                 element.attributes[key] == value
             }
         }
+    }
+
+    func attribute(
+        named attributeName: String,
+        fromElementNamed name: String,
+        matching requiredAttributes: [String: String] = [:]
+    ) -> String? {
+        elements.first { element in
+            element.name == name && requiredAttributes.allSatisfy { key, value in
+                element.attributes[key] == value
+            }
+        }?.attributes[attributeName]
     }
 
     func parser(
@@ -197,7 +397,17 @@ private final class SchemeDocument: NSObject, XMLParserDelegate {
         qualifiedName qName: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
-        elements.append(SchemeElement(name: elementName, attributes: attributeDict))
+        path.append(elementName)
+        elements.append(SchemeElement(name: elementName, attributes: attributeDict, path: path))
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
+        _ = path.popLast()
     }
 
     func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
@@ -382,6 +592,45 @@ private let fixtureProject = #"""
 private let fixtureProjectWithoutPackageLists = fixtureProject
     .replacing("\t\t\tpackageProductDependencies = (\n\t\t\t);\n", with: "")
     .replacing("\t\t\tpackageReferences = (\n\t\t\t);\n", with: "")
+
+private let fixtureProjectWithLocalTinkerblePackage = fixtureProject
+    .replacing(
+        "\t\t\tpackageReferences = (\n\t\t\t);",
+        with: "\t\t\tpackageReferences = (\n\t\t\t\t000000000000000000000090 /* XCLocalSwiftPackageReference \"..\" */,\n\t\t\t);"
+    )
+    .replacing(
+        "\t\t\tpackageProductDependencies = (\n\t\t\t);",
+        with: "\t\t\tpackageProductDependencies = (\n\t\t\t\t000000000000000000000091 /* Tinkerble */,\n\t\t\t);"
+    )
+    .replacing(
+        "\n\t};\n\trootObject",
+        with: #"""
+
+/* Begin XCLocalSwiftPackageReference section */
+		000000000000000000000090 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		000000000000000000000091 /* Tinkerble */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 000000000000000000000090 /* XCLocalSwiftPackageReference ".." */;
+			productName = Tinkerble;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+	};
+	rootObject
+"""#
+    )
+
+private let fixtureProjectWithInfoPlistFile = fixtureProject
+    .replacing(
+        "\t\t\t\tPRODUCT_NAME = MainApp;",
+        with: "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;\n\t\t\t\tINFOPLIST_FILE = MainApp/Info.plist;\n\t\t\t\tPRODUCT_NAME = MainApp;"
+    )
 
 private let fixtureProjectWithLegacyCompanionBuildPhase = fixtureProject
     .replacing(

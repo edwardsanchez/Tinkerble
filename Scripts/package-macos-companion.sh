@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+unset SWIFT_DEBUG_INFORMATION_FORMAT
+unset SWIFT_DEBUG_INFORMATION_VERSION
+
 APP_NAME="${TINKERBLE_COMPANION_APP_NAME:-Tinkerble}"
 EXECUTABLE_NAME="TinkerbleCompanion"
 BUNDLE_ID="${TINKERBLE_COMPANION_BUNDLE_ID:-app.amorfati.Tinkerble.Companion}"
@@ -17,18 +21,34 @@ ICON_SOURCE="${TINKERBLE_ICON_SOURCE:-$ROOT_DIR/Tinkerble.icon}"
 ICON_ASSET_NAME="${TINKERBLE_ICON_ASSET_NAME:-$(basename "$ICON_SOURCE" .icon)}"
 SIGN_IDENTITY="${TINKERBLE_SIGN_IDENTITY:--}"
 
+clean_command() {
+  local clean_env=(
+    env -i
+    "HOME=${HOME:-}"
+    "PATH=/usr/bin:/bin:/usr/sbin:/sbin"
+    "TMPDIR=${TMPDIR:-/tmp}"
+    "USER=${USER:-}"
+    "LOGNAME=${LOGNAME:-}"
+    "SHELL=${SHELL:-/bin/zsh}"
+  )
+
+  if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    clean_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
+  fi
+  if [[ -n "${TOOLCHAINS:-}" ]]; then
+    clean_env+=("TOOLCHAINS=$TOOLCHAINS")
+  fi
+  if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
+    clean_env+=("SSH_AUTH_SOCK=$SSH_AUTH_SOCK")
+  fi
+
+  "${clean_env[@]}" "$@"
+}
+
+SWIFT_EXECUTABLE="${TINKERBLE_SWIFT_EXECUTABLE:-$(clean_command /usr/bin/xcrun -f swift)}"
+
 swift_package() {
-  env \
-    -u SDKROOT \
-    -u SDK_NAME \
-    -u PLATFORM_NAME \
-    -u EFFECTIVE_PLATFORM_NAME \
-    -u SUPPORTED_PLATFORMS \
-    -u SWIFT_PLATFORM_TARGET_PREFIX \
-    -u SWIFT_TARGET_TRIPLE \
-    -u ARCHS \
-    -u VALID_ARCHS \
-    swift "$@"
+  clean_command "$SWIFT_EXECUTABLE" "$@"
 }
 
 if [[ ! -d "$ICON_SOURCE" ]]; then
@@ -36,7 +56,7 @@ if [[ ! -d "$ICON_SOURCE" ]]; then
   exit 1
 fi
 
-ACTOOL="${ACTOOL:-$(xcrun -f actool)}"
+ACTOOL="${ACTOOL:-$(clean_command /usr/bin/xcrun -f actool)}"
 if [[ ! -x "$ACTOOL" ]]; then
   echo "Could not find Xcode actool." >&2
   exit 1
@@ -93,7 +113,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 PARTIAL_INFO_PLIST="$TMP_DIR/IconInfo.plist"
 
-"$ACTOOL" "$ICON_SOURCE" \
+clean_command "$ACTOOL" "$ICON_SOURCE" \
   --compile "$RESOURCES_DIR" \
   --app-icon "$ICON_ASSET_NAME" \
   --platform macosx \
@@ -154,6 +174,6 @@ cat > "$CONTENTS_DIR/Info.plist" <<EOF
 </plist>
 EOF
 
-codesign --force --sign "$SIGN_IDENTITY" "$APP_BUNDLE" >/dev/null
+clean_command codesign --force --sign "$SIGN_IDENTITY" "$APP_BUNDLE" >/dev/null
 
 echo "$APP_BUNDLE"

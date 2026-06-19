@@ -6,6 +6,28 @@ public macro TinkerbleObservable() = #externalMacro(
 
 @attached(peer)
 public macro TinkerbleObservableState(
+    _ name: String,
+    screen: String? = nil,
+    category: String? = nil
+) = #externalMacro(
+    module: "TinkerbleMacros",
+    type: "TinkerbleObservableStateMacro"
+)
+
+@attached(peer)
+public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
+    _ name: String,
+    screen: String? = nil,
+    category: String? = nil,
+    control: TinkerbleControl<Value>
+) = #externalMacro(
+    module: "TinkerbleMacros",
+    type: "TinkerbleObservableStateMacro"
+)
+
+@available(*, deprecated, message: "Use @TinkerbleObservableState(\"Name\", screen: ..., category: ...) instead.")
+@attached(peer)
+public macro TinkerbleObservableState(
     name: String,
     screen: String? = nil,
     category: String? = nil
@@ -14,6 +36,7 @@ public macro TinkerbleObservableState(
     type: "TinkerbleObservableStateMacro"
 )
 
+@available(*, deprecated, message: "Use @TinkerbleObservableState(\"Name\", screen: ..., category: ..., control: ...) instead.")
 @attached(peer)
 public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
     name: String,
@@ -25,6 +48,7 @@ public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
     type: "TinkerbleObservableStateMacro"
 )
 
+@available(*, deprecated, message: "Use @TinkerbleObservableState(\"Name\", category: \"Category\") instead.")
 @attached(peer)
 public macro TinkerbleObservableState(
     category: String,
@@ -35,6 +59,7 @@ public macro TinkerbleObservableState(
     type: "TinkerbleObservableStateMacro"
 )
 
+@available(*, deprecated, message: "Use @TinkerbleObservableState(\"Name\", category: \"Category\", control: ...) instead.")
 @attached(peer)
 public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
     category: String,
@@ -46,6 +71,7 @@ public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
     type: "TinkerbleObservableStateMacro"
 )
 
+@available(*, deprecated, message: "Use @TinkerbleObservableState(\"Name\", category: \"Category\"). The unlabeled argument is now the tweak name.")
 @attached(peer)
 public macro TinkerbleObservableState(
     _ category: String,
@@ -56,6 +82,7 @@ public macro TinkerbleObservableState(
     type: "TinkerbleObservableStateMacro"
 )
 
+@available(*, deprecated, message: "Use @TinkerbleObservableState(\"Name\", category: \"Category\", control: ...). The unlabeled argument is now the tweak name.")
 @attached(peer)
 public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
     _ category: String,
@@ -67,6 +94,22 @@ public macro TinkerbleObservableState<Value: TinkerbleValueConvertible>(
     type: "TinkerbleObservableStateMacro"
 )
 
+@attached(peer)
+public macro TinkerbleAction() = #externalMacro(
+    module: "TinkerbleMacros",
+    type: "TinkerbleActionMacro"
+)
+
+@attached(peer)
+public macro TinkerbleAction(
+    category: String,
+    screen: String? = nil
+) = #externalMacro(
+    module: "TinkerbleMacros",
+    type: "TinkerbleActionMacro"
+)
+
+@available(*, deprecated, message: "Use @TinkerbleAction(\"Name\", screen: ..., category: ...) instead.")
 @attached(peer)
 public macro TinkerbleAction(
     name: String? = nil,
@@ -87,10 +130,11 @@ public macro TinkerbleAction(
     type: "TinkerbleActionMacro"
 )
 
+@available(*, deprecated, message: "Use @TinkerbleAction(\"Name\", category: \"Category\") instead.")
 @attached(peer)
 public macro TinkerbleAction(
     category: String,
-    name: String? = nil,
+    name: String?,
     screen: String? = nil
 ) = #externalMacro(
     module: "TinkerbleMacros",

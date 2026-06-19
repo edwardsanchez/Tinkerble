@@ -122,17 +122,17 @@ private struct LogsDemoDragSurfaceView: View {
         let blendProgress = LogsDemoTelemetry.blendProgress(for: puckPosition, in: containerSize)
         let resolvedColor = LogsDemoTelemetry.resolvedColor(progress: blendProgress)
 
-        TinkerLog.value(name: "Position", value: puckPosition, screen: "Logs Demo", category: "Motion")
-        TinkerLog.value(name: "Translation", value: translation, screen: "Logs Demo", category: "Motion")
-        TinkerLog.value(name: "Velocity", value: velocity, screen: "Logs Demo", category: "Motion")
+        TinkerLog.value("Position", value: puckPosition, screen: "Logs Demo", category: "Motion")
+        TinkerLog.value("Translation", value: translation, screen: "Logs Demo", category: "Motion")
+        TinkerLog.value("Velocity", value: velocity, screen: "Logs Demo", category: "Motion")
         TinkerLog.value(
-            name: "Is Dragging",
+            "Is Dragging",
             value: isDragging ? "true" : "false",
             screen: "Logs Demo",
             category: "Motion"
         )
-        TinkerLog.value(name: "Resolved Color", value: resolvedColor, screen: "Logs Demo", category: "Color")
-        TinkerLog.value(name: "Blend Progress", value: blendProgress, screen: "Logs Demo", category: "Color")
+        TinkerLog.value("Resolved Color", value: resolvedColor, screen: "Logs Demo", category: "Color")
+        TinkerLog.value("Blend Progress", value: blendProgress, screen: "Logs Demo", category: "Color")
     }
 }
 

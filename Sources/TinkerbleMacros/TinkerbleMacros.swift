@@ -143,7 +143,7 @@ public struct TinkerbleObservableMacro: MemberMacro {
                 \(activationCalls.indentedByFourSpaces)
                 }
                 """
-            ),
+            )
         ]
     }
 }
@@ -190,7 +190,7 @@ public struct TinkerbleActionsMacro: MemberMacro {
                 \(activationCalls.indentedByFourSpaces)
                 }
                 """
-            ),
+            )
         ]
     }
 }
@@ -201,7 +201,7 @@ struct TinkerbleMacrosPlugin: CompilerPlugin {
         TinkerbleActionsMacro.self,
         TinkerbleActionMacro.self,
         TinkerbleObservableMacro.self,
-        TinkerbleObservableStateMacro.self,
+        TinkerbleObservableStateMacro.self
     ]
 }
 
@@ -354,12 +354,17 @@ private struct ObservableStateArguments {
 
     init(attribute: AttributeSyntax) {
         guard case let .argumentList(arguments) = attribute.arguments else { return }
+        let hasLabeledName = arguments.contains { $0.label?.text == "name" }
 
         for argument in arguments {
             let expression = argument.expression.description.trimmingCharacters(in: .whitespacesAndNewlines)
             switch argument.label?.text {
             case nil:
-                category = expression
+                if hasLabeledName {
+                    category = expression
+                } else {
+                    name = expression
+                }
             case "category":
                 category = expression
             case "name":

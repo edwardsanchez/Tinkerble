@@ -12,22 +12,22 @@ struct BasicDemoView: View {
     @State private var observableModel = ObservableDemoModel()
     @State private var actionModel = ActionDemoModel()
 
-    @TinkerbleState(name: "Title", screen: "Basic")
+    @TinkerbleState("Title", screen: "Basic")
     private var title = "Tinkerble Demo"
 
-    @TinkerbleState(category: "Flags", name: "Enabled", screen: "Basic")
+    @TinkerbleState("Enabled", screen: "Basic", category: "Flags")
     private var isEnabled = true
 
-    @TinkerbleState(category: "Palette", name: "Accent Color", screen: "Basic")
+    @TinkerbleState("Accent Color", screen: "Basic", category: "Palette")
     private var accentColor = Color.blue
 
-    @TinkerbleState(category: "Layout", name: "Card Count", screen: "Basic")
+    @TinkerbleState("Card Count", screen: "Basic", category: "Layout")
     private var cardCount = 3
 
-    @TinkerbleState(category: "Layout", name: "Opacity", screen: "Basic", control: .slider(0.0...1.0))
+    @TinkerbleState("Opacity", screen: "Basic", category: "Layout", control: .slider(0.0...1.0))
     private var opacity = 0.82
 
-    @TinkerbleState(category: "Modes", name: "Mood", screen: "Basic")
+    @TinkerbleState("Mood", screen: "Basic", category: "Modes")
     private var mood = DemoMood.focused
 
     var body: some View {

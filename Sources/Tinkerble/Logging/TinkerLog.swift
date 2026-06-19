@@ -5,7 +5,7 @@ public enum TinkerLog {
     private static let logger = Logger(subsystem: "Tinkerble", category: "TinkerLog")
 
     public static func value<Value: TinkerbleLogValueConvertible>(
-        name: String,
+        _ name: String,
         value: Value,
         screen: String? = nil,
         category: String? = nil,
@@ -26,7 +26,18 @@ public enum TinkerLog {
 #endif
     }
 
-    @available(*, deprecated, message: "Use value(name:value:screen:category:) for live log values.")
+    @available(*, deprecated, message: "Use value(\"Name\", value: ..., screen: ..., category: ...) instead.")
+    public static func value<Value: TinkerbleLogValueConvertible>(
+        name: String,
+        value: Value,
+        screen: String? = nil,
+        category: String? = nil,
+        decimalPlaces: Int = TinkerbleLogValue.defaultDecimalPlaces
+    ) {
+        Self.value(name, value: value, screen: screen, category: category, decimalPlaces: decimalPlaces)
+    }
+
+    @available(*, deprecated, message: "Use value(\"Name\", value: ..., screen: ..., category: ...) for live log values.")
     public static func log(_ message: String) {
         logger.debug("\(message, privacy: .public)")
 #if DEBUG
@@ -36,7 +47,7 @@ public enum TinkerLog {
 #endif
     }
 
-    @available(*, deprecated, message: "Use value(name:value:screen:category:) for live log values.")
+    @available(*, deprecated, message: "Use value(\"Name\", value: ..., screen: ..., category: ...) for live log values.")
     public static func print(_ message: String) {
         log(message)
     }

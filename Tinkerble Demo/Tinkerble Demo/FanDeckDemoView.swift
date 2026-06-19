@@ -10,43 +10,43 @@ import Tinkerble
 import UIKit
 
 struct FanDeckDemoView: View {
-    @TinkerbleState(category: "Deck", name: "Card Count", screen: "Fan Deck", control: TinkerbleControl<Int>.slider(2...9))
+    @TinkerbleState("Card Count", screen: "Fan Deck", category: "Deck", control: TinkerbleControl<Int>.slider(2...9))
     private var cardCount = 5
 
-    @TinkerbleState(category: "Deck", name: "Card Size", screen: "Fan Deck", control: .slider(120.0...320.0))
+    @TinkerbleState("Card Size", screen: "Fan Deck", category: "Deck", control: .slider(120.0...320.0))
     private var cardSize = 220.0
 
-    @TinkerbleState(category: "Deck", name: "Card Spacing", screen: "Fan Deck", control: .slider(0.0...120.0))
+    @TinkerbleState("Card Spacing", screen: "Fan Deck", category: "Deck", control: .slider(0.0...120.0))
     private var cardSpacing = 52.0
 
-    @TinkerbleState(category: "Curve", name: "Spread Angle", screen: "Fan Deck", control: .slider(0.0...90.0))
+    @TinkerbleState("Spread Angle", screen: "Fan Deck", category: "Curve", control: .slider(0.0...90.0))
     private var spreadAngle = 38.0
 
-    @TinkerbleState(category: "Curve", name: "Arc Lift", screen: "Fan Deck", control: .slider(0.0...140.0))
+    @TinkerbleState("Arc Lift", screen: "Fan Deck", category: "Curve", control: .slider(0.0...140.0))
     private var arcLift = 34.0
 
-    @TinkerbleState(category: "Curve", name: "Edge Scale", screen: "Fan Deck", control: .slider(0.5...1.0))
+    @TinkerbleState("Edge Scale", screen: "Fan Deck", category: "Curve", control: .slider(0.5...1.0))
     private var edgeScale = 1.0
 
-    @TinkerbleState(category: "Appearance", name: "Corner Radius", screen: "Fan Deck", control: .slider(0.0...60.0))
+    @TinkerbleState("Corner Radius", screen: "Fan Deck", category: "Appearance", control: .slider(0.0...60.0))
     private var cornerRadius = 12.0
 
-    @TinkerbleState(category: "Appearance", name: "Shadow Radius", screen: "Fan Deck", control: .slider(0.0...30.0))
+    @TinkerbleState("Shadow Radius", screen: "Fan Deck", category: "Appearance", control: .slider(0.0...30.0))
     private var shadowRadius = 6.0
 
-    @TinkerbleState(category: "Appearance", name: "Shadow Opacity", screen: "Fan Deck", control: .slider(0.0...1.0))
+    @TinkerbleState("Shadow Opacity", screen: "Fan Deck", category: "Appearance", control: .slider(0.0...1.0))
     private var shadowOpacity = 0.18
 
-    @TinkerbleState(category: "Animation", name: "Duration", screen: "Fan Deck", control: .slider(0.1...2.0, step: 0.05, decimalPlaces: 2))
+    @TinkerbleState("Duration", screen: "Fan Deck", category: "Animation", control: .slider(0.1...2.0, step: 0.05, decimalPlaces: 2))
     private var duration = 0.45
 
-    @TinkerbleState(category: "Animation", name: "Bounciness", screen: "Fan Deck", control: .slider(0.0...1.0))
+    @TinkerbleState("Bounciness", screen: "Fan Deck", category: "Animation", control: .slider(0.0...1.0))
     private var bounciness = 0.35
 
-    @TinkerbleState(category: "Colors", name: "Start Color", screen: "Fan Deck")
+    @TinkerbleState("Start Color", screen: "Fan Deck", category: "Colors")
     private var startColor = Color.blue
 
-    @TinkerbleState(category: "Colors", name: "End Color", screen: "Fan Deck")
+    @TinkerbleState("End Color", screen: "Fan Deck", category: "Colors")
     private var endColor = Color.purple
 
     var body: some View {

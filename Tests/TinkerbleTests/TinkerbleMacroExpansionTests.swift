@@ -11,7 +11,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
             @Observable
             @MainActor
             final class Model {
-                @TinkerbleObservableState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+                @TinkerbleObservableState("Badge Count", screen: "Basic", category: "Observable", control: TinkerbleControl<Int>.plain)
                 var badgeCount = 2
             }
             """,
@@ -51,17 +51,17 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
         )
     }
 
-    func testObservableMacroSupportsDefaultAndUnlabeledCategoryOverloads() {
+    func testObservableMacroSupportsCanonicalUnlabeledNameOverloads() {
         assertMacroExpansion(
             """
             @TinkerbleObservable
             @Observable
             @MainActor
             final class Model {
-                @TinkerbleObservableState(name: "Title")
+                @TinkerbleObservableState("Title")
                 var title = "Demo"
 
-                @TinkerbleObservableState("Layout", name: "Opacity", screen: "Basic", control: .slider(0.0...1.0))
+                @TinkerbleObservableState("Opacity", screen: "Basic", category: "Layout", control: .slider(0.0...1.0))
                 var opacity = 0.5
             }
             """,
@@ -120,6 +120,53 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
         )
     }
 
+    func testObservableMacroKeepsDeprecatedUnlabeledCategoryOverloadMeaning() {
+        assertMacroExpansion(
+            """
+            @TinkerbleObservable
+            @Observable
+            @MainActor
+            final class Model {
+                @TinkerbleObservableState("Layout", name: "Opacity", screen: "Basic", control: .slider(0.0...1.0))
+                var opacity = 0.5
+            }
+            """,
+            expandedSource:
+            """
+            @Observable
+            @MainActor
+            final class Model {
+                var opacity = 0.5
+
+                @ObservationIgnored
+                private let _tinkerbleObservableState_opacityRegistration = TinkerbleObservableStateRegistration()
+
+                init() {
+                    _tinkerbleActivateObservableStates()
+                }
+
+                private func _tinkerbleActivateObservableStates() {
+                    _tinkerbleObservableState_opacityRegistration.activate(
+                        owner: self,
+                        initialValue: opacity,
+                        name: "Opacity",
+                        screen: "Basic",
+                        category: "Layout",
+                        control: .slider(0.0 ... 1.0),
+                        readValue: { owner in
+                            owner.opacity
+                        },
+                        applyRemoteValue: { owner, value in
+                            owner.opacity = value
+                        }
+                    )
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
     func testObservableMacroDiagnosesExplicitInitializers() {
         assertMacroExpansion(
             """
@@ -127,7 +174,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
             @Observable
             @MainActor
             final class Model {
-                @TinkerbleObservableState(name: "Title")
+                @TinkerbleObservableState("Title")
                 var title = "Demo"
 
                 init(title: String) {
@@ -152,7 +199,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                     message: "@TinkerbleObservable currently supports only default-initialized classes without explicit initializers.",
                     line: 1,
                     column: 1
-                ),
+                )
             ],
             macros: testMacros
         )
@@ -165,7 +212,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
             @Observable
             @MainActor
             final class Model {
-                @TinkerbleObservableState(name: "Title")
+                @TinkerbleObservableState("Title")
                 var title: String
             }
             """,
@@ -182,7 +229,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                     message: "@TinkerbleObservable requires stored properties to have default values.",
                     line: 1,
                     column: 1
-                ),
+                )
             ],
             macros: testMacros
         )
@@ -194,7 +241,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
             @TinkerbleObservable
             @MainActor
             final class Model {
-                @TinkerbleObservableState(name: "Title")
+                @TinkerbleObservableState("Title")
                 var title = "Demo"
             }
             """,
@@ -210,7 +257,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                     message: "@TinkerbleObservable requires the class to also be marked @Observable.",
                     line: 1,
                     column: 1
-                ),
+                )
             ],
             macros: testMacros
         )
@@ -221,7 +268,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
             """
             @TinkerbleActions
             final class Model {
-                @TinkerbleAction(name: "Toggle Fan", screen: "Fan Deck", category: "Animation")
+                @TinkerbleAction("Toggle Fan", screen: "Fan Deck", category: "Animation")
                 func toggleFan() {
                 }
             }
@@ -328,7 +375,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                     message: "@TinkerbleAction requires a method with no parameters.",
                     line: 3,
                     column: 19
-                ),
+                )
             ],
             macros: testMacros
         )
@@ -340,7 +387,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
             @TinkerbleObservable
             @Observable
             final class Model {
-                @TinkerbleObservableState(name: "Title")
+                @TinkerbleObservableState("Title")
                 var title = "Demo"
             }
             """,
@@ -356,7 +403,7 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                     message: "@TinkerbleObservable requires the class to also be marked @MainActor.",
                     line: 1,
                     column: 1
-                ),
+                )
             ],
             macros: testMacros
         )
@@ -366,6 +413,6 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
         "TinkerbleAction": TinkerbleActionMacro.self,
         "TinkerbleActions": TinkerbleActionsMacro.self,
         "TinkerbleObservable": TinkerbleObservableMacro.self,
-        "TinkerbleObservableState": TinkerbleObservableStateMacro.self,
+        "TinkerbleObservableState": TinkerbleObservableStateMacro.self
     ]
 }

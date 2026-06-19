@@ -86,7 +86,7 @@ In Xcode:
 1. Add the local package at the repository root, or add the remote repository URL.
 2. Link the `Tinkerble` product to the app target.
 3. Duplicate your normal shared run scheme as `MyApp + Tinkerble`.
-4. Add a Debug-only Launch pre-action to the `+ Tinkerble` scheme that calls `Scripts/ensure-macos-companion-running.sh` from the resolved package checkout. Keep the normal scheme free of Tinkerble launch hooks for SwiftUI previews and ordinary builds.
+4. Add a Debug-only Build pre-action to the `+ Tinkerble` scheme that calls `Scripts/ensure-macos-companion-running.sh` from the resolved package checkout with a clean tool environment. Keep the normal scheme free of Tinkerble launch hooks for SwiftUI previews and ordinary builds.
 
 In `Package.swift`:
 ```swift
@@ -142,23 +142,23 @@ struct DemoApp: App {
 
 Use `@TinkerbleState` for SwiftUI view-local tweakable state:
 ```swift
-@TinkerbleState(name: "Title")
+@TinkerbleState("Title")
 private var title = "Demo"
 
-@TinkerbleState(category: "Layout", name: "Width", control: .slider(5...400))
+@TinkerbleState("Width", category: "Layout", control: .slider(5...400))
 private var width = 120
 
-@TinkerbleState(category: "Layout", name: "Opacity", control: .slider(0.0...1.0))
+@TinkerbleState("Opacity", category: "Layout", control: .slider(0.0...1.0))
 private var opacity = 0.5
 
-@TinkerbleState(category: "Flags", name: "Enabled")
+@TinkerbleState("Enabled", category: "Flags")
 private var isEnabled = true
 
-@TinkerbleState(category: "Palette", name: "Accent Color")
+@TinkerbleState("Accent Color", category: "Palette")
 private var accent = Color.blue
 ```
 
-Swift does not reliably expose the wrapped variable name to the property wrapper, so `name` is required. `screen` and `category` are optional. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups.
+Swift does not reliably expose the wrapped variable name to the property wrapper, so the display name is required as the first argument. `screen` and `category` are optional and always labeled. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups. Older `name:` and category-first spellings are deprecated; replace `@TinkerbleState(category: "Layout", name: "Opacity")` with `@TinkerbleState("Opacity", category: "Layout")`.
 
 Use `@TinkerbleObservableState` for normal stored properties inside `@Observable` classes. Add `@TinkerbleObservable` to the class and keep using normal Observation and `@Bindable` bindings from SwiftUI:
 
@@ -167,10 +167,10 @@ Use `@TinkerbleObservableState` for normal stored properties inside `@Observable
 @Observable
 @MainActor
 final class Model {
-    @TinkerbleObservableState(category: "Observable", name: "Badge Text", screen: "Basic")
+    @TinkerbleObservableState("Badge Text", screen: "Basic", category: "Observable")
     var badgeText = "Observable Model"
 
-    @TinkerbleObservableState(category: "Observable", name: "Badge Count", screen: "Basic", control: TinkerbleControl<Int>.plain)
+    @TinkerbleObservableState("Badge Count", screen: "Basic", category: "Observable", control: TinkerbleControl<Int>.plain)
     var badgeCount = 2
 }
 
@@ -183,7 +183,7 @@ struct EditorView: View {
 }
 ```
 
-`@TinkerbleObservableState` supports the same `name`, `category`, `screen`, and `control` arguments as `@TinkerbleState`, but it does not create projected SwiftUI bindings. The property remains a normal Observation-tracked property, so SwiftUI bindings come from `@Bindable`.
+`@TinkerbleObservableState` supports the same required display name plus optional `screen`, `category`, and `control` arguments as `@TinkerbleState`, but it does not create projected SwiftUI bindings. The property remains a normal Observation-tracked property, so SwiftUI bindings come from `@Bindable`.
 
 Use `.tinkerbleAction` to expose a companion button from a SwiftUI view:
 ```swift
@@ -211,14 +211,14 @@ final class Model {
         activateTinkerbleActions()
     }
 
-    @TinkerbleAction(name: "Increment Action Count", screen: "Basic", category: "Observable")
+    @TinkerbleAction("Increment Action Count", screen: "Basic", category: "Observable")
     func incrementActionCount() {
         actionCount += 1
     }
 }
 ```
 
-`@TinkerbleAction` methods must not take parameters. They support optional `name`, `screen`, and `category` arguments. If `name` is omitted, Tinkerble uses the method name.
+`@TinkerbleAction` methods must not take parameters. Pass a custom display name as the first argument and keep `screen` and `category` labeled. If the name is omitted, Tinkerble uses the method name.
 
 Basic enums use `TinkerbleEnum`:
 ```swift
@@ -227,7 +227,7 @@ enum DemoMode: String, CaseIterable, TinkerbleEnum {
     case expanded
 }
 
-@TinkerbleState(category: "Modes", name: "Mode")
+@TinkerbleState("Mode", category: "Modes")
 private var mode = DemoMode.compact
 ```
 
@@ -235,9 +235,9 @@ private var mode = DemoMode.compact
 Use `TinkerLog.value` when you want to watch live values without turning them into editable controls:
 
 ```swift
-TinkerLog.value(name: "Visible Cards", value: cards.count, screen: "Cards", category: "Deck")
-TinkerLog.value(name: "Current Opacity", value: opacity, screen: "Cards")
-TinkerLog.value(name: "Card Frame", value: cardFrame, screen: "Cards", category: "Layout")
+TinkerLog.value("Visible Cards", value: cards.count, screen: "Cards", category: "Deck")
+TinkerLog.value("Current Opacity", value: opacity, screen: "Cards")
+TinkerLog.value("Card Frame", value: cardFrame, screen: "Cards", category: "Layout")
 ```
 
 ![Tinkerble logs window showing live app values](Documentation/Assets/tinkerble-logs.gif)
@@ -256,9 +256,9 @@ Supported log values:
 Numeric log values default to one decimal place. Pass `decimalPlaces:` to control display precision for decimal values and Core Graphics component values:
 
 ```swift
-TinkerLog.value(name: "FPS", value: fps, decimalPlaces: 0)
-TinkerLog.value(name: "Velocity", value: velocity, screen: "Cards", category: "Motion", decimalPlaces: 2)
-Tinkerble.shared.log(name: "Drag Vector", value: dragVector, decimalPlaces: 2)
+TinkerLog.value("FPS", value: fps, decimalPlaces: 0)
+TinkerLog.value("Velocity", value: velocity, screen: "Cards", category: "Motion", decimalPlaces: 2)
+Tinkerble.shared.log("Drag Vector", value: dragVector, decimalPlaces: 2)
 ```
 
 `decimalPlaces` is clamped to the supported `0...9` range, and decimal display is truncated rather than rounded. For example, `12.999` with `decimalPlaces: 2` displays as `12.99`. Integer log values ignore decimal precision because they are already whole-number values.
@@ -270,33 +270,33 @@ Each log category card includes copy and export actions. Export writes tab-separ
 ## Text Controls
 Strings use a regular input field by default:
 ```swift
-@TinkerbleState(name: "Title")
+@TinkerbleState("Title")
 private var title = "Demo"
 ```
 
 You can opt into a text area, or ask Tinkerble to pick one when the registered text is longer than 25 characters:
 ```swift
-@TinkerbleState(name: "Notes", control: .area)
+@TinkerbleState("Notes", control: .area)
 private var notes = "Longer copy"
 
-@TinkerbleState(name: "Subtitle", control: .text(.automatic))
+@TinkerbleState("Subtitle", control: .text(.automatic))
 private var subtitle = "Short copy"
 ```
 
 ## Numeric Controls
 Integer controls expose integer-only APIs:
 ```swift
-@TinkerbleState(name: "Count", control: TinkerbleControl<Int>.plain)
+@TinkerbleState("Count", control: TinkerbleControl<Int>.plain)
 private var count = 3
 
-@TinkerbleState(name: "Columns", control: .slider(1...6))
+@TinkerbleState("Columns", control: .slider(1...6))
 private var columns = 3
 ```
 
 Decimal controls expose decimal configuration:
 
 ```swift
-@TinkerbleState(name: "Opacity", control: .slider(0.0...1.0, decimalPlaces: 2))
+@TinkerbleState("Opacity", control: .slider(0.0...1.0, decimalPlaces: 2))
 private var opacity = 0.5
 ```
 

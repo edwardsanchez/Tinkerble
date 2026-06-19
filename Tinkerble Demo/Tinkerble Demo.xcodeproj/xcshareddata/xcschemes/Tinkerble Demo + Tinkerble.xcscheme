@@ -6,6 +6,24 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       buildArchitectures = "Automatic">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Launch Tinkerble Companion"
+               scriptText = "set -eu&#10;&#10;CONFIG=&quot;${CONFIGURATION:-${BUILD_STYLE:-Debug}}&quot;&#10;&#10;if [ &quot;${CONFIG}&quot; != &quot;Debug&quot; ]; then&#10;  echo &quot;Skipping Tinkerble companion launch for ${CONFIG} run.&quot;&#10;  exit 0&#10;fi&#10;&#10;if [ &quot;${TINKERBLE_COMPANION_AUTOLAUNCH:-1}&quot; = &quot;0&quot; ]; then&#10;  echo &quot;Tinkerble companion autolaunch disabled.&quot;&#10;  exit 0&#10;fi&#10;&#10;CHECKOUT_ROOT=&quot;${TINKERBLE_SOURCE_PACKAGES_DIR:-}&quot;&#10;DERIVED_DATA_DIR=&quot;&quot;&#10;if [ -z &quot;${CHECKOUT_ROOT}&quot; ] &amp;&amp; [ -n &quot;${BUILD_DIR:-}&quot; ]; then&#10;  DERIVED_DATA_DIR=&quot;${BUILD_DIR%/Build/*}&quot;&#10;  CHECKOUT_ROOT=&quot;${DERIVED_DATA_DIR}/SourcePackages/checkouts&quot;&#10;fi&#10;&#10;PACKAGE_DIR=&quot;${TINKERBLE_PACKAGE_DIR:-}&quot;&#10;if [ -z &quot;${PACKAGE_DIR}&quot; ] &amp;&amp; [ -n &quot;${CHECKOUT_ROOT}&quot; ]; then&#10;  for candidate in &quot;${CHECKOUT_ROOT}/Tinkerble&quot; &quot;${CHECKOUT_ROOT}/tinkerble&quot; &quot;${CHECKOUT_ROOT}/Tinker&quot;; do&#10;    if [ -x &quot;${candidate}/Scripts/ensure-macos-companion-running.sh&quot; ]; then&#10;      PACKAGE_DIR=&quot;${candidate}&quot;&#10;      break&#10;    fi&#10;  done&#10;fi&#10;&#10;if [ -z &quot;${PACKAGE_DIR}&quot; ] &amp;&amp; [ -n &quot;${SRCROOT:-}&quot; ]; then&#10;  for candidate in &quot;${SRCROOT}&quot; &quot;${SRCROOT}/..&quot; &quot;${SRCROOT}/Tinkerble&quot; &quot;${SRCROOT}/../Tinkerble&quot;; do&#10;    if [ -x &quot;${candidate}/Scripts/ensure-macos-companion-running.sh&quot; ]; then&#10;      PACKAGE_DIR=&quot;$(cd &quot;${candidate}&quot; &amp;&amp; pwd)&quot;&#10;      break&#10;    fi&#10;  done&#10;fi&#10;&#10;if [ -z &quot;${PACKAGE_DIR}&quot; ]; then&#10;  echo &quot;Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path.&quot; &gt;&amp;2&#10;  exit 1&#10;fi&#10;&#10;COMPANION_SCRATCH_PATH=&quot;${TINKERBLE_COMPANION_SCRATCH_PATH:-}&quot;&#10;if [ -z &quot;${COMPANION_SCRATCH_PATH}&quot; ] &amp;&amp; [ -n &quot;${DERIVED_DATA_DIR}&quot; ]; then&#10;  COMPANION_SCRATCH_PATH=&quot;${DERIVED_DATA_DIR}/TinkerbleCompanionBuild&quot;&#10;fi&#10;if [ -z &quot;${COMPANION_SCRATCH_PATH}&quot; ]; then&#10;  COMPANION_SCRATCH_PATH=&quot;${PACKAGE_DIR}/.build/tinkerble-companion&quot;&#10;fi&#10;&#10;env -i \&#10;  HOME=&quot;${HOME:-}&quot; \&#10;  PATH=&quot;/usr/bin:/bin:/usr/sbin:/sbin&quot; \&#10;  TMPDIR=&quot;${TMPDIR:-/tmp}&quot; \&#10;  USER=&quot;${USER:-}&quot; \&#10;  LOGNAME=&quot;${LOGNAME:-}&quot; \&#10;  SHELL=&quot;${SHELL:-/bin/sh}&quot; \&#10;  DEVELOPER_DIR=&quot;${DEVELOPER_DIR:-}&quot; \&#10;  TOOLCHAINS=&quot;${TOOLCHAINS:-}&quot; \&#10;  SSH_AUTH_SOCK=&quot;${SSH_AUTH_SOCK:-}&quot; \&#10;  CONFIGURATION=&quot;${CONFIG}&quot; \&#10;  TINKERBLE_COMPANION_AUTOLAUNCH=&quot;${TINKERBLE_COMPANION_AUTOLAUNCH:-1}&quot; \&#10;  TINKERBLE_COMPANION_PROCESS_NAME=&quot;${TINKERBLE_COMPANION_PROCESS_NAME:-}&quot; \&#10;  TINKERBLE_COMPANION_WAIT_TIMEOUT=&quot;${TINKERBLE_COMPANION_WAIT_TIMEOUT:-}&quot; \&#10;  TINKERBLE_COMPANION_APP_NAME=&quot;${TINKERBLE_COMPANION_APP_NAME:-}&quot; \&#10;  TINKERBLE_COMPANION_BUNDLE_ID=&quot;${TINKERBLE_COMPANION_BUNDLE_ID:-}&quot; \&#10;  TINKERBLE_COMPANION_VERSION=&quot;${TINKERBLE_COMPANION_VERSION:-}&quot; \&#10;  TINKERBLE_COMPANION_BUILD=&quot;${TINKERBLE_COMPANION_BUILD:-}&quot; \&#10;  TINKERBLE_COMPANION_SCRATCH_PATH=&quot;${COMPANION_SCRATCH_PATH}&quot; \&#10;  TINKERBLE_ICON_SOURCE=&quot;${TINKERBLE_ICON_SOURCE:-}&quot; \&#10;  TINKERBLE_ICON_ASSET_NAME=&quot;${TINKERBLE_ICON_ASSET_NAME:-}&quot; \&#10;  TINKERBLE_SIGN_IDENTITY=&quot;${TINKERBLE_SIGN_IDENTITY:-}&quot; \&#10;  TINKERBLE_SWIFT_EXECUTABLE=&quot;${TINKERBLE_SWIFT_EXECUTABLE:-}&quot; \&#10;  &quot;${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh&quot; --restart">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                  BuildableIdentifier = "primary"
+                  BlueprintIdentifier = "6D24A8502FCF8D8F0035FF2F"
+                  BuildableName = "Tinkerble Demo.app"
+                  BlueprintName = "Tinkerble Demo"
+                  ReferencedContainer = "container:Tinkerble Demo.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -40,24 +58,6 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
-      <PreActions>
-         <ExecutionAction
-            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
-            <ActionContent
-               title = "Launch Tinkerble Companion"
-               scriptText = "set -euo pipefail&#10;&#10;CONFIG=&quot;${CONFIGURATION:-${BUILD_STYLE:-Debug}}&quot;&#10;&#10;if [[ &quot;${CONFIG}&quot; != &quot;Debug&quot; ]]; then&#10;  echo &quot;Skipping Tinkerble companion launch for ${CONFIG} run.&quot;&#10;  exit 0&#10;fi&#10;&#10;if [[ &quot;${TINKERBLE_COMPANION_AUTOLAUNCH:-1}&quot; == &quot;0&quot; ]]; then&#10;  echo &quot;Tinkerble companion autolaunch disabled.&quot;&#10;  exit 0&#10;fi&#10;&#10;CHECKOUT_ROOT=&quot;${TINKERBLE_SOURCE_PACKAGES_DIR:-}&quot;&#10;DERIVED_DATA_DIR=&quot;&quot;&#10;if [[ -z &quot;${CHECKOUT_ROOT}&quot; &amp;&amp; -n &quot;${BUILD_DIR:-}&quot; ]]; then&#10;  DERIVED_DATA_DIR=&quot;${BUILD_DIR%/Build/*}&quot;&#10;  CHECKOUT_ROOT=&quot;${DERIVED_DATA_DIR}/SourcePackages/checkouts&quot;&#10;fi&#10;&#10;PACKAGE_DIR=&quot;${TINKERBLE_PACKAGE_DIR:-}&quot;&#10;if [[ -z &quot;${PACKAGE_DIR}&quot; &amp;&amp; -n &quot;${CHECKOUT_ROOT}&quot; ]]; then&#10;  for candidate in &quot;${CHECKOUT_ROOT}/Tinkerble&quot; &quot;${CHECKOUT_ROOT}/tinkerble&quot; &quot;${CHECKOUT_ROOT}/Tinker&quot;; do&#10;    if [[ -x &quot;${candidate}/Scripts/ensure-macos-companion-running.sh&quot; ]]; then&#10;      PACKAGE_DIR=&quot;${candidate}&quot;&#10;      break&#10;    fi&#10;  done&#10;fi&#10;&#10;if [[ -z &quot;${PACKAGE_DIR}&quot; &amp;&amp; -n &quot;${SRCROOT:-}&quot; ]]; then&#10;  for candidate in &quot;${SRCROOT}&quot; &quot;${SRCROOT}/..&quot; &quot;${SRCROOT}/Tinkerble&quot; &quot;${SRCROOT}/../Tinkerble&quot;; do&#10;    if [[ -x &quot;${candidate}/Scripts/ensure-macos-companion-running.sh&quot; ]]; then&#10;      PACKAGE_DIR=&quot;$(cd &quot;${candidate}&quot; &amp;&amp; pwd)&quot;&#10;      break&#10;    fi&#10;  done&#10;fi&#10;&#10;if [[ -z &quot;${PACKAGE_DIR}&quot; ]]; then&#10;  echo &quot;Unable to locate the Tinkerble package checkout. Set TINKERBLE_PACKAGE_DIR to the package path.&quot; &gt;&amp;2&#10;  exit 1&#10;fi&#10;&#10;COMPANION_SCRATCH_PATH=&quot;${TINKERBLE_COMPANION_SCRATCH_PATH:-}&quot;&#10;if [[ -z &quot;${COMPANION_SCRATCH_PATH}&quot; &amp;&amp; -n &quot;${DERIVED_DATA_DIR}&quot; ]]; then&#10;  COMPANION_SCRATCH_PATH=&quot;${DERIVED_DATA_DIR}/TinkerbleCompanionBuild&quot;&#10;fi&#10;if [[ -z &quot;${COMPANION_SCRATCH_PATH}&quot; ]]; then&#10;  COMPANION_SCRATCH_PATH=&quot;${PACKAGE_DIR}/.build/tinkerble-companion&quot;&#10;fi&#10;&#10;TINKERBLE_COMPANION_SCRATCH_PATH=&quot;${COMPANION_SCRATCH_PATH}&quot; &quot;${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh&quot; --restart">
-               <EnvironmentBuildable>
-                  <BuildableReference
-                  BuildableIdentifier = "primary"
-                  BlueprintIdentifier = "6D24A8502FCF8D8F0035FF2F"
-                  BuildableName = "Tinkerble Demo.app"
-                  BlueprintName = "Tinkerble Demo"
-                  ReferencedContainer = "container:Tinkerble Demo.xcodeproj">
-                  </BuildableReference>
-               </EnvironmentBuildable>
-            </ActionContent>
-         </ExecutionAction>
-      </PreActions>
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference

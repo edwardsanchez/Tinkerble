@@ -41,7 +41,7 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
         )
 
         client.connect(host: "127.0.0.1", port: port)
-        client.log(name: "Integration", value: "Integration log")
+        client.log("Integration", value: "Integration log")
         addTeardownBlock { @MainActor in
             client.disconnect()
         }
