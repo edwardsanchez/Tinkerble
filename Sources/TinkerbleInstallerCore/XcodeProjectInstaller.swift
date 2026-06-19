@@ -48,6 +48,7 @@ public final class XcodeProjectInstaller {
                 buildFileID: buildFileID,
                 projectDirectoryURL: projectDirectoryURL,
                 fileManager: fileManager,
+                dryRun: dryRun,
                 changes: &changes
             )
         }
@@ -325,6 +326,7 @@ struct ProjectText {
         buildFileID: String,
         projectDirectoryURL: URL,
         fileManager: FileManager,
+        dryRun: Bool,
         changes: inout [String]
     ) throws {
         guard let target = nativeTarget(named: targetName) else {
@@ -335,9 +337,11 @@ struct ProjectText {
         try ensureFrameworksBuildFile(frameworksPhaseID: target.frameworksPhaseID, buildFileID: buildFileID, changes: &changes)
         try removeCompanionBuildPhase(targetID: target.id, targetName: target.name, changes: &changes)
         try ensurePlistBuildSettings(
+            target: target,
             configurationListID: target.buildConfigurationListID,
             projectDirectoryURL: projectDirectoryURL,
             fileManager: fileManager,
+            dryRun: dryRun,
             changes: &changes
         )
     }
@@ -501,9 +505,11 @@ struct ProjectText {
     }
 
     private mutating func ensurePlistBuildSettings(
+        target: NativeTarget,
         configurationListID: String,
         projectDirectoryURL: URL,
         fileManager: FileManager,
+        dryRun: Bool,
         changes: inout [String]
     ) throws {
         guard let configurationList = object(id: configurationListID, section: "XCConfigurationList") else {
@@ -517,54 +523,330 @@ struct ProjectText {
             }
 
             var updated = configuration.block
-            let plistCapabilities = infoPlistCapabilities(
+            var plistMembershipExceptionPath: String?
+            let plist = infoPlist(
                 for: configuration.block,
                 projectDirectoryURL: projectDirectoryURL,
                 fileManager: fileManager
             )
-            if !plistCapabilities.hasLocalNetworkUsageDescription {
-                updated = ensureBuildSetting(
-                    in: updated,
-                    key: "INFOPLIST_KEY_NSLocalNetworkUsageDescription",
-                    value: "\"\(TinkerbleInstallerConstants.localNetworkUsageDescription)\""
+
+            switch plist {
+            case let .file(plistURL, capabilities):
+                if try ensureTinkerbleInfoPlistEntries(
+                    at: plistURL,
+                    fileManager: fileManager,
+                    dryRun: dryRun,
+                    capabilities: capabilities
+                ) {
+                    changes.append("Updated Tinkerble plist entries for \(configuration.name).")
+                }
+            case let .missingExplicitFile(plistPath):
+                throw TinkerbleInstallError.malformedProject("Could not read configured Info.plist at \(plistPath).")
+            case .generated:
+                let plistPath = "\(target.name)/Info.plist"
+                let plistURL = try ensureGeneratedInfoPlist(
+                    at: plistPath,
+                    for: configuration.block,
+                    target: target,
+                    projectDirectoryURL: projectDirectoryURL,
+                    fileManager: fileManager,
+                    dryRun: dryRun
                 )
-            }
-            if !plistCapabilities.hasBonjourService {
-                updated = ensureBuildSetting(
-                    in: updated,
-                    key: "INFOPLIST_KEY_NSBonjourServices",
-                    value: TinkerbleInstallerConstants.bonjourService
-                )
+                updated = setBuildSetting(in: updated, key: "GENERATE_INFOPLIST_FILE", value: "NO")
+                updated = setBuildSetting(in: updated, key: "INFOPLIST_FILE", value: plistPath.pbxListValue)
+                plistMembershipExceptionPath = plistPath
+                changes.append("Created explicit Tinkerble plist at \(plistURL.path).")
             }
 
             if updated != configuration.block {
                 replace(configuration.range, with: updated)
                 changes.append("Updated Tinkerble plist/build settings for \(configuration.name).")
             }
+
+            if let plistMembershipExceptionPath {
+                try ensureInfoPlistMembershipException(
+                    target: target,
+                    plistPath: plistMembershipExceptionPath,
+                    changes: &changes
+                )
+            }
         }
     }
 
-    private func infoPlistCapabilities(
+    private func infoPlist(
         for configurationBlock: String,
         projectDirectoryURL: URL,
         fileManager: FileManager
-    ) -> InfoPlistCapabilities {
-        guard value(named: "GENERATE_INFOPLIST_FILE", in: configurationBlock) != "YES",
-              let plistPath = value(named: "INFOPLIST_FILE", in: configurationBlock),
-              let plistURL = infoPlistURL(path: plistPath, projectDirectoryURL: projectDirectoryURL),
+    ) -> InfoPlistLocation {
+        if value(named: "GENERATE_INFOPLIST_FILE", in: configurationBlock) == "YES" {
+            return .generated
+        }
+
+        guard let plistPath = value(named: "INFOPLIST_FILE", in: configurationBlock) else {
+            return .generated
+        }
+
+        guard let plistURL = infoPlistURL(path: plistPath, projectDirectoryURL: projectDirectoryURL),
               fileManager.fileExists(atPath: plistURL.path),
               let data = fileManager.contents(atPath: plistURL.path),
               let propertyList = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let dictionary = propertyList as? [String: Any] else {
-            return .missing
+            return .missingExplicitFile(plistPath)
         }
 
-        let hasLocalNetworkUsageDescription = dictionary["NSLocalNetworkUsageDescription"] is String
-        let bonjourServices = dictionary["NSBonjourServices"] as? [String] ?? []
-        return InfoPlistCapabilities(
-            hasLocalNetworkUsageDescription: hasLocalNetworkUsageDescription,
-            hasBonjourService: bonjourServices.contains(TinkerbleInstallerConstants.bonjourService)
+        return .file(plistURL, InfoPlistCapabilities(dictionary: dictionary))
+    }
+
+    private func ensureTinkerbleInfoPlistEntries(
+        at plistURL: URL,
+        fileManager: FileManager,
+        dryRun: Bool,
+        capabilities: InfoPlistCapabilities
+    ) throws -> Bool {
+        guard !capabilities.hasLocalNetworkUsageDescription || !capabilities.hasBonjourService else {
+            return false
+        }
+
+        let dictionary = try infoPlistDictionary(at: plistURL, fileManager: fileManager)
+        let updated = infoPlistDictionaryWithTinkerbleEntries(dictionary)
+        guard !NSDictionary(dictionary: updated).isEqual(to: dictionary) else {
+            return false
+        }
+
+        if !dryRun {
+            try writeInfoPlistDictionary(updated, to: plistURL)
+        }
+        return true
+    }
+
+    private func ensureGeneratedInfoPlist(
+        at plistPath: String,
+        for configurationBlock: String,
+        target: NativeTarget,
+        projectDirectoryURL: URL,
+        fileManager: FileManager,
+        dryRun: Bool
+    ) throws -> URL {
+        guard let plistURL = infoPlistURL(path: plistPath, projectDirectoryURL: projectDirectoryURL) else {
+            throw TinkerbleInstallError.malformedProject("Could not resolve generated plist path \(plistPath).")
+        }
+
+        let existing = fileManager.fileExists(atPath: plistURL.path)
+            ? try infoPlistDictionary(at: plistURL, fileManager: fileManager)
+            : generatedInfoPlistDictionary(for: configurationBlock, target: target)
+        let updated = infoPlistDictionaryWithTinkerbleEntries(existing)
+
+        if !dryRun {
+            try fileManager.createDirectory(at: plistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try writeInfoPlistDictionary(updated, to: plistURL)
+        }
+        return plistURL
+    }
+
+    private func generatedInfoPlistDictionary(for configurationBlock: String, target: NativeTarget) -> [String: Any] {
+        var dictionary: [String: Any] = [
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
+            "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+            "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)"
+        ]
+
+        let buildSettings = buildSettings(in: configurationBlock)
+        for (rawKey, value) in buildSettings where rawKey.hasPrefix("INFOPLIST_KEY_") {
+            let key = infoPlistKey(fromBuildSetting: rawKey)
+            switch key {
+            case "UIApplicationSceneManifest_Generation" where value == "YES":
+                dictionary["UIApplicationSceneManifest"] = [
+                    "UIApplicationSupportsMultipleScenes": true,
+                    "UISceneConfigurations": [:]
+                ]
+            case "UILaunchScreen_Generation" where value == "YES":
+                dictionary["UILaunchScreen"] = [:]
+            case "UISupportedInterfaceOrientations":
+                dictionary[key] = plistArray(from: value)
+            case "UISupportedInterfaceOrientations_iPad":
+                dictionary["UISupportedInterfaceOrientations~ipad"] = plistArray(from: value)
+            case "NSBonjourServices":
+                dictionary[key] = plistArray(from: value)
+            case let generatedKey where generatedKey.hasSuffix("_Generation"):
+                continue
+            default:
+                dictionary[key] = plistValue(from: value)
+            }
+        }
+
+        dictionary["CFBundleName"] = dictionary["CFBundleName"] ?? target.name
+        return dictionary
+    }
+
+    private func infoPlistDictionaryWithTinkerbleEntries(_ dictionary: [String: Any]) -> [String: Any] {
+        var updated = dictionary
+        if updated["NSLocalNetworkUsageDescription"] as? String == nil {
+            updated["NSLocalNetworkUsageDescription"] = TinkerbleInstallerConstants.localNetworkUsageDescription
+        }
+
+        var services = updated["NSBonjourServices"] as? [String] ?? []
+        if !services.contains(TinkerbleInstallerConstants.bonjourService) {
+            services.append(TinkerbleInstallerConstants.bonjourService)
+        }
+        updated["NSBonjourServices"] = services
+        return updated
+    }
+
+    private func infoPlistDictionary(at plistURL: URL, fileManager: FileManager) throws -> [String: Any] {
+        guard let data = fileManager.contents(atPath: plistURL.path),
+              let propertyList = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            throw TinkerbleInstallError.malformedProject("Could not read Info.plist at \(plistURL.path).")
+        }
+
+        return propertyList
+    }
+
+    private func writeInfoPlistDictionary(_ dictionary: [String: Any], to plistURL: URL) throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: dictionary,
+            format: .xml,
+            options: 0
         )
+        try data.write(to: plistURL)
+    }
+
+    private func buildSettings(in block: String) -> [(key: String, value: String)] {
+        block
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { line -> (String, String)? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard let separator = trimmed.range(of: " = "),
+                      trimmed.hasSuffix(";") else {
+                    return nil
+                }
+
+                let key = String(trimmed[..<separator.lowerBound]).pbxUnquoted
+                let value = String(trimmed[separator.upperBound..<trimmed.index(before: trimmed.endIndex)]).pbxUnquoted
+                return (key, value)
+            }
+    }
+
+    private func infoPlistKey(fromBuildSetting rawKey: String) -> String {
+        let withoutPrefix = String(rawKey.dropFirst("INFOPLIST_KEY_".count))
+        guard let sdkCondition = withoutPrefix.firstIndex(of: "[") else {
+            return withoutPrefix
+        }
+        return String(withoutPrefix[..<sdkCondition])
+    }
+
+    private func plistArray(from value: String) -> [String] {
+        value
+            .split(separator: " ")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    private func plistValue(from value: String) -> Any {
+        switch value {
+        case "YES":
+            true
+        case "NO":
+            false
+        default:
+            value
+        }
+    }
+
+    private mutating func ensureInfoPlistMembershipException(
+        target: NativeTarget,
+        plistPath: String,
+        changes: inout [String]
+    ) throws {
+        for groupID in ids(inList: "fileSystemSynchronizedGroups", block: target.block) {
+            guard let group = object(id: groupID, section: "PBXFileSystemSynchronizedRootGroup"),
+                  let memberPath = synchronizedGroupMemberPath(plistPath: plistPath, group: group) else {
+                continue
+            }
+
+            if let exception = exceptionSet(for: target, group: group) {
+                try ensureMembershipException(memberPath, in: exception, changes: &changes)
+                continue
+            }
+
+            let exceptionID = makeID()
+            let exceptionObject = """
+\t\t\(exceptionID) /* Exceptions for "\(group.name)" folder in "\(target.name)" target */ = {
+\t\t\tisa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+\t\t\tmembershipExceptions = (
+\t\t\t\t\(memberPath.pbxListValue),
+\t\t\t);
+\t\t\ttarget = \(target.id) /* \(target.name) */;
+\t\t};
+"""
+            insertObject(exceptionObject, section: "PBXFileSystemSynchronizedBuildFileExceptionSet")
+
+            guard let currentGroup = object(id: groupID, section: "PBXFileSystemSynchronizedRootGroup") else {
+                throw TinkerbleInstallError.malformedProject("Missing synchronized group \(groupID).")
+            }
+
+            let updatedGroup = try addingListEntry(
+                to: currentGroup.block,
+                listName: "exceptions",
+                entry: "\t\t\t\t\(exceptionID) /* Exceptions for \"\(group.name)\" folder in \"\(target.name)\" target */,",
+                createBeforeKeys: ["path", "sourceTree"]
+            )
+            replace(currentGroup.range, with: updatedGroup)
+            changes.append("Excluded \(memberPath) from \(target.name)'s synchronized source folder.")
+        }
+    }
+
+    private func synchronizedGroupMemberPath(plistPath: String, group: ProjectObject) -> String? {
+        let groupPath = value(named: "path", in: group.block) ?? group.name
+        if plistPath == groupPath {
+            return plistPath.split(separator: "/").last.map(String.init)
+        }
+
+        let prefix = "\(groupPath)/"
+        guard plistPath.hasPrefix(prefix) else { return nil }
+        return String(plistPath.dropFirst(prefix.count))
+    }
+
+    private func exceptionSet(for target: NativeTarget, group: ProjectObject) -> ProjectObject? {
+        let exceptionIDs = ids(inList: "exceptions", block: group.block)
+        return exceptionIDs.compactMap { object(id: $0, section: "PBXFileSystemSynchronizedBuildFileExceptionSet") }
+            .first { $0.block.contains("target = \(target.id)") }
+    }
+
+    private mutating func ensureMembershipException(
+        _ memberPath: String,
+        in exception: ProjectObject,
+        changes: inout [String]
+    ) throws {
+        guard !stringValues(inList: "membershipExceptions", block: exception.block).contains(memberPath) else {
+            return
+        }
+
+        let updated = try addingListEntry(
+            to: exception.block,
+            listName: "membershipExceptions",
+            entry: "\t\t\t\t\(memberPath.pbxListValue),"
+        )
+        replace(exception.range, with: updated)
+        changes.append("Excluded \(memberPath) from synchronized source folder membership.")
+    }
+
+    private func stringValues(inList listName: String, block: String) -> [String] {
+        guard let listRange = block.range(of: "\(listName) = ("),
+              let openLineEnd = block[listRange.upperBound...].firstIndex(of: "\n"),
+              let listEnd = block[openLineEnd...].range(of: "\n\t\t\t);") else {
+            return []
+        }
+
+        return block[openLineEnd..<listEnd.lowerBound]
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t,")) }
+            .map(\.pbxUnquoted)
+            .filter { !$0.isEmpty }
     }
 
     private func infoPlistURL(path: String, projectDirectoryURL: URL) -> URL? {
@@ -590,9 +872,22 @@ struct ProjectText {
             || phase.block.contains("name = \(TinkerbleInstallerConstants.companionBuildPhaseName.pbxQuoted);")
     }
 
-    private func ensureBuildSetting(in block: String, key: String, value: String) -> String {
-        if block.contains("\(key) = ") {
-            return block
+    private func setBuildSetting(in block: String, key: String, value: String) -> String {
+        let prefix = "\(key) = "
+        let lines = block.split(separator: "\n", omittingEmptySubsequences: false)
+        var replaced = false
+        let updatedLines = lines.map { line -> String in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix(prefix), trimmed.hasSuffix(";") else {
+                return String(line)
+            }
+
+            replaced = true
+            let indentation = String(line.prefix { $0 == "\t" || $0 == " " })
+            return "\(indentation)\(key) = \(value);"
+        }
+        if replaced {
+            return updatedLines.joined(separator: "\n")
         }
 
         guard let settingsRange = block.range(of: "buildSettings = {\n") else {
@@ -867,10 +1162,27 @@ struct InfoPlistCapabilities {
     var hasLocalNetworkUsageDescription: Bool
     var hasBonjourService: Bool
 
+    init(dictionary: [String: Any]) {
+        hasLocalNetworkUsageDescription = dictionary["NSLocalNetworkUsageDescription"] is String
+        let bonjourServices = dictionary["NSBonjourServices"] as? [String] ?? []
+        hasBonjourService = bonjourServices.contains(TinkerbleInstallerConstants.bonjourService)
+    }
+
+    init(hasLocalNetworkUsageDescription: Bool, hasBonjourService: Bool) {
+        self.hasLocalNetworkUsageDescription = hasLocalNetworkUsageDescription
+        self.hasBonjourService = hasBonjourService
+    }
+
     static let missing = InfoPlistCapabilities(
         hasLocalNetworkUsageDescription: false,
         hasBonjourService: false
     )
+}
+
+enum InfoPlistLocation {
+    case file(URL, InfoPlistCapabilities)
+    case generated
+    case missingExplicitFile(String)
 }
 
 struct ProjectObject {
@@ -1003,6 +1315,15 @@ private extension String {
             .replacing("\"", with: "\\\"")
             .replacing("\n", with: "\\n")
         return "\"\(escaped)\""
+    }
+
+    var pbxListValue: String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./-$")
+        guard unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+            return pbxQuoted
+        }
+
+        return self
     }
 
     var pbxUnquoted: String {

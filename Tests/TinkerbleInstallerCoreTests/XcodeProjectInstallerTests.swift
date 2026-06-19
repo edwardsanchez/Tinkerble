@@ -80,6 +80,79 @@ final class XcodeProjectInstallerTests: XCTestCase {
         XCTAssertEqual(buildSettingValues(named: "INFOPLIST_KEY_NSBonjourServices", in: project), [])
     }
 
+    func testInstallerPreservesExistingInfoPlistUsageDescriptionWhenAddingBonjourService() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithInfoPlistFile)
+        try writeFixtureInfoPlist(
+            for: projectURL,
+            propertyList: [
+                "NSLocalNetworkUsageDescription": "Custom app-specific network message."
+            ]
+        )
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let plist = try readInfoPlist(projectURL, path: "MainApp/Info.plist")
+        XCTAssertEqual(plist["NSLocalNetworkUsageDescription"] as? String, "Custom app-specific network message.")
+        XCTAssertEqual(plist["NSBonjourServices"] as? [String], [TinkerbleInstallerConstants.bonjourService])
+    }
+
+    func testInstallerCreatesExplicitInfoPlistForGeneratedPlistProject() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithGeneratedInfoPlist)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let project = try readProject(projectURL)
+        let plist = try readInfoPlist(projectURL, path: "MainApp/Info.plist")
+
+        XCTAssertEqual(buildSettingValues(named: "GENERATE_INFOPLIST_FILE", in: project), ["NO", "NO"])
+        XCTAssertEqual(buildSettingValues(named: "INFOPLIST_FILE", in: project), ["MainApp/Info.plist", "MainApp/Info.plist"])
+        XCTAssertEqual(plist["NSBonjourServices"] as? [String], [TinkerbleInstallerConstants.bonjourService])
+        XCTAssertEqual(plist["NSLocalNetworkUsageDescription"] as? String, TinkerbleInstallerConstants.localNetworkUsageDescription)
+        XCTAssertEqual(plist["CFBundleExecutable"] as? String, "$(EXECUTABLE_NAME)")
+        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "$(PRODUCT_BUNDLE_IDENTIFIER)")
+        XCTAssertEqual(plist["CFBundleDisplayName"] as? String, "Main App")
+        XCTAssertNotNil(plist["UIApplicationSceneManifest"] as? [String: Any])
+        XCTAssertNotNil(plist["UILaunchScreen"] as? [String: Any])
+    }
+
+    func testInstallerPreservesGeneratedBonjourServicesWhenCreatingExplicitInfoPlist() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithGeneratedBonjourServices)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let plist = try readInfoPlist(projectURL, path: "MainApp/Info.plist")
+        XCTAssertEqual(plist["NSBonjourServices"] as? [String], ["_existing._tcp", TinkerbleInstallerConstants.bonjourService])
+    }
+
+    func testInstallerFailsWhenConfiguredExplicitInfoPlistCannotBeRead() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithInfoPlistFile)
+        let before = try readProject(projectURL)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        XCTAssertThrowsError(try installer.install(targetNames: ["MainApp"], dryRun: false)) { error in
+            XCTAssertEqual(
+                error as? TinkerbleInstallError,
+                .malformedProject("Could not read configured Info.plist at MainApp/Info.plist.")
+            )
+        }
+        XCTAssertEqual(try readProject(projectURL), before)
+    }
+
+    func testInstallerExcludesCreatedInfoPlistFromSynchronizedFolderTargetMembership() throws {
+        let projectURL = try makeFixtureProject(projectText: fixtureProjectWithSynchronizedFolder)
+        let installer = try XcodeProjectInstaller(projectURL: projectURL)
+
+        _ = try installer.install(targetNames: ["MainApp"], dryRun: false)
+
+        let project = try readProject(projectURL)
+        let exceptions = fileSystemMembershipExceptions(in: project, targetID: "000000000000000000000030")
+
+        XCTAssertEqual(exceptions, ["Info.plist"])
+    }
+
     func testInstallerCreatesRunSchemeWithoutTargetBuildPhase() throws {
         let projectURL = try makeFixtureProject()
         let installer = try XcodeProjectInstaller(projectURL: projectURL)
@@ -142,7 +215,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
                 "SRCROOT": sourceRoot.path,
                 "SWIFT_EXEC": "swiftc",
                 "SWIFT_DEBUG_INFORMATION_FORMAT": "dwarf",
-                "SWIFT_DEBUG_INFORMATION_VERSION": "compiler-default",
+                "SWIFT_DEBUG_INFORMATION_VERSION": "compiler-default"
             ]
         )
 
@@ -230,7 +303,13 @@ final class XcodeProjectInstallerTests: XCTestCase {
         return projectURL
     }
 
-    private func writeFixtureInfoPlist(for projectURL: URL) throws {
+    private func writeFixtureInfoPlist(
+        for projectURL: URL,
+        propertyList: [String: Any] = [
+            "NSLocalNetworkUsageDescription": TinkerbleInstallerConstants.localNetworkUsageDescription,
+            "NSBonjourServices": [TinkerbleInstallerConstants.bonjourService]
+        ]
+    ) throws {
         let plistURL = projectURL
             .deletingLastPathComponent()
             .appending(path: "MainApp/Info.plist")
@@ -238,10 +317,6 @@ final class XcodeProjectInstallerTests: XCTestCase {
             at: plistURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let propertyList: [String: Any] = [
-            "NSLocalNetworkUsageDescription": TinkerbleInstallerConstants.localNetworkUsageDescription,
-            "NSBonjourServices": [TinkerbleInstallerConstants.bonjourService],
-        ]
         let data = try PropertyListSerialization.data(
             fromPropertyList: propertyList,
             format: .xml,
@@ -259,6 +334,12 @@ final class XcodeProjectInstallerTests: XCTestCase {
             contentsOf: projectURL.appending(path: "xcshareddata/xcschemes/\(name).xcscheme"),
             encoding: .utf8
         )
+    }
+
+    private func readInfoPlist(_ projectURL: URL, path: String) throws -> [String: Any] {
+        let data = try Data(contentsOf: projectURL.deletingLastPathComponent().appending(path: path))
+        let propertyList = try PropertyListSerialization.propertyList(from: data, format: nil)
+        return try XCTUnwrap(propertyList as? [String: Any])
     }
 
     private func runShellScript(
@@ -325,6 +406,66 @@ final class XcodeProjectInstallerTests: XCTestCase {
 
                 return String(trimmed.dropFirst(prefix.count).dropLast())
             }
+    }
+
+    private func fileSystemMembershipExceptions(in project: String, targetID: String) -> [String] {
+        var exceptions: [String] = []
+        var currentObjectLines: [String] = []
+        var isExceptionObject = false
+
+        for line in project.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            if line.hasPrefix("\t\t"), line.contains(" = {") {
+                currentObjectLines = [line]
+                isExceptionObject = false
+                continue
+            }
+
+            guard !currentObjectLines.isEmpty else { continue }
+            currentObjectLines.append(line)
+
+            if line.contains("isa = PBXFileSystemSynchronizedBuildFileExceptionSet;") {
+                isExceptionObject = true
+            }
+
+            if line == "\t\t};" {
+                defer {
+                    currentObjectLines = []
+                    isExceptionObject = false
+                }
+
+                guard isExceptionObject,
+                      currentObjectLines.contains(where: { $0.contains("target = \(targetID)") }) else {
+                    continue
+                }
+
+                exceptions.append(contentsOf: membershipExceptions(in: currentObjectLines))
+            }
+        }
+
+        return exceptions.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    private func membershipExceptions(in objectLines: [String]) -> [String] {
+        var values: [String] = []
+        var isReadingMembershipExceptions = false
+
+        for line in objectLines {
+            let trimmed = line.trimmingCharacters(in: CharacterSet(charactersIn: " \t,"))
+            if trimmed == "membershipExceptions = (" {
+                isReadingMembershipExceptions = true
+                continue
+            }
+
+            if isReadingMembershipExceptions, trimmed == ");" {
+                return values
+            }
+
+            if isReadingMembershipExceptions, !trimmed.isEmpty {
+                values.append(trimmed.replacing("\"", with: ""))
+            }
+        }
+
+        return values
     }
 
     private func environmentValues(from text: String) -> [String: String] {
@@ -630,6 +771,42 @@ private let fixtureProjectWithInfoPlistFile = fixtureProject
     .replacing(
         "\t\t\t\tPRODUCT_NAME = MainApp;",
         with: "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;\n\t\t\t\tINFOPLIST_FILE = MainApp/Info.plist;\n\t\t\t\tPRODUCT_NAME = MainApp;"
+    )
+
+private let fixtureProjectWithGeneratedInfoPlist = fixtureProject
+    .replacing(
+        "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = ExistingName;\n",
+        with: "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \"Main App\";\n\t\t\t\tINFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;\n\t\t\t\tINFOPLIST_KEY_UILaunchScreen_Generation = YES;\n"
+    )
+    .replacing(
+        "\t\t\t\tPRODUCT_NAME = MainApp;",
+        with: "\t\t\t\tGENERATE_INFOPLIST_FILE = YES;\n\t\t\t\tPRODUCT_NAME = MainApp;"
+    )
+
+private let fixtureProjectWithGeneratedBonjourServices = fixtureProjectWithGeneratedInfoPlist
+    .replacing(
+        "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \"Main App\";\n",
+        with: "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \"Main App\";\n\t\t\t\tINFOPLIST_KEY_NSBonjourServices = _existing._tcp;\n"
+    )
+
+private let fixtureProjectWithSynchronizedFolder = fixtureProjectWithGeneratedInfoPlist
+    .replacing(
+        "/* End PBXFileReference section */",
+        with: #"""
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		000000000000000000000098 /* MainApp */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MainApp;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+"""#
+    )
+    .replacing(
+        "\t\t\tname = MainApp;",
+        with: "\t\t\tfileSystemSynchronizedGroups = (\n\t\t\t\t000000000000000000000098 /* MainApp */,\n\t\t\t);\n\t\t\tname = MainApp;"
     )
 
 private let fixtureProjectWithLegacyCompanionBuildPhase = fixtureProject
