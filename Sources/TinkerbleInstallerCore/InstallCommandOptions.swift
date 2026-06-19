@@ -7,6 +7,9 @@ public struct InstallCommandOptions: Equatable, Sendable {
     public var schemeNames: [String]
     public var isDryRun: Bool
     public var shouldShowHelp: Bool
+    /// Whether to enable Xcode's `IDESkipMacroFingerprintValidation` default.
+    /// `nil` asks interactively, `true`/`false` answer non-interactively.
+    public var enableMacroTrust: Bool?
 
     public init(
         projectPath: String? = nil,
@@ -14,7 +17,8 @@ public struct InstallCommandOptions: Equatable, Sendable {
         targetNames: [String] = [],
         schemeNames: [String] = [],
         isDryRun: Bool = false,
-        shouldShowHelp: Bool = false
+        shouldShowHelp: Bool = false,
+        enableMacroTrust: Bool? = nil
     ) {
         self.projectPath = projectPath
         self.workspacePath = workspacePath
@@ -22,6 +26,7 @@ public struct InstallCommandOptions: Equatable, Sendable {
         self.schemeNames = schemeNames
         self.isDryRun = isDryRun
         self.shouldShowHelp = shouldShowHelp
+        self.enableMacroTrust = enableMacroTrust
     }
 }
 
@@ -44,6 +49,10 @@ public enum InstallCommandParser {
                 options.schemeNames.append(try value(after: argument, in: arguments, advancing: &index))
             case "--dry-run":
                 options.isDryRun = true
+            case "--enable-macro-trust":
+                options.enableMacroTrust = true
+            case "--skip-macro-trust":
+                options.enableMacroTrust = false
             case "-h", "--help":
                 options.shouldShowHelp = true
             default:

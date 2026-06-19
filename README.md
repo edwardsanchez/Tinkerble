@@ -51,6 +51,26 @@ tinkerble install --project MyApp.xcodeproj --target MyApp --scheme "MyApp Dev"
 tinkerble install --project MyApp.xcodeproj --target MyApp --dry-run
 ```
 
+## Macro Trust In Xcode
+Tinkerble ships a compile-time Swift macro that powers `@TinkerbleState`, `@TinkerbleObservable`, and `@TinkerbleActions`. The first time Xcode builds a project that uses a macro, it shows:
+
+> Macro "TinkerbleMacros" from package "Tinkerble" must be enabled before it can be used.
+
+Click **Trust & Enable** — this is the same prompt every Swift macro package triggers, and it is expected. Macro plugins run code at compile time, so Xcode asks you to trust the source before loading them.
+
+For Tinkerble the dialog can keep coming back even after you click Trust. That is not a broken install. Xcode trusts a macro by the *fingerprint* of its compiled plugin, and because Tinkerble is a locally resolved package you rebuild often, the plugin recompiles, the fingerprint changes, and Xcode re-validates. SwiftUI Previews (the canvas) run their own build pipeline and re-validate independently, so they can re-prompt too.
+
+To stop the recurring prompt, enable Xcode's macro-trust default:
+```sh
+defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+```
+Then fully quit and reopen Xcode for it to take effect. This is the standard escape hatch for developing with local macro packages, and it is recommended for Tinkerble. It applies to *all* macros in Xcode, so enable it only if you trust the packages you build — which you should, since they compile and run on your machine regardless. Reverse it any time with:
+```sh
+defaults delete com.apple.dt.Xcode IDESkipMacroFingerprintValidation
+```
+
+`tinkerble install` offers to set this default for you at the end of setup and explains the trade-off, so you can opt in or decline. Pass `--enable-macro-trust` or `--skip-macro-trust` to answer non-interactively when scripting the install.
+
 ## Quick Start For This Package
 
 From the package root:

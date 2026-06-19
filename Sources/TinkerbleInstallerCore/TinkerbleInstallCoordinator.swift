@@ -5,17 +5,20 @@ public struct TinkerbleInstallCoordinator {
     private let currentDirectory: URL
     private let standardInput: () -> String?
     private let standardOutput: (String) -> Void
+    private let enableMacroTrustDefault: () throws -> Void
 
     public init(
         fileManager: FileManager = .default,
         currentDirectory: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
         standardInput: @escaping () -> String? = { readLine() },
-        standardOutput: @escaping (String) -> Void = { print($0) }
+        standardOutput: @escaping (String) -> Void = { print($0) },
+        enableMacroTrustDefault: @escaping () throws -> Void = TinkerbleInstallCoordinator.writeMacroTrustDefault
     ) {
         self.fileManager = fileManager
         self.currentDirectory = currentDirectory
         self.standardInput = standardInput
         self.standardOutput = standardOutput
+        self.enableMacroTrustDefault = enableMacroTrustDefault
     }
 
     public func install(options: InstallCommandOptions) throws -> TinkerbleInstallResult {
@@ -42,7 +45,109 @@ public struct TinkerbleInstallCoordinator {
             standardOutput("Dry run: no files changed.")
         }
         result.changes.forEach(standardOutput)
+
+        if options.isDryRun {
+            standardOutput(
+                "Dry run: would offer to enable Xcode macro trust (\(TinkerbleInstallerConstants.macroTrustDefaultsKey))."
+            )
+        } else {
+            offerMacroTrust(option: options.enableMacroTrust)
+        }
+
         return result
+    }
+
+    /// After install, offer to silence Xcode's recurring "must be enabled before it can be
+    /// used" macro-trust dialog. Tinkerble ships a compile-time macro, and because it is a
+    /// locally resolved package you keep rebuilding, Xcode re-validates the plugin fingerprint
+    /// and re-prompts. Enabling `IDESkipMacroFingerprintValidation` stops the dialog.
+    private func offerMacroTrust(option: Bool?) {
+        let shouldEnable: Bool
+        switch option {
+        case .some(true):
+            shouldEnable = true
+        case .some(false):
+            printMacroTrustSkipped()
+            return
+        case .none:
+            printMacroTrustExplanation()
+            guard let answer = standardInput()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+                // Non-interactive (no stdin): never silently change a global Xcode setting.
+                printMacroTrustSkipped()
+                return
+            }
+            shouldEnable = answer.isEmpty || answer == "y" || answer == "yes"
+        }
+
+        guard shouldEnable else {
+            printMacroTrustSkipped()
+            return
+        }
+
+        do {
+            try enableMacroTrustDefault()
+            standardOutput(
+                """
+                Enabled \(TinkerbleInstallerConstants.macroTrustDefaultsKey) for Xcode.
+                Fully quit and reopen Xcode for it to take effect.
+                Reverse later with: defaults delete \(TinkerbleInstallerConstants.macroTrustDefaultsDomain) \(TinkerbleInstallerConstants.macroTrustDefaultsKey)
+                """
+            )
+        } catch {
+            standardOutput(
+                """
+                Could not set the Xcode macro-trust default automatically: \(error.localizedDescription)
+                Run it yourself with: defaults write \(TinkerbleInstallerConstants.macroTrustDefaultsDomain) \(TinkerbleInstallerConstants.macroTrustDefaultsKey) -bool YES
+                """
+            )
+        }
+    }
+
+    private func printMacroTrustExplanation() {
+        standardOutput(
+            """
+
+            Tinkerble uses a compile-time Swift macro (@TinkerbleState and friends), so Xcode
+            shows a "Macro \"TinkerbleMacros\" must be enabled before it can be used" dialog.
+            Because Tinkerble is a locally resolved package you keep rebuilding, Xcode re-checks
+            the macro plugin's fingerprint and the dialog can return even after you click Trust.
+
+            Enabling Xcode's IDESkipMacroFingerprintValidation default stops the recurring prompt.
+            It applies to all macros in Xcode, so only enable it if you trust the packages you build.
+            You can always run it later: defaults write \(TinkerbleInstallerConstants.macroTrustDefaultsDomain) \(TinkerbleInstallerConstants.macroTrustDefaultsKey) -bool YES
+
+            Enable IDESkipMacroFingerprintValidation now? [Y/n]
+            """
+        )
+    }
+
+    private func printMacroTrustSkipped() {
+        standardOutput(
+            """
+            Left Xcode macro fingerprint validation unchanged.
+            If the macro-trust dialog keeps returning, enable it later with:
+            defaults write \(TinkerbleInstallerConstants.macroTrustDefaultsDomain) \(TinkerbleInstallerConstants.macroTrustDefaultsKey) -bool YES
+            """
+        )
+    }
+
+    public static func writeMacroTrustDefault() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        process.arguments = [
+            "write",
+            TinkerbleInstallerConstants.macroTrustDefaultsDomain,
+            TinkerbleInstallerConstants.macroTrustDefaultsKey,
+            "-bool",
+            "YES"
+        ]
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw TinkerbleInstallError.invalidArguments(
+                "defaults exited with status \(process.terminationStatus)."
+            )
+        }
     }
 
     private func selectedProjectURL(options: InstallCommandOptions) throws -> URL {

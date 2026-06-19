@@ -59,6 +59,117 @@ final class TinkerbleInstallCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(result.targetNames, ["MainApp"])
     }
+
+    func testEnableMacroTrustFlagRunsTrustCommand() throws {
+        let root = try makeProjectFixtureRoot()
+        var enableCount = 0
+
+        let coordinator = TinkerbleInstallCoordinator(
+            currentDirectory: root,
+            standardInput: { nil },
+            standardOutput: { _ in },
+            enableMacroTrustDefault: { enableCount += 1 }
+        )
+
+        _ = try coordinator.install(
+            options: InstallCommandOptions(
+                projectPath: "Fixture.xcodeproj",
+                targetNames: ["MainApp"],
+                enableMacroTrust: true
+            )
+        )
+
+        XCTAssertEqual(enableCount, 1)
+    }
+
+    func testSkipMacroTrustFlagLeavesDefaultUnchanged() throws {
+        let root = try makeProjectFixtureRoot()
+        var enableCount = 0
+
+        let coordinator = TinkerbleInstallCoordinator(
+            currentDirectory: root,
+            standardInput: { nil },
+            standardOutput: { _ in },
+            enableMacroTrustDefault: { enableCount += 1 }
+        )
+
+        _ = try coordinator.install(
+            options: InstallCommandOptions(
+                projectPath: "Fixture.xcodeproj",
+                targetNames: ["MainApp"],
+                enableMacroTrust: false
+            )
+        )
+
+        XCTAssertEqual(enableCount, 0)
+    }
+
+    func testInteractiveMacroTrustPromptEnablesOnYes() throws {
+        let root = try makeProjectFixtureRoot()
+        var enableCount = 0
+
+        let coordinator = TinkerbleInstallCoordinator(
+            currentDirectory: root,
+            standardInput: { "y" },
+            standardOutput: { _ in },
+            enableMacroTrustDefault: { enableCount += 1 }
+        )
+
+        _ = try coordinator.install(
+            options: InstallCommandOptions(projectPath: "Fixture.xcodeproj", targetNames: ["MainApp"])
+        )
+
+        XCTAssertEqual(enableCount, 1)
+    }
+
+    func testInteractiveMacroTrustPromptSkipsOnNo() throws {
+        let root = try makeProjectFixtureRoot()
+        var enableCount = 0
+
+        let coordinator = TinkerbleInstallCoordinator(
+            currentDirectory: root,
+            standardInput: { "n" },
+            standardOutput: { _ in },
+            enableMacroTrustDefault: { enableCount += 1 }
+        )
+
+        _ = try coordinator.install(
+            options: InstallCommandOptions(projectPath: "Fixture.xcodeproj", targetNames: ["MainApp"])
+        )
+
+        XCTAssertEqual(enableCount, 0)
+    }
+
+    func testNonInteractiveMacroTrustPromptNeverChangesDefault() throws {
+        let root = try makeProjectFixtureRoot()
+        var enableCount = 0
+
+        let coordinator = TinkerbleInstallCoordinator(
+            currentDirectory: root,
+            standardInput: { nil },
+            standardOutput: { _ in },
+            enableMacroTrustDefault: { enableCount += 1 }
+        )
+
+        _ = try coordinator.install(
+            options: InstallCommandOptions(projectPath: "Fixture.xcodeproj", targetNames: ["MainApp"])
+        )
+
+        XCTAssertEqual(enableCount, 0)
+    }
+
+    private func makeProjectFixtureRoot() throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "TinkerbleCoordinatorTests-\(UUID().uuidString)")
+        let projectURL = root.appending(path: "Fixture.xcodeproj")
+        try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+        try coordinatorFixtureProject.write(
+            to: projectURL.appending(path: "project.pbxproj"),
+            atomically: true,
+            encoding: .utf8
+        )
+        return root
+    }
 }
 
 private let workspaceContents = #"""

@@ -51,6 +51,7 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - Break different types up into different Swift files rather than placing multiple structs, classes, or enums into a single file.
 - Keep package, demo, installer, and companion responsibilities separate. Do not move installer or packaging behavior into the runtime library target.
 - Keep companion UI resources under their owning target resources, and preserve `Tinkerble.icon` as the source icon document.
+- Keep companion auto-launch isolated to a separate shared `+ Tinkerble` run scheme copied from a normal app scheme. Keep normal schemes free of companion launch hooks so SwiftUI previews and ordinary builds stay unaffected.
 
 ## Communication
 
@@ -151,6 +152,25 @@ For code changes, run the validation sequence that matches the touched area. The
 swift test
 ./Scripts/verify-macos-companion-package.sh
 xcodebuild -project "Tinkerble Demo/Tinkerble Demo.xcodeproj" -scheme "Tinkerble Demo" -destination "generic/platform=iOS Simulator" -clonedSourcePackagesDirPath .build-demo-validation build
+```
+
+If terminal SwiftPM or `xcodebuild` commands fail with `BuildServerProtocol.framework` loader errors, rerun them under the repo's working toolchain override:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test
+```
+
+For command-line demo verification, use the repo helper:
+
+```sh
+./Scripts/run-tinkerble-demo.sh
+TINKERBLE_SIMULATOR_UDID=<simulator-udid> TINKERBLE_INTERACTIVE=0 ./Scripts/run-tinkerble-demo.sh
+```
+
+When validating installer changes in multi-scheme consumer projects, include a scheme-aware install path such as:
+
+```sh
+tinkerble install --project MyApp.xcodeproj --target MyApp --scheme "MyApp Dev"
 ```
 
 All builds should be warning-free. Fix compiler warnings before marking work complete. Common warnings to watch for:

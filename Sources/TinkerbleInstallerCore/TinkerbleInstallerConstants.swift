@@ -7,4 +7,6 @@ public enum TinkerbleInstallerConstants {
     public static let companionBuildPhaseName = "Rebuild Tinkerble Companion"
     public static let bonjourService = "_tinkerble._tcp"
     public static let localNetworkUsageDescription = "Tinkerble connects to the macOS companion app on your local development network."
+    public static let macroTrustDefaultsDomain = "com.apple.dt.Xcode"
+    public static let macroTrustDefaultsKey = "IDESkipMacroFingerprintValidation"
 }
