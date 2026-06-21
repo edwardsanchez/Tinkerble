@@ -75,14 +75,15 @@ defaults delete com.apple.dt.Xcode IDESkipMacroFingerprintValidation
 
 From the package root:
 ```sh
-swift test
+make help
+make verify
 ```
 
 Then build and run `Tinkerble Demo + Tinkerble` in Xcode when you want the macOS companion to launch automatically. Use `Tinkerble Demo` for SwiftUI previews and normal app builds. Set `TINKERBLE_COMPANION_AUTOLAUNCH=0` in a run environment or command-line helper flow to opt out of companion launch.
 
 You can also run both apps from the command line:
 ```sh
-./Scripts/run-tinkerble-demo.sh
+make demo-simulator
 ```
 
 The demo app discovers the companion with Bonjour, so the same code path works on Simulator and on physical devices that are on the same local network as the Mac. iOS will show the Local Network permission prompt the first time a device build searches for the companion.
