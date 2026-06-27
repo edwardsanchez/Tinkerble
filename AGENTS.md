@@ -146,7 +146,15 @@ If SwiftData is introduced:
 
 ## Validation
 
+Prefer the repo `Makefile` for routine local validation and release prep before dropping to raw `swift test` or `xcodebuild` commands. `make help` lists the maintained targets.
+
 For code changes, run the validation sequence that matches the touched area. The broad package validation is:
+
+```sh
+make verify
+```
+
+Equivalent raw commands:
 
 ```sh
 swift test
@@ -184,9 +192,23 @@ Run `/opt/homebrew/bin/swiftlint --fix` only on Swift files changed in this work
 
 Use focused tests when the change has a narrower proof path:
 
-- `swift test --filter TinkerbleInstallerCoreTests` for installer behavior.
-- `swift test --filter TinkerbleComponentPreviewFixtureTests` for All Tinkerble Components fixture changes.
-- `swift test --filter TweakInspectorContentTests` for companion inspector rendering/parsing behavior.
+- `make test-installer` for installer behavior.
+- `make test-preview-fixtures` for All Tinkerble Components fixture changes.
+- `make test-inspector` for companion inspector rendering/parsing behavior.
+
+For companion/demo workflows, prefer the maintained helpers:
+
+- `make companion-run` packages, restarts, and verifies the macOS companion is listening.
+- `make demo-simulator` launches the demo with interactive simulator selection.
+- `make demo-simulator-ci` launches the demo on the first available iPhone Simulator without prompts.
+
+For release prep, use the repo-backed targets instead of ad hoc git/GitHub commands:
+
+- `make release-check` runs `make verify`, `git diff --check`, and `git status --short`.
+- `make release-tag VERSION=v1.2.3` creates the local annotated tag.
+- `make release-push-tag VERSION=v1.2.3` pushes an existing tag.
+- `make release-github VERSION=v1.2.3` creates the GitHub release for an existing tag.
+- `make release-verify VERSION=v1.2.3` verifies the remote tag and GitHub release metadata.
 
 ## UI Tests
 
