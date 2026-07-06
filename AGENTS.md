@@ -29,6 +29,12 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - Avoid UIKit unless requested.
 - If the project requires secrets, tokens, or API keys, never include them in the repository.
 
+## UI Test Policy
+
+- UI tests must assert behavior only: user actions, navigation, persistence, accessibility reachability, state transitions, and side effects.
+- Do not assert visual implementation details or duplicated source values in UI tests. This includes colors, materials, backgrounds, gradients, fonts, opacity, spacing, frames, coordinates, screenshots, rendered pixels, labels, copy text, formatted strings, static numeric values, or hidden snapshot/source payloads.
+- Stable accessibility identifiers may be used to find controls, but assertions must not pin user-facing strings or presentation values. If a visual check is needed, verify it manually or with a purpose-built visual review outside the UI test suite.
+
 ## Task Handling
 
 - When requirements are ambiguous, pause before implementation and ask up to three concise clarifying questions. Prefer concrete choices when possible, and allow free-form clarification when none of the choices fit.
@@ -181,6 +187,8 @@ When validating installer changes in multi-scheme consumer projects, include a s
 tinkerble install --project MyApp.xcodeproj --target MyApp --scheme "MyApp Dev"
 ```
 
+Use `tinkerble install --dry-run` to inspect planned project and scheme changes before writing files. When macro trust behavior matters for the install flow, use `--enable-macro-trust` or `--skip-macro-trust` explicitly instead of relying on prompts.
+
 All builds should be warning-free. Fix compiler warnings before marking work complete. Common warnings to watch for:
 
 - `var` should be `let` when the variable is never mutated.
@@ -198,9 +206,15 @@ Use focused tests when the change has a narrower proof path:
 
 For companion/demo workflows, prefer the maintained helpers:
 
+- `make companion` packages the macOS companion app without launching it.
 - `make companion-run` packages, restarts, and verifies the macOS companion is listening.
+- `make companion-verify` packages and verifies the macOS companion bundle without launching it.
+- `make demo-build` builds the demo for Simulator without installing or launching it.
 - `make demo-simulator` launches the demo with interactive simulator selection.
 - `make demo-simulator-ci` launches the demo on the first available iPhone Simulator without prompts.
+- `make demo-device-build` builds the demo for a generic physical iOS device.
+
+`Scripts/run-tinkerble-demo.sh` uses `TINKERBLE_DEMO_PACKAGE_CACHE` to override its cloned package cache path and `TINKERBLE_SIMULATOR_UDID` to skip simulator selection.
 
 For release prep, use the repo-backed targets instead of ad hoc git/GitHub commands:
 
