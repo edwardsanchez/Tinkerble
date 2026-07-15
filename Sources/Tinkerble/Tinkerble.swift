@@ -103,7 +103,7 @@ public final class Tinkerble {
             var addedSourceAnchor = false
             if let sourceAnchor {
                 liveRegistration.sourceAnchorsByInstance[token.instanceID] = sourceAnchor
-                if !liveRegistration.tweak.sourceAnchors.contains(sourceAnchor) {
+                if !liveRegistration.tweak.sourceAnchors.contains(where: { $0.stableID == sourceAnchor.stableID }) {
                     liveRegistration.tweak.sourceAnchors.append(sourceAnchor)
                     addedSourceAnchor = true
                 }
@@ -201,9 +201,12 @@ public final class Tinkerble {
         liveRegistration.actionHandlers.removeValue(forKey: token.instanceID)
         liveRegistration.sourceAnchorsByInstance.removeValue(forKey: token.instanceID)
         guard liveRegistration.remoteAppliers.isEmpty, liveRegistration.actionHandlers.isEmpty else {
-            let remainingAnchors = Set(liveRegistration.sourceAnchorsByInstance.values)
+            let remainingAnchors = Array(liveRegistration.sourceAnchorsByInstance.values)
             let previousAnchors = liveRegistration.tweak.sourceAnchors
-            liveRegistration.tweak.sourceAnchors.removeAll { !remainingAnchors.contains($0) }
+            liveRegistration.tweak.sourceAnchors = previousAnchors.compactMap { previousAnchor in
+                remainingAnchors.first(where: { $0 == previousAnchor })
+                    ?? remainingAnchors.first(where: { $0.stableID == previousAnchor.stableID })
+            }
             liveRegistrationsByID[token.tweakID] = liveRegistration
             if liveRegistration.tweak.sourceAnchors != previousAnchors {
                 publishTweaks()

@@ -41,6 +41,9 @@ struct TinkerbleSwiftSourceLocator {
                 let location = sourceLocationConverter.location(for: declaration.position)
                 return location.line == anchor.line && location.column == anchor.column
             }
+            guard !declarationsAtAnchor.isEmpty else {
+                throw TinkerbleSourceEditIssue(tweak: tweak, reason: .declarationMoved(anchor.filePath))
+            }
             guard declarationsAtAnchor.count == 1 else {
                 throw TinkerbleSourceEditIssue(tweak: tweak, reason: .declarationAmbiguous(anchor.filePath))
             }

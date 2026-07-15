@@ -25,6 +25,7 @@ public struct TinkerbleAppliedDefaultRecord: Codable, Equatable, Hashable, Senda
     public var key: TinkerbleAppliedDefaultKey
     public var anchor: TinkerbleSourceAnchor
     public var value: TinkerbleValue
+    public var sourceValueType: TinkerbleSourceValueType?
     public var compiledInitializerExpression: String
     public var writtenInitializerExpression: String
 
@@ -32,12 +33,14 @@ public struct TinkerbleAppliedDefaultRecord: Codable, Equatable, Hashable, Senda
         key: TinkerbleAppliedDefaultKey,
         anchor: TinkerbleSourceAnchor,
         value: TinkerbleValue,
+        sourceValueType: TinkerbleSourceValueType? = nil,
         compiledInitializerExpression: String,
         writtenInitializerExpression: String
     ) {
         self.key = key
         self.anchor = anchor
         self.value = value
+        self.sourceValueType = sourceValueType
         self.compiledInitializerExpression = compiledInitializerExpression
         self.writtenInitializerExpression = writtenInitializerExpression
     }
@@ -46,12 +49,14 @@ public struct TinkerbleAppliedDefaultRecord: Codable, Equatable, Hashable, Senda
         projectID: String,
         projectRoot: URL,
         edit: TinkerbleAppliedSourceEdit,
-        value: TinkerbleValue
+        value: TinkerbleValue,
+        sourceValueType: TinkerbleSourceValueType? = nil
     ) {
         self.init(
             key: .init(projectID: projectID, projectRoot: projectRoot, anchor: edit.anchor),
             anchor: edit.anchor,
             value: value,
+            sourceValueType: sourceValueType,
             compiledInitializerExpression: edit.anchor.initializerExpression,
             writtenInitializerExpression: edit.writtenExpression
         )
@@ -112,6 +117,15 @@ public extension TinkerbleAppliedDefaultRepository {
             let key = TinkerbleAppliedDefaultKey(projectID: projectID, projectRoot: projectRoot, anchor: anchor)
             guard let record = recordsByKey[key] else {
                 resolutions[tweak.id] = .init(effectiveValue: tweak.codeDefaultValue)
+                continue
+            }
+            guard let recordSourceValueType = record.sourceValueType,
+                  let tweakSourceValueType = tweak.sourceValueType,
+                  recordSourceValueType == tweakSourceValueType,
+                  record.value.kind == tweak.valueKind
+            else {
+                resolutions[tweak.id] = .init(effectiveValue: tweak.codeDefaultValue)
+                staleKeys.append(key)
                 continue
             }
 

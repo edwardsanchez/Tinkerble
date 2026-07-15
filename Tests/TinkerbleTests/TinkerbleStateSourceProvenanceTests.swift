@@ -303,6 +303,45 @@ final class TinkerbleStateSourceProvenanceTests: XCTestCase {
         XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
     }
 
+    func testDuplicateRegistrationAnchorsWithTheSameStableIDAreDeduplicated() {
+        let transport = SourceProvenanceRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+        let firstAnchor = sourceAnchor(propertyName: "value")
+        var movedAnchor = firstAnchor
+        movedAnchor.line = 2
+
+        let firstToken = Tinkerble.shared.register(
+            id: "Basic/Layout/Count",
+            screen: "Basic",
+            category: "Layout",
+            name: "Count",
+            value: 2,
+            control: .automatic,
+            sourceAnchor: firstAnchor,
+            applyRemoteValue: { _ in }
+        )
+        let movedToken = Tinkerble.shared.register(
+            id: "Basic/Layout/Count",
+            screen: "Basic",
+            category: "Layout",
+            name: "Count",
+            value: 2,
+            control: .automatic,
+            sourceAnchor: movedAnchor,
+            applyRemoteValue: { _ in }
+        )
+
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.first?.sourceAnchors, [firstAnchor])
+        Tinkerble.shared.unregister(firstToken)
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.first?.sourceAnchors, [movedAnchor])
+
+        Tinkerble.shared.unregister(movedToken)
+        XCTAssertTrue(Tinkerble.shared.registeredTweaks.isEmpty)
+    }
+
     private func sourceAnchor(propertyName: String) -> TinkerbleSourceAnchor {
         TinkerbleSourceAnchor(
             filePath: "/tmp/Source.swift",

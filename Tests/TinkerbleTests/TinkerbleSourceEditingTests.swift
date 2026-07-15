@@ -185,7 +185,7 @@ final class TinkerbleSourceEditingTests: XCTestCase {
         }
     }
 
-    func testAmbiguousDeclarationReturnsIssue() async throws {
+    func testMovedDeclarationReturnsIssue() async throws {
         let projectRoot = try temporaryProject()
         let fileURL = projectRoot.appending(path: "Ambiguous.swift")
         let original = """
@@ -201,10 +201,10 @@ final class TinkerbleSourceEditingTests: XCTestCase {
 
         do {
             _ = try await TinkerbleSourceEditingService().apply([editRequest])
-            XCTFail("Expected ambiguous declaration failure")
+            XCTFail("Expected moved declaration failure")
         } catch let error as TinkerbleSourceApplyError {
-            guard case .declarationAmbiguous(fileURL.path) = error.issues[0].reason else {
-                return XCTFail("Expected declarationAmbiguous issue")
+            guard case .declarationMoved(fileURL.path) = error.issues[0].reason else {
+                return XCTFail("Expected declarationMoved issue")
             }
         }
     }

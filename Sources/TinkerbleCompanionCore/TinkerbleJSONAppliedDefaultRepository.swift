@@ -50,17 +50,43 @@ public actor TinkerbleJSONAppliedDefaultRepository: TinkerbleAppliedDefaultRepos
             return empty
         }
         let data = try Data(contentsOf: fileURL)
-        let document = try JSONDecoder().decode(TinkerbleAppliedDefaultDocument.self, from: data)
-        let loaded = Dictionary(uniqueKeysWithValues: document.records.map { ($0.key, $0) })
+        let loaded: [TinkerbleAppliedDefaultKey: TinkerbleAppliedDefaultRecord]
+        do {
+            let document = try JSONDecoder().decode(TinkerbleAppliedDefaultDocument.self, from: data)
+            guard document.schemaVersion == TinkerbleAppliedDefaultDocument.currentSchemaVersion else {
+                throw TinkerbleAppliedDefaultDocumentError.unsupportedSchema
+            }
+            var records: [TinkerbleAppliedDefaultKey: TinkerbleAppliedDefaultRecord] = [:]
+            for record in document.records {
+                guard records.updateValue(record, forKey: record.key) == nil else {
+                    throw TinkerbleAppliedDefaultDocumentError.duplicateRecord
+                }
+            }
+            loaded = records
+        } catch is DecodingError {
+            return recoverFromInvalidDocument()
+        } catch is TinkerbleAppliedDefaultDocumentError {
+            return recoverFromInvalidDocument()
+        }
         recordsByKey = loaded
         return loaded
+    }
+
+    private func recoverFromInvalidDocument() -> [TinkerbleAppliedDefaultKey: TinkerbleAppliedDefaultRecord] {
+        let backupURL = fileURL.deletingLastPathComponent().appending(
+            path: "\(fileURL.lastPathComponent).corrupt-\(UUID().uuidString)"
+        )
+        try? FileManager.default.moveItem(at: fileURL, to: backupURL)
+        let empty: [TinkerbleAppliedDefaultKey: TinkerbleAppliedDefaultRecord] = [:]
+        recordsByKey = empty
+        return empty
     }
 
     private func persist(_ records: [TinkerbleAppliedDefaultKey: TinkerbleAppliedDefaultRecord]) throws {
         let directory = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let document = TinkerbleAppliedDefaultDocument(
-            schemaVersion: 1,
+            schemaVersion: TinkerbleAppliedDefaultDocument.currentSchemaVersion,
             records: records.values.sorted { $0.key.anchorStableID < $1.key.anchorStableID }
         )
         let encoder = JSONEncoder()
@@ -71,6 +97,13 @@ public actor TinkerbleJSONAppliedDefaultRepository: TinkerbleAppliedDefaultRepos
 }
 
 private struct TinkerbleAppliedDefaultDocument: Codable {
+    static let currentSchemaVersion = 1
+
     var schemaVersion: Int
     var records: [TinkerbleAppliedDefaultRecord]
+}
+
+private enum TinkerbleAppliedDefaultDocumentError: Error {
+    case unsupportedSchema
+    case duplicateRecord
 }

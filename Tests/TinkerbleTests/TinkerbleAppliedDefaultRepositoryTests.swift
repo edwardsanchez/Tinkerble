@@ -25,13 +25,57 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
         )
         let fileURL = directory.appending(path: "defaults.json")
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
-        let record = record(property: "value", value: .string("Applied"))
+        let record = record(property: "value", value: .string("Applied"), sourceValueType: .string)
 
         try await TinkerbleJSONAppliedDefaultRepository(fileURL: fileURL).update([record])
         let reloaded = TinkerbleJSONAppliedDefaultRepository(fileURL: fileURL)
         let reloadedRecord = try await reloaded.record(for: record.key)
 
         XCTAssertEqual(reloadedRecord, record)
+    }
+
+    func testJSONRepositoryRecoversFromCorruptedDocument() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "TinkerbleAppliedDefaults-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        let fileURL = directory.appending(path: "defaults.json")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: fileURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+
+        let repository = TinkerbleJSONAppliedDefaultRepository(fileURL: fileURL)
+        let records = try await repository.records(
+            projectID: "test.project",
+            canonicalProjectRoot: "/tmp/project"
+        )
+        let directoryContents = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+
+        XCTAssertTrue(records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+        XCTAssertEqual(directoryContents.filter { $0.hasPrefix("defaults.json.corrupt-") }.count, 1)
+    }
+
+    func testJSONRepositoryRecoversFromUnsupportedSchema() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "TinkerbleAppliedDefaults-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        let fileURL = directory.appending(path: "defaults.json")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data(#"{"schemaVersion":999,"records":[]}"#.utf8).write(to: fileURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+
+        let repository = TinkerbleJSONAppliedDefaultRepository(fileURL: fileURL)
+        let records = try await repository.records(
+            projectID: "test.project",
+            canonicalProjectRoot: "/tmp/project"
+        )
+        let directoryContents = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+
+        XCTAssertTrue(records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+        XCTAssertEqual(directoryContents.filter { $0.hasPrefix("defaults.json.corrupt-") }.count, 1)
     }
 
     func testReconcileKeepsAppliedDefaultBeforeRebuild() async throws {
@@ -67,9 +111,38 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
         XCTAssertNil(removedRecord)
     }
 
+    func testReconcileRejectsAppliedDefaultFromDifferentSourceValueType() async throws {
+        let repository = TinkerbleInMemoryAppliedDefaultRepository()
+        let applied = record(
+            property: "value",
+            value: .number(27),
+            sourceValueType: .int,
+            compiled: "1",
+            written: "27"
+        )
+        try await repository.update([applied])
+        let tweak = sourceTweak(
+            property: "value",
+            defaultValue: .number(1),
+            initializer: "1",
+            sourceValueType: .double
+        )
+
+        let resolutions = try await repository.reconcile(
+            projectID: "test.project",
+            projectRoot: URL(fileURLWithPath: "/tmp/project"),
+            tweaks: [tweak]
+        )
+        let removedRecord = await repository.record(for: applied.key)
+
+        XCTAssertEqual(resolutions["value"]?.effectiveValue, .number(1))
+        XCTAssertNil(removedRecord)
+    }
+
     private func record(
         property: String,
         value: TinkerbleValue,
+        sourceValueType: TinkerbleSourceValueType = .int,
         compiled: String = "1",
         written: String = "2"
     ) -> TinkerbleAppliedDefaultRecord {
@@ -89,6 +162,7 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
             ),
             anchor: anchor,
             value: value,
+            sourceValueType: sourceValueType,
             compiledInitializerExpression: compiled,
             writtenInitializerExpression: written
         )
@@ -97,7 +171,8 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
     private func sourceTweak(
         property: String,
         defaultValue: TinkerbleValue,
-        initializer: String
+        initializer: String,
+        sourceValueType: TinkerbleSourceValueType = .int
     ) -> TinkerbleTweak {
         let anchor = TinkerbleSourceAnchor(
             filePath: "/tmp/project/Fixture.swift",
@@ -115,7 +190,7 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
             codeDefaultValue: defaultValue,
             valueKind: defaultValue.kind,
             control: .automatic,
-            sourceValueType: .int,
+            sourceValueType: sourceValueType,
             sourceAnchors: [anchor]
         )
     }

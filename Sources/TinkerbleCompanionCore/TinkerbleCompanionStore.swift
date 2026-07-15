@@ -363,7 +363,8 @@ public final class TinkerbleCompanionStore {
                             projectID: projectID,
                             projectRoot: sourceProjectRoot,
                             edit: edit,
-                            value: tweak.value
+                            value: tweak.value,
+                            sourceValueType: tweak.sourceValueType
                         )
                     }
                 }

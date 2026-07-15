@@ -13,6 +13,7 @@ public struct TinkerbleSourceEditIssue: LocalizedError, Identifiable, Equatable,
         case invalidUTF8(String)
         case parseFailure(String)
         case declarationMissing(String)
+        case declarationMoved(String)
         case declarationAmbiguous(String)
         case initializerMissing(String)
         case staleInitializer(expected: [String], actual: String)
@@ -64,6 +65,8 @@ public struct TinkerbleSourceEditIssue: LocalizedError, Identifiable, Equatable,
             "The source file contains syntax that could not be parsed safely: \(path)."
         case let .declarationMissing(path):
             "The original property declaration could not be found in \(path). Rebuild and try again."
+        case let .declarationMoved(path):
+            "The original property declaration moved within \(path) after the app was built. Rebuild and try again."
         case let .declarationAmbiguous(path):
             "More than one matching property declaration was found in \(path)."
         case let .initializerMissing(path):
