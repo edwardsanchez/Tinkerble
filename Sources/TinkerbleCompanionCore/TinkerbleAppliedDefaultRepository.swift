@@ -130,6 +130,11 @@ public extension TinkerbleAppliedDefaultRepository {
             }
 
             if anchor.initializerExpression == record.compiledInitializerExpression {
+                guard sourceStillContainsAppliedEdit(record: record, anchor: anchor, tweak: tweak) else {
+                    resolutions[tweak.id] = .init(effectiveValue: tweak.codeDefaultValue)
+                    staleKeys.append(key)
+                    continue
+                }
                 resolutions[tweak.id] = .init(
                     effectiveValue: record.value,
                     acceptedInitializerExpressions: [record.writtenInitializerExpression],
@@ -148,5 +153,26 @@ public extension TinkerbleAppliedDefaultRepository {
             try await remove(staleKeys)
         }
         return resolutions
+    }
+
+    private func sourceStillContainsAppliedEdit(
+        record: TinkerbleAppliedDefaultRecord,
+        anchor: TinkerbleSourceAnchor,
+        tweak: TinkerbleTweak
+    ) -> Bool {
+        let locator = TinkerbleSwiftSourceLocator()
+        guard let currentSource = try? String(contentsOfFile: anchor.filePath, encoding: .utf8),
+              let located = try? locator.locate(
+                  anchor: anchor,
+                  acceptedInitializerExpressions: [record.writtenInitializerExpression],
+                  source: currentSource,
+                  tweak: tweak
+              ),
+              let locatedExpression = locator.canonicalExpression(located.expression),
+              let writtenExpression = locator.canonicalExpression(record.writtenInitializerExpression)
+        else {
+            return false
+        }
+        return locatedExpression == writtenExpression
     }
 }

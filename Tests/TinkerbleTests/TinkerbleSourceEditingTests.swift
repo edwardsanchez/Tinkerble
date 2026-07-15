@@ -722,6 +722,19 @@ final class TinkerbleSourceEditingTests: XCTestCase {
             "TinkerbleTests.CustomIdentifierMode.tinkerbleCase(for: \"celebratory\") ?? (CustomIdentifierMode.quiet)"
         )
         XCTAssertEqual(CustomIdentifierMode.tinkerbleCase(for: "celebratory") ?? .quiet, .happy)
+
+        var reappliedTweak = enumTweak
+        reappliedTweak.value = .enumCase("quiet")
+        let reappliedExpression = try serializer.expression(
+            for: reappliedTweak,
+            anchor: anchor,
+            currentInitializer: expression
+        )
+
+        XCTAssertEqual(
+            reappliedExpression,
+            "TinkerbleTests.CustomIdentifierMode.tinkerbleCase(for: \"quiet\") ?? (CustomIdentifierMode.quiet)"
+        )
     }
 
     func testLegacyTweakDecodingUsesCurrentValueAsCodeDefault() throws {

@@ -79,14 +79,27 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
     }
 
     func testReconcileKeepsAppliedDefaultBeforeRebuild() async throws {
+        let fixture = try sourceFixture(initializer: "27")
         let repository = TinkerbleInMemoryAppliedDefaultRepository()
-        let applied = record(property: "value", value: .number(27), compiled: "1", written: "27")
+        let applied = record(
+            property: "value",
+            value: .number(27),
+            compiled: "1",
+            written: "27",
+            projectRoot: fixture.root,
+            fileURL: fixture.fileURL
+        )
         try await repository.update([applied])
-        let tweak = sourceTweak(property: "value", defaultValue: .number(1), initializer: "1")
+        let tweak = sourceTweak(
+            property: "value",
+            defaultValue: .number(1),
+            initializer: "1",
+            fileURL: fixture.fileURL
+        )
 
         let resolutions = try await repository.reconcile(
             projectID: "test.project",
-            projectRoot: URL(fileURLWithPath: "/tmp/project"),
+            projectRoot: fixture.root,
             tweaks: [tweak]
         )
 
@@ -95,19 +108,62 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
     }
 
     func testReconcileUsesCompiledDefaultAndRemovesCacheAfterRebuild() async throws {
+        let fixture = try sourceFixture(initializer: "27")
         let repository = TinkerbleInMemoryAppliedDefaultRepository()
-        let applied = record(property: "value", value: .number(27), compiled: "1", written: "27")
+        let applied = record(
+            property: "value",
+            value: .number(27),
+            compiled: "1",
+            written: "27",
+            projectRoot: fixture.root,
+            fileURL: fixture.fileURL
+        )
         try await repository.update([applied])
-        let rebuilt = sourceTweak(property: "value", defaultValue: .number(27), initializer: "27")
+        let rebuilt = sourceTweak(
+            property: "value",
+            defaultValue: .number(27),
+            initializer: "27",
+            fileURL: fixture.fileURL
+        )
 
         let resolutions = try await repository.reconcile(
             projectID: "test.project",
-            projectRoot: URL(fileURLWithPath: "/tmp/project"),
+            projectRoot: fixture.root,
             tweaks: [rebuilt]
         )
         let removedRecord = await repository.record(for: applied.key)
 
         XCTAssertEqual(resolutions["value"]?.effectiveValue, .number(27))
+        XCTAssertNil(removedRecord)
+    }
+
+    func testReconcileRemovesCacheWhenRebuiltSourceWasReverted() async throws {
+        let fixture = try sourceFixture(initializer: "1")
+        let repository = TinkerbleInMemoryAppliedDefaultRepository()
+        let applied = record(
+            property: "value",
+            value: .number(27),
+            compiled: "1",
+            written: "27",
+            projectRoot: fixture.root,
+            fileURL: fixture.fileURL
+        )
+        try await repository.update([applied])
+        let rebuilt = sourceTweak(
+            property: "value",
+            defaultValue: .number(1),
+            initializer: "1",
+            fileURL: fixture.fileURL
+        )
+
+        let resolutions = try await repository.reconcile(
+            projectID: "test.project",
+            projectRoot: fixture.root,
+            tweaks: [rebuilt]
+        )
+        let removedRecord = await repository.record(for: applied.key)
+
+        XCTAssertEqual(resolutions["value"]?.effectiveValue, .number(1))
         XCTAssertNil(removedRecord)
     }
 
@@ -144,10 +200,13 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
         value: TinkerbleValue,
         sourceValueType: TinkerbleSourceValueType = .int,
         compiled: String = "1",
-        written: String = "2"
+        written: String = "2",
+        projectRoot: URL = URL(fileURLWithPath: "/tmp/project"),
+        fileURL: URL? = nil
     ) -> TinkerbleAppliedDefaultRecord {
+        let sourceFileURL = fileURL ?? projectRoot.appending(path: "Fixture.swift")
         let anchor = TinkerbleSourceAnchor(
-            filePath: "/tmp/project/Fixture.swift",
+            filePath: sourceFileURL.path,
             line: 1,
             column: 1,
             enclosingTypePath: ["Fixture"],
@@ -157,7 +216,7 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
         return .init(
             key: .init(
                 projectID: "test.project",
-                canonicalProjectRoot: "/tmp/project",
+                canonicalProjectRoot: projectRoot.path,
                 anchorStableID: anchor.stableID
             ),
             anchor: anchor,
@@ -172,10 +231,11 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
         property: String,
         defaultValue: TinkerbleValue,
         initializer: String,
-        sourceValueType: TinkerbleSourceValueType = .int
+        sourceValueType: TinkerbleSourceValueType = .int,
+        fileURL: URL = URL(fileURLWithPath: "/tmp/project/Fixture.swift")
     ) -> TinkerbleTweak {
         let anchor = TinkerbleSourceAnchor(
-            filePath: "/tmp/project/Fixture.swift",
+            filePath: fileURL.path,
             line: 1,
             column: 1,
             enclosingTypePath: ["Fixture"],
@@ -193,5 +253,26 @@ final class TinkerbleAppliedDefaultRepositoryTests: XCTestCase {
             sourceValueType: sourceValueType,
             sourceAnchors: [anchor]
         )
+    }
+
+    private func sourceFixture(initializer: String) throws -> (root: URL, fileURL: URL) {
+        let root = FileManager.default.temporaryDirectory.appending(
+            path: "TinkerbleAppliedDefaultSource-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appending(path: "Fixture.swift")
+        let data = Data(source(initializer: initializer).utf8)
+        try data.write(to: fileURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return (root, fileURL)
+    }
+
+    private func source(initializer: String) -> String {
+        """
+        struct Fixture {
+            @TinkerbleState("Value") var value = \(initializer)
+        }
+        """
     }
 }

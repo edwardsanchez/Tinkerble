@@ -1,4 +1,5 @@
 import Foundation
+import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import Tinkerble
@@ -84,10 +85,35 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
         id: String,
         typeName: String,
         originalInitializer: String,
-        currentInitializer _: String
+        currentInitializer: String
     ) -> String {
         let encodedID = StringLiteralExprSyntax(content: id).description
-        return "\(typeName).tinkerbleCase(for: \(encodedID)) ?? (\(originalInitializer))"
+        let fallback = existingEnumFallback(in: currentInitializer) ?? originalInitializer
+        return "\(typeName).tinkerbleCase(for: \(encodedID)) ?? (\(fallback))"
+    }
+
+    private func existingEnumFallback(in expression: String) -> String? {
+        let sourceFile = Parser.parse(source: "let _tinkerbleEnum = \(expression)")
+        guard !sourceFile.hasError,
+              let variable = sourceFile.statements.first?.item.as(VariableDeclSyntax.self),
+              let value = variable.bindings.first?.initializer?.value,
+              let sequence = value.as(SequenceExprSyntax.self),
+              sequence.elements.count == 3,
+              let generatedExpression = sequence.elements.first,
+              generatedExpression.trimmedDescription.contains(".tinkerbleCase(for:"),
+              let operatorExpression = sequence.elements.dropFirst().first?.as(BinaryOperatorExprSyntax.self),
+              operatorExpression.operator.text == "??",
+              let fallback = sequence.elements.last
+        else {
+            return nil
+        }
+        guard let parenthesizedFallback = fallback.as(TupleExprSyntax.self),
+              parenthesizedFallback.elements.count == 1,
+              let expression = parenthesizedFallback.elements.first?.expression
+        else {
+            return fallback.trimmedDescription
+        }
+        return expression.trimmedDescription
     }
 
     private func typedFloatingExpression(typeName: String, value: Double, decimalPlaces: Int?) -> String {

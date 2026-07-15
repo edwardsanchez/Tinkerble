@@ -629,15 +629,25 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
     }
 
     func testReconnectReappliesCachedDefaultToTheRunningApp() async throws {
-        let root = URL(fileURLWithPath: "/tmp/TinkerbleProject")
-        let anchor = sourceAnchor(initializer: "\"Initial\"")
+        let root = FileManager.default.temporaryDirectory.appending(
+            path: "TinkerbleReconnect-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appending(path: "View.swift")
+        let writtenSource = Data(
+            "struct View { @TinkerbleState(\"Title\") var title = \"Applied\" }".utf8
+        )
+        try writtenSource.write(to: fileURL)
+        let anchor = sourceAnchor(initializer: "\"Initial\"", fileURL: fileURL)
         let edit = TinkerbleAppliedSourceEdit(
             tweakID: "Basic/Layout/Title",
             anchor: anchor,
             previousExpression: "\"Initial\"",
             writtenExpression: "\"Applied\"",
             originalFileHash: "before",
-            writtenFileHash: "after"
+            writtenFileHash: TinkerbleSourceHash.sha256(writtenSource)
         )
         let appliedDefaults = TinkerbleInMemoryAppliedDefaultRepository()
         try await appliedDefaults.update(
@@ -840,10 +850,11 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
 
     private func sourceAnchor(
         propertyName: String = "title",
-        initializer: String
+        initializer: String,
+        fileURL: URL = URL(fileURLWithPath: "/tmp/TinkerbleProject/View.swift")
     ) -> TinkerbleSourceAnchor {
         TinkerbleSourceAnchor(
-            filePath: "/tmp/TinkerbleProject/View.swift",
+            filePath: fileURL.path,
             line: 4,
             column: 5,
             enclosingTypePath: ["View"],
