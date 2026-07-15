@@ -65,6 +65,20 @@ public enum TinkerbleNumericInteraction {
         constrained(value, by: configuration)
     }
 
+    /// Normalizes a value with the same decimal precision and rounding behavior used by the Companion field.
+    static func normalizedValue(_ value: Double, decimalPlaces: Int) -> Double {
+        guard value.isFinite else { return value }
+        let precision = max(0, decimalPlaces)
+        let formattedValue = value.formatted(
+            .number
+                .locale(Locale(identifier: "en_US_POSIX"))
+                .grouping(.never)
+                .precision(.fractionLength(precision))
+        )
+        guard let normalizedValue = Double(formattedValue) else { return value }
+        return normalizedValue == 0 ? 0 : normalizedValue
+    }
+
     private static func keyboardDelta(
         for direction: TinkerbleNumericArrowDirection,
         modifiers: TinkerbleNumericKeyboardModifiers,
@@ -102,9 +116,6 @@ public enum TinkerbleNumericInteraction {
         if let maximum = configuration.maximum {
             constrainedValue = min(constrainedValue, maximum)
         }
-        if configuration.decimalPlaces == 0 {
-            return constrainedValue.rounded()
-        }
-        return constrainedValue
+        return normalizedValue(constrainedValue, decimalPlaces: configuration.decimalPlaces)
     }
 }

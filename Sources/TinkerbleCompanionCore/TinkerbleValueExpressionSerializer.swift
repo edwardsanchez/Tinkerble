@@ -30,11 +30,19 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
             }
             return String(integer)
         case let (.double, .number(value)):
-            return doubleExpression(value)
+            return doubleExpression(value, decimalPlaces: numericDecimalPlaces(in: tweak.control))
         case let (.float, .number(value)):
-            return typedFloatingExpression(typeName: "Float", value: value)
+            return typedFloatingExpression(
+                typeName: "Float",
+                value: value,
+                decimalPlaces: numericDecimalPlaces(in: tweak.control)
+            )
         case let (.cgFloat, .number(value)):
-            return typedFloatingExpression(typeName: "CGFloat", value: value)
+            return typedFloatingExpression(
+                typeName: "CGFloat",
+                value: value,
+                decimalPlaces: numericDecimalPlaces(in: tweak.control)
+            )
         case let (.angle, .number(value)):
             return angleExpression(radians: value, control: tweak.control)
         case let (.date, .date(value)):
@@ -66,9 +74,9 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
         switch unit {
         case .degrees:
             let degrees = radians * 180 / .pi
-            return "Angle.degrees(\(doubleExpression(degrees)))"
+            return "Angle.degrees(\(doubleExpression(degrees, decimalPlaces: numericDecimalPlaces(in: control))))"
         case .radians:
-            return "Angle.radians(\(doubleExpression(radians)))"
+            return "Angle.radians(\(doubleExpression(radians, decimalPlaces: numericDecimalPlaces(in: control))))"
         }
     }
 
@@ -89,7 +97,7 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
         return components.dropFirst().joined(separator: ".")
     }
 
-    private func typedFloatingExpression(typeName: String, value: Double) -> String {
+    private func typedFloatingExpression(typeName: String, value: Double, decimalPlaces: Int?) -> String {
         if value.isNaN {
             return "\(typeName).nan"
         }
@@ -99,10 +107,10 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
         if value == -.infinity {
             return "-\(typeName).infinity"
         }
-        return "\(typeName)(\(String(value)))"
+        return "\(typeName)(\(String(sourceValue(value, decimalPlaces: decimalPlaces))))"
     }
 
-    private func doubleExpression(_ value: Double) -> String {
+    private func doubleExpression(_ value: Double, decimalPlaces: Int? = nil) -> String {
         if value.isNaN {
             return "Double.nan"
         }
@@ -112,7 +120,21 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
         if value == -.infinity {
             return "-Double.infinity"
         }
-        return String(value)
+        return String(sourceValue(value, decimalPlaces: decimalPlaces))
+    }
+
+    private func sourceValue(_ value: Double, decimalPlaces: Int?) -> Double {
+        guard let decimalPlaces else { return value }
+        return TinkerbleNumericInteraction.normalizedValue(value, decimalPlaces: decimalPlaces)
+    }
+
+    private func numericDecimalPlaces(in control: TinkerbleControlDescriptor) -> Int? {
+        switch control {
+        case let .plain(configuration), let .slider(configuration):
+            configuration.decimalPlaces
+        case .automatic, .text, .date:
+            nil
+        }
     }
 
     private func unsupported(_ tweak: TinkerbleTweak, _ message: String) -> TinkerbleSourceEditIssue {

@@ -612,6 +612,61 @@ final class TinkerbleSourceEditingTests: XCTestCase {
         XCTAssertThrowsError(try serializer.expression(for: intTweak, anchor: intAnchor, currentInitializer: "1"))
     }
 
+    func testSerializerWritesTheNumericPrecisionShownInTheCompanion() throws {
+        let control = TinkerbleControlDescriptor.plain(.init(decimalPlaces: 2))
+        let floatingPointArtifact = 0.300_000_000_000_000_04
+
+        XCTAssertEqual(
+            try serializedNumericExpression(
+                type: .double,
+                value: floatingPointArtifact,
+                control: control,
+                initializer: "0"
+            ),
+            "0.3"
+        )
+        XCTAssertEqual(
+            try serializedNumericExpression(
+                type: .double,
+                value: 0.123_45,
+                control: .plain(.init(decimalPlaces: 5)),
+                initializer: "0"
+            ),
+            "0.12345"
+        )
+        XCTAssertEqual(
+            try serializedNumericExpression(
+                type: .float,
+                value: floatingPointArtifact,
+                control: control,
+                initializer: "Float(0)"
+            ),
+            "Float(0.3)"
+        )
+        XCTAssertEqual(
+            try serializedNumericExpression(
+                type: .cgFloat,
+                value: floatingPointArtifact,
+                control: control,
+                initializer: "CGFloat(0)"
+            ),
+            "CGFloat(0.3)"
+        )
+
+        let angleControl = TinkerbleControlDescriptor.plain(
+            .init(decimalPlaces: 2, angleUnit: .degrees)
+        )
+        XCTAssertEqual(
+            try serializedNumericExpression(
+                type: .angle,
+                value: floatingPointArtifact * .pi / 180,
+                control: angleControl,
+                initializer: "Angle.degrees(0)"
+            ),
+            "Angle.degrees(0.3)"
+        )
+    }
+
     func testSerializerResolvesIdentifierShapedEnumIDsThroughTinkerbleEnum() throws {
         let serializer = TinkerbleValueExpressionSerializer()
         let root = URL(fileURLWithPath: "/tmp")
@@ -676,6 +731,31 @@ final class TinkerbleSourceEditingTests: XCTestCase {
             projectID: "test.project",
             projectRoot: root,
             tweak: tweak(property: property, type: type, value: value, anchor: anchor, control: control)
+        )
+    }
+
+    private func serializedNumericExpression(
+        type: TinkerbleSourceValueType,
+        value: Double,
+        control: TinkerbleControlDescriptor,
+        initializer: String
+    ) throws -> String {
+        let anchor = sourceAnchor(
+            fileURL: URL(fileURLWithPath: "/tmp/Fixture.swift"),
+            property: "value",
+            initializer: initializer
+        )
+        let numericTweak = tweak(
+            property: "value",
+            type: type,
+            value: .number(value),
+            anchor: anchor,
+            control: control
+        )
+        return try TinkerbleValueExpressionSerializer().expression(
+            for: numericTweak,
+            anchor: anchor,
+            currentInitializer: initializer
         )
     }
 
