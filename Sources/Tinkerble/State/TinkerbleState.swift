@@ -13,7 +13,14 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
     @ObservationIgnored
     private var registrationToken: TinkerbleRegistrationToken?
 
-    init(initialValue: Value, screen: String? = nil, category: String?, name: String, control: TinkerbleControl<Value>) {
+    init(
+        initialValue: Value,
+        screen: String? = nil,
+        category: String?,
+        name: String,
+        control: TinkerbleControl<Value>,
+        sourceAnchor: TinkerbleSourceAnchor? = nil
+    ) {
         self.value = initialValue
         self.id = TinkerbleTweak.makeID(screen: screen, category: category, name: name)
 
@@ -24,6 +31,7 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
             name: name,
             value: initialValue,
             control: control,
+            sourceAnchor: sourceAnchor,
             applyRemoteValue: { [weak self] newValue in
                 self?.value = newValue
             }
@@ -49,11 +57,18 @@ final class TinkerbleStateBox<Value: TinkerbleValueConvertible> {
 @propertyWrapper
 @MainActor
 public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty {
+    private let initialValue: Value
+
 #if DEBUG
     @State private var box: TinkerbleStateBox<Value>
 #else
     @State private var storage: Value
 #endif
+
+    /// Preserves property-wrapper backing assignment semantics for the `@TinkerbleState` macro.
+    public var _tinkerbleInitializationValue: Value {
+        initialValue
+    }
 
 #if DEBUG
     public var wrappedValue: Value {
@@ -85,8 +100,10 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         _ name: String,
         screen: String? = nil,
         category: String? = nil,
-        control: TinkerbleControl<Value> = .automatic
+        control: TinkerbleControl<Value> = .automatic,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
+        initialValue = wrappedValue
 #if DEBUG
         _box = State(
             wrappedValue: TinkerbleStateBox(
@@ -94,7 +111,8 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
                 screen: screen,
                 category: category,
                 name: name,
-                control: control
+                control: control,
+                sourceAnchor: _sourceAnchor
             )
         )
 #else
@@ -102,6 +120,7 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         _ = screen
         _ = category
         _ = control
+        _ = _sourceAnchor
         _storage = State(wrappedValue: wrappedValue)
 #endif
     }
@@ -112,9 +131,17 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         name: String,
         screen: String? = nil,
         category: String? = nil,
-        control: TinkerbleControl<Value> = .automatic
+        control: TinkerbleControl<Value> = .automatic,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
-        self.init(wrappedValue: wrappedValue, name, screen: screen, category: category, control: control)
+        self.init(
+            wrappedValue: wrappedValue,
+            name,
+            screen: screen,
+            category: category,
+            control: control,
+            _sourceAnchor: _sourceAnchor
+        )
     }
 
     @available(*, deprecated, message: "Use @TinkerbleState(\"Name\", category: \"Category\") instead.")
@@ -123,9 +150,17 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         category: String,
         name: String,
         screen: String? = nil,
-        control: TinkerbleControl<Value> = .automatic
+        control: TinkerbleControl<Value> = .automatic,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
-        self.init(wrappedValue: wrappedValue, name, screen: screen, category: category, control: control)
+        self.init(
+            wrappedValue: wrappedValue,
+            name,
+            screen: screen,
+            category: category,
+            control: control,
+            _sourceAnchor: _sourceAnchor
+        )
     }
 
     @available(*, deprecated, message: "Use @TinkerbleState(\"Name\", category: \"Category\"). The unlabeled argument is now the tweak name.")
@@ -134,8 +169,16 @@ public struct TinkerbleState<Value: TinkerbleValueConvertible>: DynamicProperty 
         _ category: String,
         name: String,
         screen: String? = nil,
-        control: TinkerbleControl<Value> = .automatic
+        control: TinkerbleControl<Value> = .automatic,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
-        self.init(wrappedValue: wrappedValue, name, screen: screen, category: category, control: control)
+        self.init(
+            wrappedValue: wrappedValue,
+            name,
+            screen: screen,
+            category: category,
+            control: control,
+            _sourceAnchor: _sourceAnchor
+        )
     }
 }

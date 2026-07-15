@@ -190,7 +190,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
                 matching: ["title": "Launch Tinkerble Companion"]
             )
         )
-        let sourceRoot = projectURL.deletingLastPathComponent().appending(path: "SourceRoot")
+        let sourceRoot = projectURL.deletingLastPathComponent().appending(path: "Source Root")
         let packageURL = sourceRoot.appending(path: "Tinkerble")
         let scriptURL = packageURL.appending(path: "Scripts/ensure-macos-companion-running.sh")
         let scratchURL = packageURL.appending(path: ".build/tinkerble-companion")
@@ -203,7 +203,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
         try #"""
         #!/bin/sh
         mkdir -p "${TINKERBLE_COMPANION_SCRATCH_PATH}"
-        printf "%s" "$*" > "${TINKERBLE_COMPANION_SCRATCH_PATH}/arguments.txt"
+        printf "%s\n" "$@" > "${TINKERBLE_COMPANION_SCRATCH_PATH}/arguments.txt"
         env > "${TINKERBLE_COMPANION_SCRATCH_PATH}/environment.txt"
         """#.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
@@ -213,6 +213,7 @@ final class XcodeProjectInstallerTests: XCTestCase {
             environment: [
                 "CONFIGURATION": "Debug",
                 "SRCROOT": sourceRoot.path,
+                "PRODUCT_BUNDLE_IDENTIFIER": "app.example.MainApp",
                 "SWIFT_EXEC": "swiftc",
                 "SWIFT_DEBUG_INFORMATION_FORMAT": "dwarf",
                 "SWIFT_DEBUG_INFORMATION_VERSION": "compiler-default"
@@ -220,7 +221,10 @@ final class XcodeProjectInstallerTests: XCTestCase {
         )
 
         XCTAssertEqual(result.status, 0, result.output)
-        XCTAssertEqual(try String(contentsOf: argumentsURL, encoding: .utf8), "--restart")
+        XCTAssertEqual(
+            try String(contentsOf: argumentsURL, encoding: .utf8).split(separator: "\n").map(String.init),
+            ["--restart", "--project-root", sourceRoot.path, "--project-id", "app.example.MainApp"]
+        )
         let environment = try environmentValues(from: String(contentsOf: environmentURL, encoding: .utf8))
         XCTAssertEqual(environment["TINKERBLE_COMPANION_SCRATCH_PATH"], scratchURL.path)
         XCTAssertNil(environment["SWIFT_EXEC"])

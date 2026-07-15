@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TinkerbleEnumOption: Codable, Equatable, Hashable, Identifiable {
+public struct TinkerbleEnumOption: Codable, Equatable, Hashable, Identifiable, Sendable {
     public var id: String
     public var displayName: String
 
@@ -10,7 +10,7 @@ public struct TinkerbleEnumOption: Codable, Equatable, Hashable, Identifiable {
     }
 }
 
-public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable {
+public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable, Sendable {
     public static let defaultScreenName = "default"
 
     public var id: String
@@ -18,9 +18,12 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable {
     public var category: String?
     public var name: String
     public var value: TinkerbleValue
+    public var codeDefaultValue: TinkerbleValue
     public var valueKind: TinkerbleValueKind
     public var control: TinkerbleControlDescriptor
     public var enumOptions: [TinkerbleEnumOption]
+    public var sourceValueType: TinkerbleSourceValueType?
+    public var sourceAnchors: [TinkerbleSourceAnchor]
 
     public init(
         id: String,
@@ -28,18 +31,24 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable {
         category: String?,
         name: String,
         value: TinkerbleValue,
+        codeDefaultValue: TinkerbleValue? = nil,
         valueKind: TinkerbleValueKind,
         control: TinkerbleControlDescriptor,
-        enumOptions: [TinkerbleEnumOption] = []
+        enumOptions: [TinkerbleEnumOption] = [],
+        sourceValueType: TinkerbleSourceValueType? = nil,
+        sourceAnchors: [TinkerbleSourceAnchor] = []
     ) {
         self.id = id
         self.screen = Self.normalizedScreen(screen)
         self.category = category
         self.name = name
         self.value = value
+        self.codeDefaultValue = codeDefaultValue ?? value
         self.valueKind = valueKind
         self.control = control
         self.enumOptions = enumOptions
+        self.sourceValueType = sourceValueType
+        self.sourceAnchors = sourceAnchors
     }
 
     public static func normalizedScreen(_ screen: String?) -> String {
@@ -74,9 +83,12 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable {
         case category
         case name
         case value
+        case codeDefaultValue
         case valueKind
         case control
         case enumOptions
+        case sourceValueType
+        case sourceAnchors
     }
 
     public init(from decoder: Decoder) throws {
@@ -86,13 +98,16 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable {
         category = try container.decodeIfPresent(String.self, forKey: .category)
         name = try container.decode(String.self, forKey: .name)
         value = try container.decode(TinkerbleValue.self, forKey: .value)
+        codeDefaultValue = try container.decodeIfPresent(TinkerbleValue.self, forKey: .codeDefaultValue) ?? value
         valueKind = try container.decode(TinkerbleValueKind.self, forKey: .valueKind)
         control = try container.decode(TinkerbleControlDescriptor.self, forKey: .control)
         enumOptions = try container.decodeIfPresent([TinkerbleEnumOption].self, forKey: .enumOptions) ?? []
+        sourceValueType = try container.decodeIfPresent(TinkerbleSourceValueType.self, forKey: .sourceValueType)
+        sourceAnchors = try container.decodeIfPresent([TinkerbleSourceAnchor].self, forKey: .sourceAnchors) ?? []
     }
 }
 
-public struct TinkerbleTweakGroup: Identifiable, Equatable {
+public struct TinkerbleTweakGroup: Identifiable, Equatable, Sendable {
     public var id: String { category ?? "__uncategorized" }
     public var category: String?
     public var tweaks: [TinkerbleTweak]

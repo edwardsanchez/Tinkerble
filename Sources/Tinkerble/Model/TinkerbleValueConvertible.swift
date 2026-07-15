@@ -4,6 +4,7 @@ import SwiftUI
 
 public protocol TinkerbleValueConvertible {
     static var tinkerbleValueKind: TinkerbleValueKind { get }
+    static var tinkerbleSourceValueType: TinkerbleSourceValueType? { get }
     static var tinkerbleEnumOptions: [TinkerbleEnumOption]? { get }
     static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor { get }
 
@@ -12,12 +13,15 @@ public protocol TinkerbleValueConvertible {
 }
 
 public extension TinkerbleValueConvertible {
+    static var tinkerbleSourceValueType: TinkerbleSourceValueType? { nil }
+
     static var tinkerbleEnumOptions: [TinkerbleEnumOption]? { nil }
     static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor { .automatic }
 }
 
 extension String: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .string }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .string }
     public var tinkerbleValue: TinkerbleValue { .string(self) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> String? {
@@ -28,6 +32,7 @@ extension String: TinkerbleValueConvertible {
 
 extension Bool: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .bool }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .bool }
     public var tinkerbleValue: TinkerbleValue { .bool(self) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Bool? {
@@ -38,6 +43,7 @@ extension Bool: TinkerbleValueConvertible {
 
 extension Int: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .int }
     public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
         TinkerbleControl<Int>.plain.descriptor
     }
@@ -52,6 +58,7 @@ extension Int: TinkerbleValueConvertible {
 
 extension Double: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .double }
     public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
         TinkerbleControl<Double>.plain.descriptor
     }
@@ -66,6 +73,7 @@ extension Double: TinkerbleValueConvertible {
 
 extension Float: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .float }
     public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
         TinkerbleControl<Float>.plain.descriptor
     }
@@ -80,6 +88,7 @@ extension Float: TinkerbleValueConvertible {
 
 extension CGFloat: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .cgFloat }
     public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
         TinkerbleControl<CGFloat>.plain.descriptor
     }
@@ -94,6 +103,7 @@ extension CGFloat: TinkerbleValueConvertible {
 
 extension Angle: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .angle }
     public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
         TinkerbleControl<Angle>.plain.descriptor
     }
@@ -108,6 +118,7 @@ extension Angle: TinkerbleValueConvertible {
 
 extension Date: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .date }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .date }
     public static var tinkerbleDefaultControlDescriptor: TinkerbleControlDescriptor {
         TinkerbleControl<Date>.dateAndTime.descriptor
     }
@@ -122,6 +133,7 @@ extension Date: TinkerbleValueConvertible {
 
 extension Color: TinkerbleValueConvertible {
     public static var tinkerbleValueKind: TinkerbleValueKind { .color }
+    public static var tinkerbleSourceValueType: TinkerbleSourceValueType? { .color }
     public var tinkerbleValue: TinkerbleValue { .color(TinkerbleColor(self)) }
 
     public static func fromTinkerbleValue(_ value: TinkerbleValue) -> Color? {
@@ -138,6 +150,10 @@ public protocol TinkerbleEnum: TinkerbleValueConvertible, CaseIterable, Hashable
 
 public extension TinkerbleEnum where AllCases: Collection {
     static var tinkerbleValueKind: TinkerbleValueKind { .enumeration }
+
+    static var tinkerbleSourceValueType: TinkerbleSourceValueType? {
+        .enumeration(typeName: String(reflecting: Self.self))
+    }
 
     static var tinkerbleEnumOptions: [TinkerbleEnumOption]? {
         allCases.map { option in

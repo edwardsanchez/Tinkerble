@@ -74,6 +74,22 @@ final class TinkerbleNumericInteractionTests: XCTestCase {
         )
     }
 
+    func testRepeatedOptionArrowKeysNormalizeToDisplayedPrecision() {
+        let configuration = TinkerbleNumericControl(decimalPlaces: 2)
+        var value = 0.0
+
+        for _ in 0..<3 {
+            value = TinkerbleNumericInteraction.adjustedValue(
+                from: value,
+                direction: .increment,
+                modifiers: .option,
+                configuration: configuration
+            )
+        }
+
+        XCTAssertEqual(value, 0.3)
+    }
+
     func testOptionArrowKeysDoNothingForIntegerFields() {
         let configuration = TinkerbleNumericControl(decimalPlaces: 0)
 
@@ -177,6 +193,30 @@ final class TinkerbleNumericInteractionTests: XCTestCase {
             ),
             49.8,
             accuracy: 0.0001
+        )
+    }
+
+    func testDragAndTextInputNormalizeToDisplayedPrecision() {
+        let configuration = TinkerbleNumericControl(minimum: 0, maximum: 1, decimalPlaces: 2)
+
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.draggedValue(
+                from: 0.2,
+                horizontalTranslation: 10,
+                configuration: configuration
+            ),
+            0.3
+        )
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.adjustedTextValue(
+                0.300_000_000_000_000_04,
+                configuration: configuration
+            ),
+            0.3
+        )
+        XCTAssertEqual(
+            TinkerbleNumericInteraction.normalizedValue(1.015, decimalPlaces: 2),
+            1.02
         )
     }
 

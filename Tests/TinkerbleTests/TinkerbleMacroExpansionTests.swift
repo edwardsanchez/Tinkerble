@@ -1,3 +1,4 @@
+import SwiftIfConfig
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import TinkerbleMacros
@@ -42,12 +43,72 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         },
                         applyRemoteValue: { owner, value in
                             owner.badgeCount = value
-                        }
+                        },
+                        _sourceAnchor: Tinkerble.MacroRuntime.SourceAnchor(
+                        filePath: "test.swift",
+                        line: 5,
+                        column: 5,
+                        enclosingTypePath: ["Model"],
+                        propertyName: "badgeCount",
+                        initializerExpression: "2"
+                    )
                     )
                 }
             }
             """,
             macros: testMacros
+        )
+    }
+
+    func testObservableMacroOmitsSourceDetailsOutsideDebug() {
+        assertMacroExpansion(
+            """
+            @TinkerbleObservable
+            @Observable
+            @MainActor
+            final class Model {
+                @TinkerbleObservableState("Count")
+                var count = 2
+            }
+            """,
+            expandedSource:
+            """
+            @Observable
+            @MainActor
+            final class Model {
+                var count = 2
+
+                @ObservationIgnored
+                private let _tinkerbleObservableState_countRegistration = TinkerbleObservableStateRegistration()
+
+                init() {
+                    _tinkerbleActivateObservableStates()
+                }
+
+                private func _tinkerbleActivateObservableStates() {
+                    _tinkerbleObservableState_countRegistration.activate(
+                        owner: self,
+                        initialValue: count,
+                        name: "Count",
+                        screen: nil,
+                        category: nil,
+                        control: .automatic,
+                        readValue: { owner in
+                            owner.count
+                        },
+                        applyRemoteValue: { owner, value in
+                            owner.count = value
+                        },
+                        _sourceAnchor: nil
+                    )
+                }
+            }
+            """,
+            macros: testMacros,
+            buildConfiguration: StaticBuildConfiguration(
+                languageVersion: VersionTuple(6),
+                compilerVersion: VersionTuple(6, 4)
+            )
         )
     }
 
@@ -96,7 +157,15 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         },
                         applyRemoteValue: { owner, value in
                             owner.title = value
-                        }
+                        },
+                        _sourceAnchor: Tinkerble.MacroRuntime.SourceAnchor(
+                        filePath: "test.swift",
+                        line: 5,
+                        column: 5,
+                        enclosingTypePath: ["Model"],
+                        propertyName: "title",
+                        initializerExpression: "\\\"Demo\\\""
+                    )
                     )
 
                     _tinkerbleObservableState_opacityRegistration.activate(
@@ -111,7 +180,15 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         },
                         applyRemoteValue: { owner, value in
                             owner.opacity = value
-                        }
+                        },
+                        _sourceAnchor: Tinkerble.MacroRuntime.SourceAnchor(
+                        filePath: "test.swift",
+                        line: 8,
+                        column: 5,
+                        enclosingTypePath: ["Model"],
+                        propertyName: "opacity",
+                        initializerExpression: "0.5"
+                    )
                     )
                 }
             }
@@ -158,7 +235,15 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         },
                         applyRemoteValue: { owner, value in
                             owner.opacity = value
-                        }
+                        },
+                        _sourceAnchor: Tinkerble.MacroRuntime.SourceAnchor(
+                        filePath: "test.swift",
+                        line: 5,
+                        column: 5,
+                        enclosingTypePath: ["Model"],
+                        propertyName: "opacity",
+                        initializerExpression: "0.5"
+                    )
                     )
                 }
             }

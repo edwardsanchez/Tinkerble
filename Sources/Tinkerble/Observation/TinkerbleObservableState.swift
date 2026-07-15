@@ -33,7 +33,8 @@ public final class TinkerbleObservableStateRegistration {
         category: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
         readValue: ((Owner) -> Value)? = nil,
-        applyRemoteValue: @escaping (Owner, Value) -> Void
+        applyRemoteValue: @escaping (Owner, Value) -> Void,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
 #if DEBUG
         guard !isRegistered else { return }
@@ -50,6 +51,7 @@ public final class TinkerbleObservableStateRegistration {
             name: name,
             value: initialValue,
             control: control,
+            sourceAnchor: _sourceAnchor,
             applyRemoteValue: { [weak self, weak owner] newValue in
                 guard let self, let owner else { return }
                 self.isApplyingRemoteValue = true
@@ -79,6 +81,7 @@ public final class TinkerbleObservableStateRegistration {
         _ = control
         _ = readValue
         _ = applyRemoteValue
+        _ = _sourceAnchor
 #endif
     }
 
@@ -90,7 +93,8 @@ public final class TinkerbleObservableStateRegistration {
         screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
         readValue: ((Owner) -> Value)? = nil,
-        applyRemoteValue: @escaping (Owner, Value) -> Void
+        applyRemoteValue: @escaping (Owner, Value) -> Void,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
         activate(
             owner: owner,
@@ -100,7 +104,8 @@ public final class TinkerbleObservableStateRegistration {
             category: category,
             control: control,
             readValue: readValue,
-            applyRemoteValue: applyRemoteValue
+            applyRemoteValue: applyRemoteValue,
+            _sourceAnchor: _sourceAnchor
         )
     }
 
@@ -112,7 +117,8 @@ public final class TinkerbleObservableStateRegistration {
         screen: String? = nil,
         control: TinkerbleControl<Value> = .automatic,
         readValue: ((Owner) -> Value)? = nil,
-        applyRemoteValue: @escaping (Owner, Value) -> Void
+        applyRemoteValue: @escaping (Owner, Value) -> Void,
+        _sourceAnchor: TinkerbleSourceAnchor? = nil
     ) {
         activate(
             owner: owner,
@@ -122,7 +128,8 @@ public final class TinkerbleObservableStateRegistration {
             category: category,
             control: control,
             readValue: readValue,
-            applyRemoteValue: applyRemoteValue
+            applyRemoteValue: applyRemoteValue,
+            _sourceAnchor: _sourceAnchor
         )
     }
 

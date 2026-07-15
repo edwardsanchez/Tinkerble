@@ -7,13 +7,53 @@ public struct TinkerbleControl<Value> {
     public static var automatic: Self {
         Self(descriptor: .automatic)
     }
-
-    internal init(descriptor: TinkerbleControlDescriptor) {
-        self.descriptor = descriptor
-    }
 }
 
-public enum TinkerbleControlDescriptor: Codable, Equatable, Hashable {
+public protocol TinkerbleControlExpression {}
+
+extension TinkerbleControl: TinkerbleControlExpression {}
+
+public struct TinkerbleControlShorthand: TinkerbleControlExpression {
+    fileprivate init() {}
+}
+
+public extension TinkerbleControlExpression where Self == TinkerbleControlShorthand {
+    static var automatic: Self { Self() }
+
+    static var field: Self { Self() }
+    static var area: Self { Self() }
+    static func text(_ style: TinkerbleTextControlStyle) -> Self { Self() }
+
+    static var plain: Self { Self() }
+    static func plain(decimalPlaces: Int? = nil) -> Self { Self() }
+    static func plain<Step>(step: Step, decimalPlaces: Int? = nil) -> Self { Self() }
+    static func plain(step: Angle?, decimalPlaces: Int? = nil) -> Self { Self() }
+    static func plain(
+        unit: TinkerbleAngleUnit,
+        step: Angle? = nil,
+        decimalPlaces: Int? = nil
+    ) -> Self { Self() }
+
+    static func slider<Bound>(
+        _ range: ClosedRange<Bound>,
+        step: Bound? = nil,
+        decimalPlaces: Int? = nil
+    ) -> Self { Self() }
+
+    static func slider(
+        _ range: ClosedRange<Angle>,
+        unit: TinkerbleAngleUnit = .degrees,
+        step: Angle? = nil,
+        decimalPlaces: Int? = nil
+    ) -> Self { Self() }
+
+    static var date: Self { Self() }
+    static var dateAndTime: Self { Self() }
+    static var time: Self { Self() }
+    static func datePicker(_ components: TinkerbleDateControlComponents) -> Self { Self() }
+}
+
+public enum TinkerbleControlDescriptor: Codable, Equatable, Hashable, Sendable {
     case automatic
     case text(TinkerbleTextControl)
     case plain(TinkerbleNumericControl)
@@ -21,13 +61,13 @@ public enum TinkerbleControlDescriptor: Codable, Equatable, Hashable {
     case date(TinkerbleDateControl)
 }
 
-public enum TinkerbleTextControlStyle: String, Codable, Equatable, Hashable {
+public enum TinkerbleTextControlStyle: String, Codable, Equatable, Hashable, Sendable {
     case automatic
     case field
     case area
 }
 
-public struct TinkerbleTextControl: Codable, Equatable, Hashable {
+public struct TinkerbleTextControl: Codable, Equatable, Hashable, Sendable {
     public static let automaticAreaThreshold = 25
 
     public var style: TinkerbleTextControlStyle
@@ -46,7 +86,7 @@ public struct TinkerbleTextControl: Codable, Equatable, Hashable {
     }
 }
 
-public struct TinkerbleNumericControl: Codable, Equatable, Hashable {
+public struct TinkerbleNumericControl: Codable, Equatable, Hashable, Sendable {
     public var minimum: Double?
     public var maximum: Double?
     public var step: Double
@@ -68,7 +108,7 @@ public struct TinkerbleNumericControl: Codable, Equatable, Hashable {
     }
 }
 
-public enum TinkerbleAngleUnit: String, Codable, Equatable, Hashable {
+public enum TinkerbleAngleUnit: String, Codable, Equatable, Hashable, Sendable {
     case degrees
     case radians
 
@@ -104,13 +144,13 @@ public enum TinkerbleAngleUnit: String, Codable, Equatable, Hashable {
     }
 }
 
-public enum TinkerbleDateControlComponents: String, Codable, Equatable, Hashable {
+public enum TinkerbleDateControlComponents: String, Codable, Equatable, Hashable, Sendable {
     case date
     case dateAndTime
     case time
 }
 
-public struct TinkerbleDateControl: Codable, Equatable, Hashable {
+public struct TinkerbleDateControl: Codable, Equatable, Hashable, Sendable {
     public var components: TinkerbleDateControlComponents
 
     public init(components: TinkerbleDateControlComponents = .dateAndTime) {

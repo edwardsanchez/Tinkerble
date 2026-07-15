@@ -5,12 +5,14 @@
 //  Created by Edward Sanchez on 6/15/26.
 //
 
+import Foundation
 import SwiftUI
 import Tinkerble
 
 struct BasicDemoView: View {
     @State private var observableModel = ObservableDemoModel()
     @State private var actionModel = ActionDemoModel()
+    @State private var appliedSourceEditValidationValues = false
 
     @TinkerbleState("Title", screen: "Basic")
     private var title = "Tinkerble Demo"
@@ -30,16 +32,68 @@ struct BasicDemoView: View {
     @TinkerbleState("Mood", screen: "Basic", category: "Modes")
     private var mood = DemoMood.focused
 
+    @TinkerbleState("Source Bool", screen: "Basic", category: "Source Types")
+    private var sourceBool = false
+
+    @TinkerbleState("Source Color", screen: "Basic", category: "Source Types")
+    private var sourceColor = Color(.sRGB, red: 0.19999998807907104, green: 0.699999988079071, blue: 0.34999996423721313, opacity: 0.800000011920929)
+
+    @TinkerbleState("Source Int", screen: "Basic", category: "Source Types")
+    private var sourceInt = 42
+
+    @TinkerbleState("Source Double", screen: "Basic", category: "Source Types")
+    private var sourceDouble = 0.875
+
+    @TinkerbleState("Source Float", screen: "Basic", category: "Source Types")
+    private var sourceFloat: Float = Float(2.5)
+
+    @TinkerbleState("Source CGFloat", screen: "Basic", category: "Source Types")
+    private var sourceCGFloat: CGFloat = CGFloat(24.5)
+
+    @TinkerbleState(
+        "Source Angle",
+        screen: "Basic",
+        category: "Source Types",
+        control: .slider(.degrees(0)...(.degrees(90)), unit: .degrees)
+    )
+    private var sourceAngle = Angle.degrees(63.0)
+
+    @TinkerbleState(
+        "Source Date",
+        screen: "Basic",
+        category: "Source Types",
+        control: TinkerbleControl<Date>.dateAndTime
+    )
+    private var sourceDate = Date(timeIntervalSinceReferenceDate: 825000000.0)
+
+    @TinkerbleState("Source Mood", screen: "Basic", category: "Source Types")
+    private var sourceMood = DemoMood.`celebratory`
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 sampleCards
                 observableExamples
+                SourceEditingDemoView(
+                    stringValue: observableModel.sourceString,
+                    boolValue: sourceBool,
+                    colorValue: sourceColor,
+                    intValue: sourceInt,
+                    doubleValue: sourceDouble,
+                    floatValue: sourceFloat,
+                    cgFloatValue: sourceCGFloat,
+                    angleValue: sourceAngle,
+                    dateValue: sourceDate,
+                    moodValue: sourceMood
+                )
             }
             .padding(20)
         }
         .background(Color(.systemGroupedBackground))
+        .task {
+            await applySourceEditValidationValuesIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -131,5 +185,36 @@ struct BasicDemoView: View {
         case .celebratory:
             return "Launch Card \(index + 1)"
         }
+    }
+
+    private func applySourceEditValidationValuesIfNeeded() async {
+        guard TinkerbleDemoSourceEditValidation.isEnabled,
+              !appliedSourceEditValidationValues else {
+            return
+        }
+
+        do {
+            for _ in 0..<20 {
+                if case .connected = Tinkerble.shared.connectionStatus {
+                    try await Task.sleep(for: .milliseconds(500))
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        } catch {
+            return
+        }
+
+        appliedSourceEditValidationValues = true
+        observableModel.sourceString = TinkerbleDemoSourceEditValidation.stringValue
+        sourceBool = TinkerbleDemoSourceEditValidation.boolValue
+        sourceColor = TinkerbleDemoSourceEditValidation.colorValue
+        sourceInt = TinkerbleDemoSourceEditValidation.intValue
+        sourceDouble = TinkerbleDemoSourceEditValidation.doubleValue
+        sourceFloat = TinkerbleDemoSourceEditValidation.floatValue
+        sourceCGFloat = TinkerbleDemoSourceEditValidation.cgFloatValue
+        sourceAngle = TinkerbleDemoSourceEditValidation.angleValue
+        sourceDate = TinkerbleDemoSourceEditValidation.dateValue
+        sourceMood = TinkerbleDemoSourceEditValidation.moodValue
     }
 }

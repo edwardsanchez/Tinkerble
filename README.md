@@ -179,7 +179,7 @@ private var isEnabled = true
 private var accent = Color.blue
 ```
 
-Swift does not reliably expose the wrapped variable name to the property wrapper, so the display name is required as the first argument. `screen` and `category` are optional and always labeled. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups. Older `name:` and category-first spellings are deprecated; replace `@TinkerbleState(category: "Layout", name: "Opacity")` with `@TinkerbleState("Opacity", category: "Layout")`.
+`@TinkerbleState` is an attached macro that captures the declaration's source location for Debug tooling. The display name remains an explicit first argument so the companion does not have to turn a code identifier into user-facing copy. `screen` and `category` are optional and always labeled. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups. Older `name:` and category-first spellings are deprecated; replace `@TinkerbleState(category: "Layout", name: "Opacity")` with `@TinkerbleState("Opacity", category: "Layout")`.
 
 Use `@TinkerbleObservableState` for normal stored properties inside `@Observable` classes. Add `@TinkerbleObservable` to the class and keep using normal Observation and `@Bindable` bindings from SwiftUI:
 
@@ -205,6 +205,16 @@ struct EditorView: View {
 ```
 
 `@TinkerbleObservableState` supports the same required display name plus optional `screen`, `category`, and `control` arguments as `@TinkerbleState`, but it does not create projected SwiftUI bindings. The property remains a normal Observation-tracked property, so SwiftUI bindings come from `@Bindable`.
+
+## Applying Values to Code
+
+The companion can write live values back to the inline defaults in the active project. Hover a value row and use its Apply button to write one value, or use the category menu to apply every value in that category as one transaction. The same category menu can reset the live values to their effective defaults. After a successful apply, that reset point is the newly applied value even before the app is rebuilt. The next build treats the edited source values as the compiled defaults and retires the temporary cache records.
+
+No additional source annotation is required. In Debug builds, `@TinkerbleState` and `@TinkerbleObservableState` send the file, declaration location, type path, property name, and original initializer to the companion. The shared `+ Tinkerble` scheme supplies the project root and product identity when it launches the companion, so edits are limited to the project associated with the connected app.
+
+Source application supports `String`, `Bool`, `Color`, `Int`, `Double`, `Float`, `CGFloat`, `Angle`, `Date`, and `TinkerbleEnum` values. A property must have one unambiguous registration and an inline initializer. Existing custom `TinkerbleValueConvertible` types remain tweakable but are not assumed to have a safe Swift source representation.
+
+Before writing, Tinkerble verifies that the source file is inside the active project and that the initializer still matches the version compiled into the running app. Category edits are staged together, parsed as Swift, hash-checked before and after replacement, and rolled back if a write or verification step fails. If the file moved, changed, became unwritable, contains an ambiguous declaration, or cannot be restored safely, the companion reports the affected screen, category, and value instead of guessing.
 
 Use `.tinkerbleAction` to expose a companion button from a SwiftUI view:
 ```swift
@@ -366,7 +376,7 @@ Fixed mode is better for CI and repeatable local workflows. Interactive mode is 
 - Arrays, dictionaries, arbitrary structs, nested models, `ObservableObject`, and `@Published` are intentionally unsupported.
 - `@TinkerbleState` is main-actor SwiftUI view state.
 - `@TinkerbleObservableState` is for default-initialized `@Observable` classes marked with `@TinkerbleObservable`. Classes with explicit custom initializers are not supported yet.
-- The app-facing package intentionally has a compile-time SwiftSyntax macro dependency for `@TinkerbleObservable` and `@TinkerbleActions`.
+- The app-facing package intentionally has a compile-time SwiftSyntax macro dependency for `@TinkerbleState`, `@TinkerbleObservable`, and `@TinkerbleActions`.
 - Only one active companion session is tracked.
 - The companion UI is intentionally basic.
 

@@ -154,6 +154,8 @@ If SwiftData is introduced:
 
 Prefer the repo `Makefile` for routine local validation and release prep before dropping to raw `swift test` or `xcodebuild` commands. `make help` lists the maintained targets.
 
+The `Makefile` defaults `DEVELOPER_DIR` to `/Applications/Xcode-beta.app/Contents/Developer` when that install exists. If the active full Xcode on this machine lives elsewhere, prefer an explicit override such as `DEVELOPER_DIR="$(xcode-select -p)" make verify` before assuming the repo default matches the local setup.
+
 For code changes, run the validation sequence that matches the touched area. The broad package validation is:
 
 ```sh
@@ -200,6 +202,7 @@ Run `/opt/homebrew/bin/swiftlint --fix` only on Swift files changed in this work
 
 Use focused tests when the change has a narrower proof path:
 
+- `make test` for the Swift package suite only.
 - `make test-installer` for installer behavior.
 - `make test-preview-fixtures` for All Tinkerble Components fixture changes.
 - `make test-inspector` for companion inspector rendering/parsing behavior.
@@ -215,6 +218,8 @@ For companion/demo workflows, prefer the maintained helpers:
 - `make demo-device-build` builds the demo for a generic physical iOS device.
 
 `Scripts/run-tinkerble-demo.sh` uses `TINKERBLE_DEMO_PACKAGE_CACHE` to override its cloned package cache path and `TINKERBLE_SIMULATOR_UDID` to skip simulator selection.
+
+The shared `+ Tinkerble` run scheme also honors `TINKERBLE_COMPANION_AUTOLAUNCH=0` to skip companion launch, `TINKERBLE_PACKAGE_DIR` or `TINKERBLE_SOURCE_PACKAGES_DIR` to force package-checkout discovery, and `TINKERBLE_COMPANION_SCRATCH_PATH` to override the companion packaging scratch directory.
 
 For release prep, use the repo-backed targets instead of ad hoc git/GitHub commands:
 
