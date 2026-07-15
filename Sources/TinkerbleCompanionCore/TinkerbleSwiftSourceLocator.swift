@@ -50,6 +50,19 @@ struct TinkerbleSwiftSourceLocator {
             declarations = declarationsAtAnchor
         }
 
+        if let declaration = declarations.first,
+           let explicitTypeName = declaration.explicitTypeName,
+           let sourceValueType = tweak.sourceValueType,
+           explicitTypeName.split(separator: ".").last.map(String.init) != expectedTypeName(for: sourceValueType) {
+            throw TinkerbleSourceEditIssue(
+                tweak: tweak,
+                reason: .staleDeclarationType(
+                    expected: expectedTypeName(for: sourceValueType),
+                    actual: explicitTypeName
+                )
+            )
+        }
+
         let initializedDeclarations = declarations.compactMap { declaration -> TinkerbleVariableCandidate? in
             guard let initializer = declaration.initializer else { return nil }
             return .init(
@@ -101,6 +114,31 @@ struct TinkerbleSwiftSourceLocator {
             .map { token in "\(token.text.utf8.count):\(token.text)" }
             .joined(separator: "|")
     }
+
+    private func expectedTypeName(for sourceValueType: TinkerbleSourceValueType) -> String {
+        switch sourceValueType {
+        case .string:
+            "String"
+        case .bool:
+            "Bool"
+        case .color:
+            "Color"
+        case .int:
+            "Int"
+        case .double:
+            "Double"
+        case .float:
+            "Float"
+        case .cgFloat:
+            "CGFloat"
+        case .angle:
+            "Angle"
+        case .date:
+            "Date"
+        case let .enumeration(typeName):
+            typeName.split(separator: ".").last.map(String.init) ?? typeName
+        }
+    }
 }
 
 private struct TinkerbleVariableCandidate {
@@ -112,6 +150,7 @@ private struct TinkerbleVariableCandidate {
 private struct TinkerbleVisitedVariable {
     var propertyName: String
     var enclosingTypePath: [String]
+    var explicitTypeName: String?
     var initializer: ExprSyntax?
     var hasTinkerbleAttribute: Bool
     var position: AbsolutePosition
@@ -178,6 +217,7 @@ private final class TinkerbleVariableVisitor: SyntaxVisitor {
             .init(
                 propertyName: identifier.identifier.text,
                 enclosingTypePath: enclosingTypePath,
+                explicitTypeName: binding.typeAnnotation?.type.trimmedDescription,
                 initializer: binding.initializer?.value,
                 hasTinkerbleAttribute: node.attributes.containsTinkerbleSourceAttribute,
                 position: node.positionAfterSkippingLeadingTrivia

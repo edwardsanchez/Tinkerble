@@ -185,6 +185,35 @@ final class TinkerbleSourceEditingTests: XCTestCase {
         }
     }
 
+    func testChangedExplicitTypeReturnsIssueAndLeavesSourceUntouched() async throws {
+        let projectRoot = try temporaryProject()
+        let fileURL = projectRoot.appending(path: "ChangedType.swift")
+        let original = """
+        struct Fixture {
+            @TinkerbleState("Value") var value: Int = 1
+        }
+        """
+        try original.write(to: fileURL, atomically: true, encoding: .utf8)
+        let editRequest = request(
+            fileURL: fileURL,
+            root: projectRoot,
+            property: "value",
+            initializer: "1",
+            type: .double,
+            value: .number(2.5)
+        )
+
+        do {
+            _ = try await TinkerbleSourceEditingService().apply([editRequest])
+            XCTFail("Expected stale declaration type failure")
+        } catch let error as TinkerbleSourceApplyError {
+            guard case .staleDeclarationType(expected: "Double", actual: "Int") = error.issues[0].reason else {
+                return XCTFail("Expected staleDeclarationType issue")
+            }
+            XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), original)
+        }
+    }
+
     func testMovedDeclarationReturnsIssue() async throws {
         let projectRoot = try temporaryProject()
         let fileURL = projectRoot.appending(path: "Ambiguous.swift")

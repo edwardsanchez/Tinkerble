@@ -15,6 +15,7 @@ public struct TinkerbleSourceEditIssue: LocalizedError, Identifiable, Equatable,
         case declarationMissing(String)
         case declarationMoved(String)
         case declarationAmbiguous(String)
+        case staleDeclarationType(expected: String, actual: String)
         case initializerMissing(String)
         case staleInitializer(expected: [String], actual: String)
         case unsupportedValue(String)
@@ -69,6 +70,8 @@ public struct TinkerbleSourceEditIssue: LocalizedError, Identifiable, Equatable,
             "The original property declaration moved within \(path) after the app was built. Rebuild and try again."
         case let .declarationAmbiguous(path):
             "More than one matching property declaration was found in \(path)."
+        case let .staleDeclarationType(expected, actual):
+            "The property's type changed from \(expected) to \(actual) after the app was built. Rebuild and try again."
         case let .initializerMissing(path):
             "The property in \(path) does not have an inline default value that Tinkerble can edit."
         case .staleInitializer:
