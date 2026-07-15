@@ -628,6 +628,51 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertEqual(store.tweaks.first?.value, .string("Applied"))
     }
 
+    func testReconnectReappliesCachedDefaultToTheRunningApp() async throws {
+        let root = URL(fileURLWithPath: "/tmp/TinkerbleProject")
+        let anchor = sourceAnchor(initializer: "\"Initial\"")
+        let edit = TinkerbleAppliedSourceEdit(
+            tweakID: "Basic/Layout/Title",
+            anchor: anchor,
+            previousExpression: "\"Initial\"",
+            writtenExpression: "\"Applied\"",
+            originalFileHash: "before",
+            writtenFileHash: "after"
+        )
+        let appliedDefaults = TinkerbleInMemoryAppliedDefaultRepository()
+        try await appliedDefaults.update(
+            [
+                TinkerbleAppliedDefaultRecord(
+                    projectID: "app.test",
+                    projectRoot: root,
+                    edit: edit,
+                    value: .string("Applied"),
+                    sourceValueType: .string
+                )
+            ]
+        )
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            appliedDefaultRepository: appliedDefaults,
+            sourceProjectRoot: root,
+            sourceProjectID: "app.test"
+        )
+        let outbound = RecordingOutboundChannel()
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.test", displayName: "Test")),
+            outboundChannel: outbound
+        )
+        store.handle(
+            .snapshot([sourceTweak(anchor: anchor, value: .string("Initial"))]),
+            outboundChannel: nil
+        )
+
+        await waitUntil { !store.isReconcilingAppliedDefaults }
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Applied"))
+        XCTAssertEqual(outbound.messages.last, .update(id: "Basic/Layout/Title", value: .string("Applied")))
+    }
+
     func testApplyingSourceWithoutProjectRootProducesAnAlertWithoutCallingEditor() async {
         let sourceEditor = StubSourceEditor(outcome: .success(.init(edits: [])))
         let store = TinkerbleCompanionStore(

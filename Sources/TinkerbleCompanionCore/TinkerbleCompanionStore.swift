@@ -549,6 +549,7 @@ public final class TinkerbleCompanionStore {
                     self.effectiveDefaultValuesByID[id] = resolution.effectiveValue
                 }
                 self.isReconcilingAppliedDefaults = false
+                self.applySelectedVersion()
                 self.publishTweaks()
             } catch {
                 guard generation == self.appliedDefaultReconciliationGeneration else { return }
