@@ -131,6 +131,19 @@ final class TinkerbleStateSourceProvenanceTests: XCTestCase {
         XCTAssertEqual(Tinkerble.shared.registeredTweaks.first?.control, TinkerbleControl<Int>.plain.descriptor)
     }
 
+    func testStateMacroForwardsAnAttributeArgumentListWithATrailingComma() {
+        let transport = SourceProvenanceRecordingTransport()
+        Tinkerble.shared.resetForTesting(transport: transport)
+        addTeardownBlock { @MainActor in
+            Tinkerble.shared.resetForTesting()
+        }
+
+        let fixture = TrailingCommaSourceProvenanceStateFixture()
+
+        XCTAssertEqual(fixture.count, 4)
+        XCTAssertEqual(Tinkerble.shared.registeredTweaks.first?.codeDefaultValue, .number(4))
+    }
+
     func testStateMacroPreservesShorthandControlInference() {
         let transport = SourceProvenanceRecordingTransport()
         Tinkerble.shared.resetForTesting(transport: transport)
@@ -472,6 +485,16 @@ private enum StateMacroShadowingNamespace {
 @MainActor
 private struct AutomaticControlSourceProvenanceStateFixture {
     @TinkerbleState("Automatic Count", screen: "Basic", category: "Layout", control: .automatic)
+    var count = 4
+}
+
+@MainActor
+private struct TrailingCommaSourceProvenanceStateFixture {
+    @TinkerbleState(
+        "Trailing Comma Count",
+        screen: "Basic",
+        category: "Layout",
+    )
     var count = 4
 }
 

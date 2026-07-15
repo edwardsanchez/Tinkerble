@@ -148,7 +148,11 @@ public struct TinkerbleStateMacro: AccessorMacro, PeerMacro {
         guard case let .argumentList(arguments) = node.arguments else {
             return "\"\""
         }
-        return arguments.description
+        guard var lastArgument = arguments.last, lastArgument.trailingComma != nil else {
+            return arguments.description
+        }
+        lastArgument.trailingComma = nil
+        return arguments.dropLast().map(\.description).joined() + lastArgument.description
     }
 
     private static func observerInvocation(

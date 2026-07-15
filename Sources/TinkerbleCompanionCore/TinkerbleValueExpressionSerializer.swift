@@ -86,15 +86,8 @@ public struct TinkerbleValueExpressionSerializer: Sendable {
         originalInitializer: String,
         currentInitializer _: String
     ) -> String {
-        let usableTypeName = sourceUsableTypeName(typeName)
         let encodedID = StringLiteralExprSyntax(content: id).description
-        return "\(usableTypeName).tinkerbleCase(for: \(encodedID)) ?? (\(originalInitializer))"
-    }
-
-    private func sourceUsableTypeName(_ reflectedName: String) -> String {
-        let components = reflectedName.split(separator: ".", omittingEmptySubsequences: true)
-        guard components.count > 1 else { return reflectedName }
-        return components.dropFirst().joined(separator: ".")
+        return "\(typeName).tinkerbleCase(for: \(encodedID)) ?? (\(originalInitializer))"
     }
 
     private func typedFloatingExpression(typeName: String, value: Double, decimalPlaces: Int?) -> String {

@@ -696,7 +696,7 @@ final class TinkerbleSourceEditingTests: XCTestCase {
         )
     }
 
-    func testSerializerResolvesIdentifierShapedEnumIDsThroughTinkerbleEnum() throws {
+    func testSerializerPreservesReflectedEnumTypeQualifier() throws {
         let serializer = TinkerbleValueExpressionSerializer()
         let root = URL(fileURLWithPath: "/tmp")
         let anchor = sourceAnchor(
@@ -719,7 +719,7 @@ final class TinkerbleSourceEditingTests: XCTestCase {
 
         XCTAssertEqual(
             expression,
-            "CustomIdentifierMode.tinkerbleCase(for: \"celebratory\") ?? (CustomIdentifierMode.quiet)"
+            "TinkerbleTests.CustomIdentifierMode.tinkerbleCase(for: \"celebratory\") ?? (CustomIdentifierMode.quiet)"
         )
         XCTAssertEqual(CustomIdentifierMode.tinkerbleCase(for: "celebratory") ?? .quiet, .happy)
     }
