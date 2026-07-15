@@ -272,7 +272,10 @@ public final class XcodeProjectInstaller {
           TINKERBLE_ICON_ASSET_NAME="${TINKERBLE_ICON_ASSET_NAME:-}" \
           TINKERBLE_SIGN_IDENTITY="${TINKERBLE_SIGN_IDENTITY:-}" \
           TINKERBLE_SWIFT_EXECUTABLE="${TINKERBLE_SWIFT_EXECUTABLE:-}" \
-          "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" --restart
+          "${PACKAGE_DIR}/Scripts/ensure-macos-companion-running.sh" \
+            --restart \
+            --project-root "${SRCROOT}" \
+            --project-id "${PRODUCT_BUNDLE_IDENTIFIER:-${PRODUCT_NAME:-${TARGET_NAME:-default}}}"
         """#
     }
 

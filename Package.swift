@@ -37,7 +37,10 @@ let package = Package(
         .target(
             name: "TinkerbleCompanionCore",
             dependencies: [
-                "Tinkerble"
+                "Tinkerble",
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxBuilder", package: "swift-syntax")
             ]
         ),
         .target(

@@ -74,6 +74,7 @@ public final class Tinkerble {
         name: String,
         value: Value,
         control: TinkerbleControl<Value>,
+        sourceAnchor: TinkerbleSourceAnchor? = nil,
         applyRemoteValue: @escaping (Value) -> Void
     ) -> TinkerbleRegistrationToken {
 #if DEBUG
@@ -83,9 +84,12 @@ public final class Tinkerble {
             category: normalizedCategory(category),
             name: name,
             value: value.tinkerbleValue,
+            codeDefaultValue: value.tinkerbleValue,
             valueKind: Value.tinkerbleValueKind,
             control: resolvedControlDescriptor(control.descriptor, for: Value.self),
-            enumOptions: Value.tinkerbleEnumOptions ?? []
+            enumOptions: Value.tinkerbleEnumOptions ?? [],
+            sourceValueType: Value.tinkerbleSourceValueType,
+            sourceAnchors: sourceAnchor.map { [$0] } ?? []
         )
         let token = TinkerbleRegistrationToken(tweakID: id)
         let remoteApplier: (TinkerbleValue) -> Void = { incomingValue in
@@ -96,14 +100,27 @@ public final class Tinkerble {
         if var liveRegistration = liveRegistrationsByID[id] {
             let currentValue = liveRegistration.tweak.value
             liveRegistration.remoteAppliers[token.instanceID] = remoteApplier
+            var addedSourceAnchor = false
+            if let sourceAnchor {
+                liveRegistration.sourceAnchorsByInstance[token.instanceID] = sourceAnchor
+                if !liveRegistration.tweak.sourceAnchors.contains(sourceAnchor) {
+                    liveRegistration.tweak.sourceAnchors.append(sourceAnchor)
+                    addedSourceAnchor = true
+                }
+            }
             liveRegistrationsByID[id] = liveRegistration
+            if addedSourceAnchor {
+                publishTweaks()
+                transport.send(.register(liveRegistration.tweak))
+            }
             remoteApplier(currentValue)
             return token
         }
 
         liveRegistrationsByID[id] = LiveTweakRegistration(
             tweak: tweak,
-            remoteAppliers: [token.instanceID: remoteApplier]
+            remoteAppliers: [token.instanceID: remoteApplier],
+            sourceAnchorsByInstance: sourceAnchor.map { [token.instanceID: $0] } ?? [:]
         )
         publishTweaks()
         transport.send(.register(tweak))
@@ -114,6 +131,7 @@ public final class Tinkerble {
         _ = name
         _ = value
         _ = control
+        _ = sourceAnchor
         _ = applyRemoteValue
         return TinkerbleRegistrationToken(tweakID: id)
 #endif
@@ -181,8 +199,16 @@ public final class Tinkerble {
 
         liveRegistration.remoteAppliers.removeValue(forKey: token.instanceID)
         liveRegistration.actionHandlers.removeValue(forKey: token.instanceID)
+        liveRegistration.sourceAnchorsByInstance.removeValue(forKey: token.instanceID)
         guard liveRegistration.remoteAppliers.isEmpty, liveRegistration.actionHandlers.isEmpty else {
+            let remainingAnchors = Set(liveRegistration.sourceAnchorsByInstance.values)
+            let previousAnchors = liveRegistration.tweak.sourceAnchors
+            liveRegistration.tweak.sourceAnchors.removeAll { !remainingAnchors.contains($0) }
             liveRegistrationsByID[token.tweakID] = liveRegistration
+            if liveRegistration.tweak.sourceAnchors != previousAnchors {
+                publishTweaks()
+                transport.send(.register(liveRegistration.tweak))
+            }
             return
         }
 
@@ -337,6 +363,7 @@ public final class Tinkerble {
         var tweak: TinkerbleTweak
         var remoteAppliers: [UUID: (TinkerbleValue) -> Void] = [:]
         var actionHandlers: [UUID: () -> Void] = [:]
+        var sourceAnchorsByInstance: [UUID: TinkerbleSourceAnchor] = [:]
     }
 #endif
 }

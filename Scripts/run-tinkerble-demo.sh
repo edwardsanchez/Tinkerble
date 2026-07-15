@@ -40,7 +40,9 @@ choose_simulator() {
   echo "${devices[$((choice - 1))]#*|}"
 }
 
-"$ROOT_DIR/Scripts/launch-macos-companion.sh"
+"$ROOT_DIR/Scripts/launch-macos-companion.sh" \
+  --project-root "$ROOT_DIR/Tinkerble Demo" \
+  --project-id "$APP_BUNDLE_ID"
 
 SIMULATOR_UDID="$(choose_simulator)"
 xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
@@ -63,4 +65,10 @@ APP_PATH="$(xcodebuild \
   | awk -F ' = ' '/TARGET_BUILD_DIR/ {build=$2} /WRAPPER_NAME/ {wrapper=$2} END {print build "/" wrapper}')"
 
 xcrun simctl install "$SIMULATOR_UDID" "$APP_PATH"
-xcrun simctl launch "$SIMULATOR_UDID" "$APP_BUNDLE_ID"
+xcrun simctl terminate "$SIMULATOR_UDID" "$APP_BUNDLE_ID" 2>/dev/null || true
+
+if [[ "${TINKERBLE_DEMO_SOURCE_EDIT_VALIDATION:-0}" == "1" ]]; then
+  xcrun simctl launch "$SIMULATOR_UDID" "$APP_BUNDLE_ID" --tinkerble-source-edit-validation
+else
+  xcrun simctl launch "$SIMULATOR_UDID" "$APP_BUNDLE_ID"
+fi

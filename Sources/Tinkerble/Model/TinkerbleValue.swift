@@ -8,7 +8,7 @@ import UIKit
 import AppKit
 #endif
 
-public enum TinkerbleValueKind: String, Codable, Hashable {
+public enum TinkerbleValueKind: String, Codable, Hashable, Sendable {
     case string
     case bool
     case color
@@ -18,7 +18,7 @@ public enum TinkerbleValueKind: String, Codable, Hashable {
     case action
 }
 
-public struct TinkerbleColor: Codable, Equatable, Hashable {
+public struct TinkerbleColor: Codable, Equatable, Hashable, Sendable {
     public var red: Double
     public var green: Double
     public var blue: Double
@@ -63,7 +63,7 @@ public struct TinkerbleColor: Codable, Equatable, Hashable {
     }
 }
 
-public enum TinkerbleValue: Codable, Equatable, Hashable {
+public enum TinkerbleValue: Codable, Equatable, Hashable, Sendable {
     case string(String)
     case bool(Bool)
     case color(TinkerbleColor)

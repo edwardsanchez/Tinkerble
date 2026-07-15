@@ -7,12 +7,27 @@ private enum DemoMode: String, CaseIterable, TinkerbleEnum {
     case expanded
 }
 
+private struct LegacyNumber: TinkerbleValueConvertible {
+    static var tinkerbleValueKind: TinkerbleValueKind { .number }
+    var value: Double
+    var tinkerbleValue: TinkerbleValue { .number(value) }
+
+    static func fromTinkerbleValue(_ value: TinkerbleValue) -> LegacyNumber? {
+        guard case let .number(number) = value else { return nil }
+        return LegacyNumber(value: number)
+    }
+}
+
 final class TinkerbleValueTests: XCTestCase {
     func testStringBoolAndNumbersRoundTripThroughValueRepresentation() {
         XCTAssertEqual(String.fromTinkerbleValue("Hello".tinkerbleValue), "Hello")
         XCTAssertEqual(Bool.fromTinkerbleValue(true.tinkerbleValue), true)
         XCTAssertEqual(Int.fromTinkerbleValue(12.tinkerbleValue), 12)
         XCTAssertEqual(Double.fromTinkerbleValue(0.75.tinkerbleValue), 0.75)
+    }
+
+    func testExistingCustomConvertibleIsNotUnsafelySourceEditableByDefault() {
+        XCTAssertNil(LegacyNumber.tinkerbleSourceValueType)
     }
 
     func testAngleRoundTripsThroughCanonicalRadianNumberRepresentation() {

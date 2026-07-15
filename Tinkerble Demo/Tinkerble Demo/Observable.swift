@@ -19,6 +19,9 @@ enum DemoMood: String, CaseIterable, TinkerbleEnum {
 @Observable
 @MainActor
 final class ObservableDemoModel {
+    @TinkerbleObservableState("Source String", screen: "Basic", category: "Source Types")
+    var sourceString = #"Applied "String"\#nValue"#
+
     @TinkerbleObservableState("Badge Text", screen: "Basic", category: "Observable")
     var badgeText = "Observable Model"
 

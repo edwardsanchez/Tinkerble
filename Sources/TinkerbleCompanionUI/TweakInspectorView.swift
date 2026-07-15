@@ -27,7 +27,15 @@ struct TweakInspectorView: View {
                 beginCoalescedTweakUpdate: store.beginCoalescedTweakUpdate,
                 updateCoalescedTweak: store.updateCoalescedTweak,
                 endCoalescedTweakUpdate: store.endCoalescedTweakUpdate,
-                triggerTweak: store.triggerTweak
+                triggerTweak: store.triggerTweak,
+                applyTweakToSource: store.applyTweakToSource,
+                applyCategoryToSource: store.applyCategoryToSource,
+                resetCategoryToDefaults: store.resetCategoryToDefaults,
+                canApplyTweakToSource: store.canApplyTweakToSource,
+                canApplyCategoryToSource: store.canApplyCategoryToSource,
+                canResetCategoryToDefaults: store.canResetCategoryToDefaults,
+                sourceEditingTweakIDs: store.sourceEditingTweakIDs,
+                recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs
             )
         }
         .background {
@@ -47,7 +55,15 @@ struct TweakInspectorView: View {
                 beginCoalescedTweakUpdate: store.beginCoalescedTweakUpdate,
                 updateCoalescedTweak: store.updateCoalescedTweak,
                 endCoalescedTweakUpdate: store.endCoalescedTweakUpdate,
-                triggerTweak: store.triggerTweak
+                triggerTweak: store.triggerTweak,
+                applyTweakToSource: store.applyTweakToSource,
+                applyCategoryToSource: store.applyCategoryToSource,
+                resetCategoryToDefaults: store.resetCategoryToDefaults,
+                canApplyTweakToSource: store.canApplyTweakToSource,
+                canApplyCategoryToSource: store.canApplyCategoryToSource,
+                canResetCategoryToDefaults: store.canResetCategoryToDefaults,
+                sourceEditingTweakIDs: store.sourceEditingTweakIDs,
+                recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs
             )
                 .fixedSize(horizontal: false, vertical: true)
                 .hidden()
@@ -56,6 +72,18 @@ struct TweakInspectorView: View {
                 } action: { height in
                     measuredHeightChanged(height)
                 }
+        }
+        .alert(
+            store.sourceEditAlert?.title ?? "Unable to Apply Values",
+            isPresented: sourceEditAlertPresented
+        ) {
+            Button("OK", role: .cancel) {
+                store.dismissSourceEditAlert()
+            }
+        } message: {
+            if let sourceEditAlert = store.sourceEditAlert {
+                Text(sourceEditAlert.message)
+            }
         }
     }
 
@@ -72,6 +100,17 @@ struct TweakInspectorView: View {
             set: { versionID in
                 guard let versionID else { return }
                 store.selectVersion(versionID)
+            }
+        )
+    }
+
+    private var sourceEditAlertPresented: Binding<Bool> {
+        Binding(
+            get: { store.sourceEditAlert != nil },
+            set: { isPresented in
+                if !isPresented {
+                    store.dismissSourceEditAlert()
+                }
             }
         )
     }
@@ -94,6 +133,14 @@ struct TweakInspectorContent: View {
     var updateCoalescedTweak: (String, TinkerbleValue) -> Void
     var endCoalescedTweakUpdate: (String) -> Void
     var triggerTweak: (String) -> Void
+    var applyTweakToSource: (String) -> Void
+    var applyCategoryToSource: (String) -> Void
+    var resetCategoryToDefaults: (String) -> Void
+    var canApplyTweakToSource: (String) -> Bool
+    var canApplyCategoryToSource: (String) -> Bool
+    var canResetCategoryToDefaults: (String) -> Bool
+    var sourceEditingTweakIDs: Set<String>
+    var recentlyAppliedTweakIDs: Set<String>
 
     init(
         groups: [TinkerbleTweakGroup],
@@ -111,7 +158,15 @@ struct TweakInspectorContent: View {
         beginCoalescedTweakUpdate: @escaping (String) -> Void = { _ in },
         updateCoalescedTweak: @escaping (String, TinkerbleValue) -> Void = { _, _ in },
         endCoalescedTweakUpdate: @escaping (String) -> Void = { _ in },
-        triggerTweak: @escaping (String) -> Void = { _ in }
+        triggerTweak: @escaping (String) -> Void = { _ in },
+        applyTweakToSource: @escaping (String) -> Void = { _ in },
+        applyCategoryToSource: @escaping (String) -> Void = { _ in },
+        resetCategoryToDefaults: @escaping (String) -> Void = { _ in },
+        canApplyTweakToSource: @escaping (String) -> Bool = { _ in false },
+        canApplyCategoryToSource: @escaping (String) -> Bool = { _ in false },
+        canResetCategoryToDefaults: @escaping (String) -> Bool = { _ in false },
+        sourceEditingTweakIDs: Set<String> = [],
+        recentlyAppliedTweakIDs: Set<String> = []
     ) {
         self.groups = groups
         self.isEmpty = isEmpty
@@ -129,6 +184,14 @@ struct TweakInspectorContent: View {
         self.updateCoalescedTweak = updateCoalescedTweak
         self.endCoalescedTweakUpdate = endCoalescedTweakUpdate
         self.triggerTweak = triggerTweak
+        self.applyTweakToSource = applyTweakToSource
+        self.applyCategoryToSource = applyCategoryToSource
+        self.resetCategoryToDefaults = resetCategoryToDefaults
+        self.canApplyTweakToSource = canApplyTweakToSource
+        self.canApplyCategoryToSource = canApplyCategoryToSource
+        self.canResetCategoryToDefaults = canResetCategoryToDefaults
+        self.sourceEditingTweakIDs = sourceEditingTweakIDs
+        self.recentlyAppliedTweakIDs = recentlyAppliedTweakIDs
     }
 
     var body: some View {
@@ -152,11 +215,14 @@ struct TweakInspectorContent: View {
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     if let category = group.category {
-                        Text(category)
-                            .font(.subheadline)
-                            .bold()
-                            .foregroundStyle(.primary)
-                            .textCase(.uppercase)
+                        TinkerbleTweakCategoryHeaderView(
+                            category: category,
+                            canApplyValues: canApplyCategoryToSource(category),
+                            canResetValues: canResetCategoryToDefaults(category),
+                            isApplyingValues: group.tweaks.contains { sourceEditingTweakIDs.contains($0.id) },
+                            applyValues: { applyCategoryToSource(category) },
+                            resetValues: { resetCategoryToDefaults(category) }
+                        )
                             .padding(.top, Self.categoryHeaderTopPadding(for: group, in: groups))
                     }
 
@@ -167,7 +233,11 @@ struct TweakInspectorContent: View {
                             beginCoalescedTweakUpdate: beginCoalescedTweakUpdate,
                             updateCoalescedTweak: updateCoalescedTweak,
                             endCoalescedTweakUpdate: endCoalescedTweakUpdate,
-                            triggerTweak: triggerTweak
+                            triggerTweak: triggerTweak,
+                            canApplyToSource: canApplyTweakToSource(tweak.id),
+                            isApplyingToSource: sourceEditingTweakIDs.contains(tweak.id),
+                            wasRecentlyAppliedToSource: recentlyAppliedTweakIDs.contains(tweak.id),
+                            applyToSource: { applyTweakToSource(tweak.id) }
                         )
                     }
                 }
@@ -204,6 +274,11 @@ private struct TweakRow: View {
     var updateCoalescedTweak: (String, TinkerbleValue) -> Void
     var endCoalescedTweakUpdate: (String) -> Void
     var triggerTweak: (String) -> Void
+    var canApplyToSource: Bool
+    var isApplyingToSource: Bool
+    var wasRecentlyAppliedToSource: Bool
+    var applyToSource: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         if case .action = tweak.value {
@@ -220,8 +295,19 @@ private struct TweakRow: View {
                 control
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .font(.callout)
+
+                TinkerbleTweakApplyButtonView(
+                    tweakID: tweak.id,
+                    tweakName: tweak.name,
+                    isRowHovered: isHovered,
+                    isEnabled: canApplyToSource,
+                    isApplying: isApplyingToSource,
+                    wasRecentlyApplied: wasRecentlyAppliedToSource,
+                    apply: applyToSource
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onHover { isHovered = $0 }
         }
     }
 

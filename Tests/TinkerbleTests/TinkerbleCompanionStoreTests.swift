@@ -177,6 +177,17 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertFalse(store.canRedo)
     }
 
+    func testInboundUpdateDoesNotReplaceCompiledDefaultForCategoryReset() {
+        let store = TinkerbleCompanionStore()
+        let tweak = screenTweak(screen: "Basic", category: "Layout", name: "Title", value: .string("Initial"))
+        store.handle(.register(tweak), outboundChannel: nil)
+
+        store.handle(.update(id: tweak.id, value: .string("From App")), outboundChannel: nil)
+        store.resetCategoryToDefaults("Layout")
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Initial"))
+    }
+
     func testCompanionDoesNotRegisterUndoForRepeatedValues() {
         let store = TinkerbleCompanionStore()
         let outbound = RecordingOutboundChannel()
@@ -466,6 +477,48 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertEqual(store.tweaks.first?.value, .string("Version Two"))
     }
 
+    func testCategoryResetIsScopedAndCreatesOneCompositeUndoEntry() {
+        let store = TinkerbleCompanionStore()
+        let outbound = RecordingOutboundChannel()
+        store.handle(.hello(role: .iOSApp, version: "test"), outboundChannel: outbound)
+        let title = screenTweak(screen: "Basic", category: "Layout", name: "Title", value: .string("Initial"))
+        let count = screenTweak(screen: "Basic", category: "Layout", name: "Count", value: .number(1))
+        let otherScreen = screenTweak(screen: "Other", category: "Layout", name: "Title", value: .string("Other Initial"))
+        let action = TinkerbleTweak(
+            id: TinkerbleTweak.makeID(screen: "Basic", category: "Layout", name: "Action"),
+            screen: "Basic",
+            category: "Layout",
+            name: "Action",
+            value: .action,
+            valueKind: .action,
+            control: .automatic
+        )
+        store.handle(.snapshot([title, count, otherScreen, action]), outboundChannel: nil)
+
+        store.updateTweak(id: title.id, value: .string("Edited"))
+        store.updateTweak(id: count.id, value: .number(7))
+        store.updateTweak(id: otherScreen.id, value: .string("Other Edited"))
+        store.selectScreen("Basic")
+        store.resetCategoryToDefaults("Layout")
+
+        XCTAssertEqual(store.tweaks.first { $0.id == title.id }?.value, .string("Initial"))
+        XCTAssertEqual(store.tweaks.first { $0.id == count.id }?.value, .number(1))
+        XCTAssertEqual(store.tweaks.first { $0.id == otherScreen.id }?.value, .string("Other Edited"))
+        XCTAssertEqual(store.tweaks.first { $0.id == action.id }?.value, .action)
+
+        store.undo()
+
+        XCTAssertEqual(store.tweaks.first { $0.id == title.id }?.value, .string("Edited"))
+        XCTAssertEqual(store.tweaks.first { $0.id == count.id }?.value, .number(7))
+        XCTAssertEqual(store.tweaks.first { $0.id == otherScreen.id }?.value, .string("Other Edited"))
+
+        store.redo()
+
+        XCTAssertEqual(store.tweaks.first { $0.id == title.id }?.value, .string("Initial"))
+        XCTAssertEqual(store.tweaks.first { $0.id == count.id }?.value, .number(1))
+        XCTAssertEqual(store.tweaks.first { $0.id == otherScreen.id }?.value, .string("Other Edited"))
+    }
+
     func testCompanionIgnoresSavedValueWhenTweakKindChanges() {
         let store = TinkerbleCompanionStore()
         store.handle(.hello(role: .iOSApp, version: "test"), outboundChannel: nil)
@@ -532,6 +585,161 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
         XCTAssertTrue(store.groupedTweaks.isEmpty)
     }
 
+    func testApplyingSourceUpdatesEffectiveDefaultAndPersistsItForTheRunningBuild() async throws {
+        let root = URL(fileURLWithPath: "/tmp/TinkerbleProject")
+        let anchor = sourceAnchor(initializer: "\"Initial\"")
+        let edit = TinkerbleAppliedSourceEdit(
+            tweakID: "Basic/Layout/Title",
+            anchor: anchor,
+            previousExpression: "\"Initial\"",
+            writtenExpression: "\"Applied\"",
+            originalFileHash: "before",
+            writtenFileHash: "after"
+        )
+        let sourceEditor = StubSourceEditor(outcome: .success(.init(edits: [edit])))
+        let appliedDefaults = TinkerbleInMemoryAppliedDefaultRepository()
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            sourceEditor: sourceEditor,
+            appliedDefaultRepository: appliedDefaults,
+            sourceProjectRoot: root,
+            sourceProjectID: "app.test"
+        )
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.test", displayName: "Test")),
+            outboundChannel: nil
+        )
+        let tweak = sourceTweak(anchor: anchor, value: .string("Initial"))
+        store.handle(.register(tweak), outboundChannel: nil)
+        store.updateTweak(id: tweak.id, value: .string("Applied"))
+        await waitUntil { !store.isReconcilingAppliedDefaults }
+
+        store.applyTweakToSource(id: tweak.id)
+        await waitUntil { store.sourceEditingTweakIDs.isEmpty }
+
+        let key = TinkerbleAppliedDefaultKey(projectID: "app.test", projectRoot: root, anchor: anchor)
+        let persisted = await appliedDefaults.record(for: key)
+        XCTAssertEqual(persisted?.value, .string("Applied"))
+        XCTAssertFalse(store.canResetCategoryToDefaults("Layout"))
+
+        store.updateTweak(id: tweak.id, value: .string("Changed Again"))
+        store.resetCategoryToDefaults("Layout")
+
+        XCTAssertEqual(store.tweaks.first?.value, .string("Applied"))
+    }
+
+    func testApplyingSourceWithoutProjectRootProducesAnAlertWithoutCallingEditor() async {
+        let sourceEditor = StubSourceEditor(outcome: .success(.init(edits: [])))
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            sourceEditor: sourceEditor
+        )
+        let tweak = sourceTweak(anchor: sourceAnchor(initializer: "\"Initial\""), value: .string("Initial"))
+        store.handle(.register(tweak), outboundChannel: nil)
+        store.updateTweak(id: tweak.id, value: .string("Edited"))
+        await waitUntil { !store.isReconcilingAppliedDefaults }
+
+        store.applyTweakToSource(id: tweak.id)
+
+        XCTAssertNotNil(store.sourceEditAlert)
+        let applyCount = await sourceEditor.applyCount
+        XCTAssertEqual(applyCount, 0)
+    }
+
+    func testApplyingSourceForDifferentProjectProducesAnAlertWithoutCallingEditor() async {
+        let sourceEditor = StubSourceEditor(outcome: .success(.init(edits: [])))
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            sourceEditor: sourceEditor,
+            sourceProjectRoot: URL(fileURLWithPath: "/tmp/TinkerbleProject"),
+            sourceProjectID: "app.expected"
+        )
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.connected", displayName: "Connected")),
+            outboundChannel: nil
+        )
+        let tweak = sourceTweak(anchor: sourceAnchor(initializer: "\"Initial\""), value: .string("Initial"))
+        store.handle(.register(tweak), outboundChannel: nil)
+        store.updateTweak(id: tweak.id, value: .string("Edited"))
+        await waitUntil { !store.isReconcilingAppliedDefaults }
+
+        store.applyTweakToSource(id: tweak.id)
+
+        XCTAssertNotNil(store.sourceEditAlert)
+        let applyCount = await sourceEditor.applyCount
+        XCTAssertEqual(applyCount, 0)
+    }
+
+    func testCategoryApplyAggregatesMultipleSourceIssuesIntoOneAlert() async {
+        let root = URL(fileURLWithPath: "/tmp/TinkerbleProject")
+        let first = sourceTweak(
+            name: "Title",
+            anchor: sourceAnchor(propertyName: "title", initializer: "\"Initial\""),
+            value: .string("Initial")
+        )
+        let second = sourceTweak(
+            name: "Subtitle",
+            anchor: sourceAnchor(propertyName: "subtitle", initializer: "\"Initial\""),
+            value: .string("Initial")
+        )
+        let applyError = TinkerbleSourceApplyError(
+            issues: [
+                .init(tweak: first, reason: .fileMissing(first.sourceAnchors[0].filePath)),
+                .init(tweak: second, reason: .staleInitializer(expected: ["\"Initial\""], actual: "\"Manual\""))
+            ]
+        )
+        let sourceEditor = StubSourceEditor(outcome: .failure(applyError))
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            sourceEditor: sourceEditor,
+            sourceProjectRoot: root,
+            sourceProjectID: "app.test"
+        )
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.test", displayName: "Test")),
+            outboundChannel: nil
+        )
+        store.handle(.snapshot([first, second]), outboundChannel: nil)
+        store.updateTweak(id: first.id, value: .string("First Edited"))
+        store.updateTweak(id: second.id, value: .string("Second Edited"))
+        await waitUntil { !store.isReconcilingAppliedDefaults }
+
+        store.applyCategoryToSource("Layout")
+        await waitUntil { store.sourceEditingTweakIDs.isEmpty }
+
+        let message = store.sourceEditAlert?.message
+        XCTAssertNotNil(message)
+        XCTAssertTrue(message?.contains(first.name) == true)
+        XCTAssertTrue(message?.contains(second.name) == true)
+    }
+
+    func testSourceActionsWaitForAppliedDefaultReconciliation() async {
+        let root = URL(fileURLWithPath: "/tmp/TinkerbleProject")
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            sourceEditor: StubSourceEditor(outcome: .success(.init(edits: []))),
+            appliedDefaultRepository: TinkerbleInMemoryAppliedDefaultRepository(),
+            sourceProjectRoot: root,
+            sourceProjectID: "app.test"
+        )
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.test", displayName: "Test")),
+            outboundChannel: nil
+        )
+        let tweak = sourceTweak(anchor: sourceAnchor(initializer: "\"Initial\""), value: .string("Initial"))
+        store.handle(.register(tweak), outboundChannel: nil)
+        store.updateTweak(id: tweak.id, value: .string("Edited"))
+
+        XCTAssertTrue(store.isReconcilingAppliedDefaults)
+        XCTAssertFalse(store.canApplyTweakToSource(tweak.id))
+        XCTAssertFalse(store.canResetCategoryToDefaults("Layout"))
+
+        await waitUntil { !store.isReconcilingAppliedDefaults }
+
+        XCTAssertTrue(store.canApplyTweakToSource(tweak.id))
+        XCTAssertTrue(store.canResetCategoryToDefaults("Layout"))
+    }
+
     private func titleTweak(value: TinkerbleValue) -> TinkerbleTweak {
         TinkerbleTweak(
             id: "Title",
@@ -565,6 +773,53 @@ final class TinkerbleCompanionStoreTests: XCTestCase {
             control: .automatic
         )
     }
+
+    private func sourceTweak(
+        name: String = "Title",
+        anchor: TinkerbleSourceAnchor,
+        value: TinkerbleValue
+    ) -> TinkerbleTweak {
+        TinkerbleTweak(
+            id: TinkerbleTweak.makeID(screen: "Basic", category: "Layout", name: name),
+            screen: "Basic",
+            category: "Layout",
+            name: name,
+            value: value,
+            codeDefaultValue: value,
+            valueKind: value.kind,
+            control: .automatic,
+            sourceValueType: .string,
+            sourceAnchors: [anchor]
+        )
+    }
+
+    private func sourceAnchor(
+        propertyName: String = "title",
+        initializer: String
+    ) -> TinkerbleSourceAnchor {
+        TinkerbleSourceAnchor(
+            filePath: "/tmp/TinkerbleProject/View.swift",
+            line: 4,
+            column: 5,
+            enclosingTypePath: ["View"],
+            propertyName: propertyName,
+            initializerExpression: initializer
+        )
+    }
+
+    private func waitUntil(
+        _ condition: @escaping @MainActor () -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0 ..< 1_000 {
+            if condition() {
+                return
+            }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for asynchronous store work", file: file, line: line)
+    }
 }
 
 private final class RecordingOutboundChannel: TinkerbleCompanionOutboundChannel {
@@ -575,4 +830,28 @@ private final class RecordingOutboundChannel: TinkerbleCompanionOutboundChannel 
     }
 
     func close() {}
+}
+
+private actor StubSourceEditor: TinkerbleSourceEditing {
+    enum Outcome: Sendable {
+        case success(TinkerbleSourceApplyResult)
+        case failure(TinkerbleSourceApplyError)
+    }
+
+    private let outcome: Outcome
+    private(set) var applyCount = 0
+
+    init(outcome: Outcome) {
+        self.outcome = outcome
+    }
+
+    func apply(_ requests: [TinkerbleSourceApplyRequest]) async throws -> TinkerbleSourceApplyResult {
+        applyCount += 1
+        switch outcome {
+        case let .success(result):
+            return result
+        case let .failure(error):
+            throw error
+        }
+    }
 }

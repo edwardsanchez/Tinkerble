@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import Observation
 import SwiftUI
 import TinkerbleCompanionCore
@@ -13,12 +14,19 @@ struct TinkerbleCompanionApp: App {
     @State private var store: TinkerbleCompanionStore
     @State private var windowLevel = HudWindowLevelState()
     @State private var logWindowPresentation = TinkerbleLogWindowPresentationState()
-    private let launchMode: CompanionLaunchMode
+    private let launchMode: TinkerbleCompanionLaunchMode
 
     init() {
-        let store = TinkerbleCompanionStore(versionRepository: Self.makeVersionRepository())
+        let launchConfiguration = TinkerbleCompanionLaunchConfiguration(arguments: ProcessInfo.processInfo.arguments)
+        let store = TinkerbleCompanionStore(
+            versionRepository: Self.makeVersionRepository(),
+            sourceEditor: TinkerbleSourceEditingService(),
+            appliedDefaultRepository: TinkerbleJSONAppliedDefaultRepository(),
+            sourceProjectRoot: launchConfiguration.projectRoot,
+            sourceProjectID: launchConfiguration.projectID
+        )
         _store = State(wrappedValue: store)
-        launchMode = CompanionLaunchMode(arguments: ProcessInfo.processInfo.arguments)
+        launchMode = launchConfiguration.mode
         if launchMode == .companion {
             store.start()
         }
@@ -102,15 +110,6 @@ struct TinkerbleCompanionApp: App {
         } catch {
             return TinkerbleInMemoryVersionRepository()
         }
-    }
-}
-
-private enum CompanionLaunchMode: Equatable {
-    case companion
-    case allComponents
-
-    init(arguments: [String]) {
-        self = arguments.contains("--all-components") ? .allComponents : .companion
     }
 }
 

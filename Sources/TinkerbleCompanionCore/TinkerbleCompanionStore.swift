@@ -13,15 +13,29 @@ public final class TinkerbleCompanionStore {
     public private(set) var canRedo = false
     public private(set) var versions: [TinkerbleSavedVersion] = []
     public private(set) var selectedVersionID: UUID?
+    public private(set) var sourceEditingTweakIDs: Set<String> = []
+    public private(set) var recentlyAppliedTweakIDs: Set<String> = []
+    public private(set) var sourceEditAlert: TinkerbleSourceEditAlert?
+    public private(set) var isReconcilingAppliedDefaults = false
 
     @ObservationIgnored
     private let versionRepository: any TinkerbleVersionRepository
+    @ObservationIgnored
+    private let sourceEditor: (any TinkerbleSourceEditing)?
+    @ObservationIgnored
+    private let appliedDefaultRepository: any TinkerbleAppliedDefaultRepository
+    @ObservationIgnored
+    private let sourceProjectRoot: URL?
+    @ObservationIgnored
+    private let sourceProjectID: String?
     @ObservationIgnored
     private var server: TinkerbleSocketCompanionServer?
     @ObservationIgnored
     private var tweaksByID: [String: TinkerbleTweak] = [:]
     @ObservationIgnored
-    private var defaultValuesByID: [String: TinkerbleValue] = [:]
+    private var compiledDefaultValuesByID: [String: TinkerbleValue] = [:]
+    @ObservationIgnored
+    private var effectiveDefaultValuesByID: [String: TinkerbleValue] = [:]
     @ObservationIgnored
     private var outboundChannel: TinkerbleCompanionOutboundChannel?
     @ObservationIgnored
@@ -32,13 +46,27 @@ public final class TinkerbleCompanionStore {
     private var coalescedUndoStartValues: [String: TinkerbleValue] = [:]
     @ObservationIgnored
     private var projectIdentity = TinkerbleProjectIdentity.fallback
+    @ObservationIgnored
+    private var appliedDefaultResolutionsByID: [String: TinkerbleAppliedDefaultResolution] = [:]
+    @ObservationIgnored
+    private var appliedDefaultReconciliationGeneration = 0
 
     public convenience init() {
         self.init(versionRepository: TinkerbleInMemoryVersionRepository())
     }
 
-    public init(versionRepository: any TinkerbleVersionRepository) {
+    public init(
+        versionRepository: any TinkerbleVersionRepository,
+        sourceEditor: (any TinkerbleSourceEditing)? = nil,
+        appliedDefaultRepository: any TinkerbleAppliedDefaultRepository = TinkerbleInMemoryAppliedDefaultRepository(),
+        sourceProjectRoot: URL? = nil,
+        sourceProjectID: String? = nil
+    ) {
         self.versionRepository = versionRepository
+        self.sourceEditor = sourceEditor
+        self.appliedDefaultRepository = appliedDefaultRepository
+        self.sourceProjectRoot = sourceProjectRoot?.resolvingSymlinksInPath().standardizedFileURL
+        self.sourceProjectID = sourceProjectID
     }
 
     public var groupedTweaks: [TinkerbleTweakGroup] {
@@ -182,7 +210,9 @@ public final class TinkerbleCompanionStore {
 
     public func updateTweak(id: String, value: TinkerbleValue) {
         guard let currentValue = tweaksByID[id]?.value, currentValue != value else { return }
-        undoStack.append(.init(id: id, previousValue: currentValue, nextValue: value))
+        undoStack.append(
+            .init(changes: [.init(id: id, previousValue: currentValue, nextValue: value)])
+        )
         redoStack.removeAll()
         updateStoredTweak(id: id, value: value)
         saveCurrentVersionValue(id: id, value: value)
@@ -211,7 +241,9 @@ public final class TinkerbleCompanionStore {
             return
         }
 
-        undoStack.append(.init(id: id, previousValue: previousValue, nextValue: currentValue))
+        undoStack.append(
+            .init(changes: [.init(id: id, previousValue: previousValue, nextValue: currentValue)])
+        )
         redoStack.removeAll()
         updateUndoAvailability()
     }
@@ -220,12 +252,200 @@ public final class TinkerbleCompanionStore {
         send(.trigger(id: id))
     }
 
+    public func canApplyTweakToSource(_ id: String) -> Bool {
+        guard !isReconcilingAppliedDefaults,
+              let tweak = tweaksByID[id],
+              tweak.value.kind != .action
+        else {
+            return false
+        }
+        return !sourceEditingTweakIDs.contains(id)
+            && effectiveDefaultValuesByID[id] != tweak.value
+    }
+
+    public func canApplyCategoryToSource(_ category: String) -> Bool {
+        categoryTweaks(category).contains { canApplyTweakToSource($0.id) }
+    }
+
+    public func canResetCategoryToDefaults(_ category: String) -> Bool {
+        guard !isReconcilingAppliedDefaults else { return false }
+        return categoryTweaks(category).contains { tweak in
+            guard tweak.value.kind != .action, let defaultValue = effectiveDefaultValuesByID[tweak.id] else {
+                return false
+            }
+            return tweak.value != defaultValue
+        }
+    }
+
+    public func applyTweakToSource(id: String) {
+        guard let tweak = tweaksByID[id], canApplyTweakToSource(id) else { return }
+        applyTweaksToSource([tweak])
+    }
+
+    public func applyCategoryToSource(_ category: String) {
+        let tweaks = categoryTweaks(category).filter { canApplyTweakToSource($0.id) }
+        guard !tweaks.isEmpty else { return }
+        applyTweaksToSource(tweaks)
+    }
+
+    public func resetCategoryToDefaults(_ category: String) {
+        let changes = categoryTweaks(category).compactMap { tweak -> TinkerbleTweakUndoChange? in
+            guard tweak.value.kind != .action,
+                  let defaultValue = effectiveDefaultValuesByID[tweak.id],
+                  defaultValue.kind == tweak.value.kind,
+                  defaultValue != tweak.value
+            else {
+                return nil
+            }
+            return .init(id: tweak.id, previousValue: tweak.value, nextValue: defaultValue)
+        }
+        guard !changes.isEmpty else { return }
+
+        undoStack.append(.init(changes: changes))
+        redoStack.removeAll()
+        for change in changes {
+            updateStoredTweak(id: change.id, value: change.nextValue)
+            saveCurrentVersionValue(id: change.id, value: change.nextValue)
+            send(.update(id: change.id, value: change.nextValue))
+        }
+        updateUndoAvailability()
+    }
+
+    public func dismissSourceEditAlert() {
+        sourceEditAlert = nil
+    }
+
+    private func applyTweaksToSource(_ tweaks: [TinkerbleTweak]) {
+        guard let sourceProjectRoot else {
+            sourceEditAlert = .init(
+                title: "Unable to Apply Values",
+                message: "Tinkerble was launched without this project's source path. Run the app with its + Tinkerble scheme and try again."
+            )
+            return
+        }
+        if let sourceProjectID, sourceProjectID != projectIdentity.id {
+            sourceEditAlert = .init(
+                title: "Unable to Apply Values",
+                message: "The connected app is \(projectIdentity.displayName), but this Companion was opened for a different project. Run the connected app with its + Tinkerble scheme and try again."
+            )
+            return
+        }
+        guard let sourceEditor else {
+            sourceEditAlert = .init(
+                title: "Unable to Apply Values",
+                message: "Source editing is unavailable in this Companion build. Rebuild the Companion and try again."
+            )
+            return
+        }
+
+        let requests = tweaks.map { tweak in
+            TinkerbleSourceApplyRequest(
+                projectID: projectIdentity.id,
+                projectRoot: sourceProjectRoot,
+                tweak: tweak,
+                acceptedInitializerExpressions: tweak.sourceAnchors.map(\.initializerExpression)
+                    + (appliedDefaultResolutionsByID[tweak.id]?.acceptedInitializerExpressions ?? [])
+            )
+        }
+        let tweakIDs = Set(tweaks.map(\.id))
+        let projectID = projectIdentity.id
+        appliedDefaultReconciliationGeneration += 1
+        sourceEditingTweakIDs.formUnion(tweakIDs)
+        sourceEditAlert = nil
+
+        Task { [weak self] in
+            do {
+                let result = try await sourceEditor.apply(requests)
+                let tweaksByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0) })
+                let records = result.edits.compactMap { edit in
+                    tweaksByID[edit.tweakID].map { tweak in
+                        TinkerbleAppliedDefaultRecord(
+                            projectID: projectID,
+                            projectRoot: sourceProjectRoot,
+                            edit: edit,
+                            value: tweak.value
+                        )
+                    }
+                }
+                do {
+                    try await self?.appliedDefaultRepository.update(records)
+                    self?.finishSourceApply(result, records: records, requestedTweaks: tweaks)
+                } catch {
+                    self?.finishSourceApply(result, records: records, requestedTweaks: tweaks)
+                    self?.sourceEditAlert = .init(
+                        title: "Values Applied with a Warning",
+                        message: "The source files were updated and verified, but Tinkerble could not remember the new defaults for this running build. Rebuilding the app will synchronize them. \(error.localizedDescription)"
+                    )
+                }
+            } catch {
+                self?.finishSourceApply(error, requestedTweaks: tweaks)
+            }
+        }
+    }
+
+    private func finishSourceApply(
+        _ result: TinkerbleSourceApplyResult,
+        records: [TinkerbleAppliedDefaultRecord],
+        requestedTweaks: [TinkerbleTweak]
+    ) {
+        let editedIDs = Set(result.edits.map(\.tweakID))
+        let recordsByTweakID = Dictionary(
+            uniqueKeysWithValues: zip(result.edits.map(\.tweakID), records)
+        )
+        sourceEditingTweakIDs.subtract(requestedTweaks.map(\.id))
+        for tweak in requestedTweaks where editedIDs.contains(tweak.id) {
+            effectiveDefaultValuesByID[tweak.id] = tweak.value
+            if let record = recordsByTweakID[tweak.id] {
+                appliedDefaultResolutionsByID[tweak.id] = .init(
+                    effectiveValue: tweak.value,
+                    acceptedInitializerExpressions: [record.writtenInitializerExpression],
+                    record: record
+                )
+            }
+        }
+        recentlyAppliedTweakIDs.formUnion(editedIDs)
+        guard !editedIDs.isEmpty else { return }
+        Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(1.5))
+            } catch {
+                return
+            }
+            self?.recentlyAppliedTweakIDs.subtract(editedIDs)
+        }
+    }
+
+    private func finishSourceApply(_ error: Swift.Error, requestedTweaks: [TinkerbleTweak]) {
+        sourceEditingTweakIDs.subtract(requestedTweaks.map(\.id))
+        let title: String
+        if requestedTweaks.count == 1, let tweak = requestedTweaks.first {
+            title = "Unable to Apply \(tweak.name)"
+        } else {
+            title = "Unable to Apply Values"
+        }
+
+        if let applyError = error as? TinkerbleSourceApplyError, !applyError.issues.isEmpty {
+            let details = applyError.issues.map { issue in
+                "\(issue.tweakName): \(issue.localizedDescription)"
+            }
+            sourceEditAlert = .init(title: title, message: details.joined(separator: "\n\n"))
+        } else if let issue = error as? TinkerbleSourceEditIssue {
+            sourceEditAlert = .init(title: title, message: issue.localizedDescription)
+        } else {
+            sourceEditAlert = .init(title: title, message: error.localizedDescription)
+        }
+    }
+
     public func undo() {
         while let entry = undoStack.popLast() {
-            guard updateStoredTweak(id: entry.id, value: entry.previousValue) else { continue }
-            saveCurrentVersionValue(id: entry.id, value: entry.previousValue)
-            send(.update(id: entry.id, value: entry.previousValue))
-            redoStack.append(entry)
+            let appliedChanges = entry.changes.filter { change in
+                guard updateStoredTweak(id: change.id, value: change.previousValue) else { return false }
+                saveCurrentVersionValue(id: change.id, value: change.previousValue)
+                send(.update(id: change.id, value: change.previousValue))
+                return true
+            }
+            guard !appliedChanges.isEmpty else { continue }
+            redoStack.append(.init(changes: appliedChanges))
             break
         }
         updateUndoAvailability()
@@ -233,10 +453,14 @@ public final class TinkerbleCompanionStore {
 
     public func redo() {
         while let entry = redoStack.popLast() {
-            guard updateStoredTweak(id: entry.id, value: entry.nextValue) else { continue }
-            saveCurrentVersionValue(id: entry.id, value: entry.nextValue)
-            send(.update(id: entry.id, value: entry.nextValue))
-            undoStack.append(entry)
+            let appliedChanges = entry.changes.filter { change in
+                guard updateStoredTweak(id: change.id, value: change.nextValue) else { return false }
+                saveCurrentVersionValue(id: change.id, value: change.nextValue)
+                send(.update(id: change.id, value: change.nextValue))
+                return true
+            }
+            guard !appliedChanges.isEmpty else { continue }
+            undoStack.append(.init(changes: appliedChanges))
             break
         }
         updateUndoAvailability()
@@ -253,26 +477,33 @@ public final class TinkerbleCompanionStore {
             connectionStatus = .connected("iOS app connected")
             reloadVersionsForSelectedScreen()
             applySelectedVersion()
+            reconcileAppliedDefaults()
         case let .snapshot(tweaks):
             tweaksByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0) })
-            defaultValuesByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0.value) })
+            compiledDefaultValuesByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0.codeDefaultValue) })
+            effectiveDefaultValuesByID = compiledDefaultValuesByID
+            appliedDefaultResolutionsByID.removeAll()
             pruneUndoHistory(toValidTweakIDs: Set(tweaksByID.keys))
             publishTweaks()
             applySelectedVersion()
+            reconcileAppliedDefaults()
         case let .register(tweak):
             tweaksByID[tweak.id] = tweak
-            defaultValuesByID[tweak.id] = tweak.value
+            compiledDefaultValuesByID[tweak.id] = tweak.codeDefaultValue
+            effectiveDefaultValuesByID[tweak.id] = tweak.codeDefaultValue
+            appliedDefaultResolutionsByID.removeValue(forKey: tweak.id)
             publishTweaks()
             applySelectedVersion()
+            reconcileAppliedDefaults()
         case let .unregister(id):
             tweaksByID.removeValue(forKey: id)
-            defaultValuesByID.removeValue(forKey: id)
+            compiledDefaultValuesByID.removeValue(forKey: id)
+            effectiveDefaultValuesByID.removeValue(forKey: id)
+            appliedDefaultResolutionsByID.removeValue(forKey: id)
             removeUndoHistory(for: id)
             publishTweaks()
         case let .update(id, value):
-            defaultValuesByID[id] = value
             updateStoredTweak(id: id, value: value)
-            applySelectedVersionValueIfNeeded(id: id)
         case .trigger:
             break
         case let .log(entry):
@@ -289,16 +520,58 @@ public final class TinkerbleCompanionStore {
         return true
     }
 
+    private func categoryTweaks(_ category: String) -> [TinkerbleTweak] {
+        tweaksByID.values.filter { tweak in
+            tweak.screen == selectedScreen && tweak.category == category
+        }
+    }
+
+    private func reconcileAppliedDefaults() {
+        guard let sourceProjectRoot, !tweaksByID.isEmpty else { return }
+        appliedDefaultReconciliationGeneration += 1
+        isReconcilingAppliedDefaults = true
+        let generation = appliedDefaultReconciliationGeneration
+        let projectID = projectIdentity.id
+        let registeredTweaks = Array(tweaksByID.values)
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let resolutions = try await self.appliedDefaultRepository.reconcile(
+                    projectID: projectID,
+                    projectRoot: sourceProjectRoot,
+                    tweaks: registeredTweaks
+                )
+                guard generation == self.appliedDefaultReconciliationGeneration else { return }
+                self.appliedDefaultResolutionsByID = resolutions
+                for (id, resolution) in resolutions where self.tweaksByID[id] != nil {
+                    self.effectiveDefaultValuesByID[id] = resolution.effectiveValue
+                }
+                self.isReconcilingAppliedDefaults = false
+                self.publishTweaks()
+            } catch {
+                guard generation == self.appliedDefaultReconciliationGeneration else { return }
+                self.isReconcilingAppliedDefaults = false
+                self.logs.append(
+                    .init(
+                        name: "Applied Defaults",
+                        value: "Applied-default cache could not be loaded: \(error.localizedDescription)"
+                    )
+                )
+            }
+        }
+    }
+
     private func removeUndoHistory(for id: String) {
-        undoStack.removeAll { $0.id == id }
-        redoStack.removeAll { $0.id == id }
+        undoStack = undoStack.compactMap { $0.removingChange(for: id) }
+        redoStack = redoStack.compactMap { $0.removingChange(for: id) }
         coalescedUndoStartValues.removeValue(forKey: id)
         updateUndoAvailability()
     }
 
     private func pruneUndoHistory(toValidTweakIDs validTweakIDs: Set<String>) {
-        undoStack.removeAll { !validTweakIDs.contains($0.id) }
-        redoStack.removeAll { !validTweakIDs.contains($0.id) }
+        undoStack = undoStack.compactMap { $0.keepingChanges(for: validTweakIDs) }
+        redoStack = redoStack.compactMap { $0.keepingChanges(for: validTweakIDs) }
         coalescedUndoStartValues = coalescedUndoStartValues.filter { validTweakIDs.contains($0.key) }
         updateUndoAvailability()
     }
@@ -355,7 +628,7 @@ public final class TinkerbleCompanionStore {
                 tweakID: id
             )
             let targetValue = savedValue.flatMap { $0.kind == tweak.value.kind ? $0 : nil }
-                ?? defaultValuesByID[id].flatMap { $0.kind == tweak.value.kind ? $0 : nil }
+                ?? effectiveDefaultValuesByID[id].flatMap { $0.kind == tweak.value.kind ? $0 : nil }
             guard let targetValue, targetValue != tweak.value else {
                 return
             }
@@ -431,8 +704,22 @@ public final class TinkerbleCompanionStore {
     }
 }
 
-private struct TinkerbleTweakUndoEntry {
+private struct TinkerbleTweakUndoChange {
     var id: String
     var previousValue: TinkerbleValue
     var nextValue: TinkerbleValue
+}
+
+private struct TinkerbleTweakUndoEntry {
+    var changes: [TinkerbleTweakUndoChange]
+
+    func removingChange(for id: String) -> Self? {
+        let remainingChanges = changes.filter { $0.id != id }
+        return remainingChanges.isEmpty ? nil : .init(changes: remainingChanges)
+    }
+
+    func keepingChanges(for validTweakIDs: Set<String>) -> Self? {
+        let remainingChanges = changes.filter { validTweakIDs.contains($0.id) }
+        return remainingChanges.isEmpty ? nil : .init(changes: remainingChanges)
+    }
 }

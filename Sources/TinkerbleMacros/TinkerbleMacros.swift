@@ -81,6 +81,8 @@ public struct TinkerbleObservableMacro: MemberMacro {
             return []
         }
 
+        let enclosingTypePath = context.lexicalContext.reversed().flatMap(tinkerbleEnclosingTypeNames)
+            + [classDeclaration.name.text]
         let observableProperties = classDeclaration.memberBlock.members.compactMap { member -> ObservableStateProperty? in
             guard let variable = member.decl.as(VariableDeclSyntax.self),
                   let attribute = variable.tinkerbleObservableStateAttribute
@@ -88,7 +90,12 @@ public struct TinkerbleObservableMacro: MemberMacro {
                 return nil
             }
 
-            return ObservableStateProperty(variable: variable, attribute: attribute, context: context)
+            return ObservableStateProperty(
+                variable: variable,
+                attribute: attribute,
+                enclosingTypePath: enclosingTypePath,
+                context: context
+            )
         }
 
         guard !observableProperties.isEmpty else { return [] }
@@ -198,6 +205,9 @@ public struct TinkerbleActionsMacro: MemberMacro {
 @main
 struct TinkerbleMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
+        TinkerbleStateMacro.self,
+        TinkerbleStateBackingMacro.self,
+        TinkerbleStateProjectedMacro.self,
         TinkerbleActionsMacro.self,
         TinkerbleActionMacro.self,
         TinkerbleObservableMacro.self,
@@ -252,6 +262,7 @@ private struct ObservableActionMethod {
 private struct ObservableStateProperty {
     let variable: VariableDeclSyntax
     let attribute: AttributeSyntax
+    let enclosingTypePath: [String]
     let context: MacroExpansionContext
 
     var isValid: Bool {
@@ -279,6 +290,13 @@ private struct ObservableStateProperty {
     var activationCall: String {
         guard let propertyName else { return "" }
         let arguments = ObservableStateArguments(attribute: attribute)
+        let sourceAnchor = tinkerbleSourceAnchorExpression(
+            variable: variable,
+            propertyName: propertyName,
+            initializer: variable.bindings.first?.initializer?.value,
+            enclosingTypePathOverride: enclosingTypePath,
+            context: context
+        )
 
         return """
         \(registrationName).activate(
@@ -293,7 +311,8 @@ private struct ObservableStateProperty {
             },
             applyRemoteValue: { owner, value in
                 owner.\(propertyName) = value
-            }
+            },
+            _sourceAnchor: \(sourceAnchor)
         )
         """
     }
