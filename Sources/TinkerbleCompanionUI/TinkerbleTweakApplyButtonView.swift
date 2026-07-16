@@ -7,9 +7,9 @@ struct TinkerbleTweakApplyButtonView: View {
     var isEnabled: Bool
     var isApplying: Bool
     var wasRecentlyApplied: Bool
+    var isAutoApplyEnabled: Bool
     var apply: () -> Void
 
-    @State private var isHoverRevealReady = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -24,32 +24,34 @@ struct TinkerbleTweakApplyButtonView: View {
         .disabled(!isEnabled || isApplying)
         .opacity(isVisible ? 1 : 0)
         .allowsHitTesting(isVisible)
+        .accessibilityHidden(!isVisible)
         .help("Apply")
         .accessibilityLabel("Apply \(tweakName) to code")
         .accessibilityIdentifier("TinkerbleApplyValue.\(tweakID)")
+        .animation(.smooth(duration: 0.15), value: isRowHovered)
         .animation(.smooth(duration: 0.5), value: isFocused)
         .animation(.smooth(duration: 0.5), value: wasRecentlyApplied)
-        .task(id: isRowHovered) {
-            if isRowHovered {
-                do {
-                    try await Task.sleep(for: .milliseconds(300))
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                withAnimation(.smooth(duration: 0.5)) {
-                    isHoverRevealReady = true
-                }
-            } else {
-                withAnimation(.smooth(duration: 0.1)) {
-                    isHoverRevealReady = false
-                }
-            }
-        }
+        .animation(.smooth(duration: 0.15), value: isAutoApplyEnabled)
     }
 
     private var isVisible: Bool {
-        isHoverRevealReady || isFocused || isApplying || wasRecentlyApplied
+        Self.isVisible(
+            isRowHovered: isRowHovered,
+            isFocused: isFocused,
+            isApplying: isApplying,
+            wasRecentlyApplied: wasRecentlyApplied,
+            isAutoApplyEnabled: isAutoApplyEnabled
+        )
+    }
+
+    static func isVisible(
+        isRowHovered: Bool,
+        isFocused: Bool,
+        isApplying: Bool,
+        wasRecentlyApplied: Bool,
+        isAutoApplyEnabled: Bool
+    ) -> Bool {
+        !isAutoApplyEnabled && (isRowHovered || isFocused || isApplying || wasRecentlyApplied)
     }
 }
 
@@ -61,6 +63,7 @@ struct TinkerbleTweakApplyButtonView: View {
         isEnabled: true,
         isApplying: false,
         wasRecentlyApplied: false,
+        isAutoApplyEnabled: false,
         apply: {}
     )
     .padding()

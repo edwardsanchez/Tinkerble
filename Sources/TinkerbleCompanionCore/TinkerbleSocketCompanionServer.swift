@@ -19,18 +19,21 @@ final class TinkerbleSocketCompanionServer {
     private var listener: NWListener?
     private var activeConnection: TinkerbleSocketCompanionConnection?
     private var didFallbackToDynamicPort = false
+    private let onConnectionClosed: (TinkerbleCompanionOutboundChannel) -> Void
 
     init(
         host: String,
         port: Int,
         serviceType: String,
         onMessage: @escaping (TinkerbleWireMessage, TinkerbleCompanionOutboundChannel?) -> Void,
+        onConnectionClosed: @escaping (TinkerbleCompanionOutboundChannel) -> Void,
         onStatusChange: @escaping (TinkerbleConnectionStatus) -> Void
     ) {
         self.host = host
         self.port = port
         self.serviceType = serviceType
         self.onMessage = onMessage
+        self.onConnectionClosed = onConnectionClosed
         self.onStatusChange = onStatusChange
     }
 
@@ -126,6 +129,7 @@ final class TinkerbleSocketCompanionServer {
             connection: connection,
             queue: queue,
             onMessage: onMessage,
+            onClose: onConnectionClosed,
             onStatusChange: onStatusChange
         )
         activeConnection = companionConnection
@@ -147,19 +151,23 @@ private final class TinkerbleSocketCompanionConnection: TinkerbleCompanionOutbou
     private let queue: DispatchQueue
     private let codec = TinkerbleSocketMessageCodec()
     private let onMessage: (TinkerbleWireMessage, TinkerbleCompanionOutboundChannel?) -> Void
+    private let onClose: (TinkerbleCompanionOutboundChannel) -> Void
     private let onStatusChange: (TinkerbleConnectionStatus) -> Void
     private var receiveBuffer = Data()
     private var isReady = false
+    private var isClosed = false
 
     init(
         connection: NWConnection,
         queue: DispatchQueue,
         onMessage: @escaping (TinkerbleWireMessage, TinkerbleCompanionOutboundChannel?) -> Void,
+        onClose: @escaping (TinkerbleCompanionOutboundChannel) -> Void,
         onStatusChange: @escaping (TinkerbleConnectionStatus) -> Void
     ) {
         self.connection = connection
         self.queue = queue
         self.onMessage = onMessage
+        self.onClose = onClose
         self.onStatusChange = onStatusChange
     }
 
@@ -177,10 +185,13 @@ private final class TinkerbleSocketCompanionConnection: TinkerbleCompanionOutbou
     }
 
     func close() {
+        guard !isClosed else { return }
+        isClosed = true
         isReady = false
         receiveBuffer.removeAll()
         connection.stateUpdateHandler = nil
         connection.cancel()
+        onClose(self)
     }
 
     private func handle(_ state: NWConnection.State) {
@@ -192,7 +203,7 @@ private final class TinkerbleSocketCompanionConnection: TinkerbleCompanionOutbou
             close()
             onStatusChange(.failed(error.localizedDescription))
         case .cancelled:
-            isReady = false
+            close()
         case .setup, .waiting, .preparing:
             break
         @unknown default:
@@ -244,6 +255,7 @@ private final class TinkerbleSocketCompanionConnection: TinkerbleCompanionOutbou
             let frame = try codec.frame(for: message)
             connection.send(content: frame, completion: .contentProcessed { [weak self] error in
                 if let error {
+                    self?.close()
                     self?.onStatusChange(.failed(error.localizedDescription))
                 }
             })

@@ -4,6 +4,27 @@ import XCTest
 
 @MainActor
 final class TinkerbleCompanionStoreTests: XCTestCase {
+    func testOnlyTheCurrentOutboundChannelCanEndTheLiveConnection() {
+        let store = TinkerbleCompanionStore()
+        let firstChannel = RecordingOutboundChannel()
+        let secondChannel = RecordingOutboundChannel()
+
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.first", displayName: "First")),
+            outboundChannel: firstChannel
+        )
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.second", displayName: "Second")),
+            outboundChannel: secondChannel
+        )
+
+        store.handleConnectionClosed(firstChannel)
+        XCTAssertTrue(store.hasLiveConnection)
+
+        store.handleConnectionClosed(secondChannel)
+        XCTAssertFalse(store.hasLiveConnection)
+    }
+
     func testCompanionGroupsUncategorizedTweaksBeforeCategorizedTweaks() {
         let store = TinkerbleCompanionStore()
 

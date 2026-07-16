@@ -35,7 +35,8 @@ struct TweakInspectorView: View {
                 canApplyCategoryToSource: store.canApplyCategoryToSource,
                 canResetCategoryToDefaults: store.canResetCategoryToDefaults,
                 sourceEditingTweakIDs: store.sourceEditingTweakIDs,
-                recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs
+                recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs,
+                isAutoApplyEnabled: store.isAutoApplyEnabled
             )
         }
         .background {
@@ -63,7 +64,8 @@ struct TweakInspectorView: View {
                 canApplyCategoryToSource: store.canApplyCategoryToSource,
                 canResetCategoryToDefaults: store.canResetCategoryToDefaults,
                 sourceEditingTweakIDs: store.sourceEditingTweakIDs,
-                recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs
+                recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs,
+                isAutoApplyEnabled: store.isAutoApplyEnabled
             )
                 .fixedSize(horizontal: false, vertical: true)
                 .hidden()
@@ -141,6 +143,7 @@ struct TweakInspectorContent: View {
     var canResetCategoryToDefaults: (String) -> Bool
     var sourceEditingTweakIDs: Set<String>
     var recentlyAppliedTweakIDs: Set<String>
+    var isAutoApplyEnabled: Bool
 
     init(
         groups: [TinkerbleTweakGroup],
@@ -166,7 +169,8 @@ struct TweakInspectorContent: View {
         canApplyCategoryToSource: @escaping (String) -> Bool = { _ in false },
         canResetCategoryToDefaults: @escaping (String) -> Bool = { _ in false },
         sourceEditingTweakIDs: Set<String> = [],
-        recentlyAppliedTweakIDs: Set<String> = []
+        recentlyAppliedTweakIDs: Set<String> = [],
+        isAutoApplyEnabled: Bool = false
     ) {
         self.groups = groups
         self.isEmpty = isEmpty
@@ -192,6 +196,7 @@ struct TweakInspectorContent: View {
         self.canResetCategoryToDefaults = canResetCategoryToDefaults
         self.sourceEditingTweakIDs = sourceEditingTweakIDs
         self.recentlyAppliedTweakIDs = recentlyAppliedTweakIDs
+        self.isAutoApplyEnabled = isAutoApplyEnabled
     }
 
     var body: some View {
@@ -237,6 +242,7 @@ struct TweakInspectorContent: View {
                             canApplyToSource: canApplyTweakToSource(tweak.id),
                             isApplyingToSource: sourceEditingTweakIDs.contains(tweak.id),
                             wasRecentlyAppliedToSource: recentlyAppliedTweakIDs.contains(tweak.id),
+                            isAutoApplyEnabled: isAutoApplyEnabled,
                             applyToSource: { applyTweakToSource(tweak.id) }
                         )
                     }
@@ -267,7 +273,7 @@ private struct TweakScreenSelectorView: View {
     }
 }
 
-private struct TweakRow: View {
+struct TweakRow: View {
     var tweak: TinkerbleTweak
     var updateTweak: (String, TinkerbleValue) -> Void
     var beginCoalescedTweakUpdate: (String) -> Void
@@ -277,8 +283,11 @@ private struct TweakRow: View {
     var canApplyToSource: Bool
     var isApplyingToSource: Bool
     var wasRecentlyAppliedToSource: Bool
+    var isAutoApplyEnabled: Bool
     var applyToSource: () -> Void
-    @State private var isHovered = false
+    @State private var isRowHovered = false
+    @State private var isApplyButtonHovered = false
+    @State private var isControlHovered = false
 
     var body: some View {
         if case .action = tweak.value {
@@ -292,23 +301,45 @@ private struct TweakRow: View {
                     .lineLimit(2)
                     .frame(width: 116, alignment: .leading)
 
-                control
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .font(.callout)
+                HStack {
+                    TinkerbleTweakApplyButtonView(
+                        tweakID: tweak.id,
+                        tweakName: tweak.name,
+                        isRowHovered: isHovered,
+                        isEnabled: canApplyToSource,
+                        isApplying: isApplyingToSource,
+                        wasRecentlyApplied: wasRecentlyAppliedToSource,
+                        isAutoApplyEnabled: isAutoApplyEnabled,
+                        apply: applyToSource
+                    )
+                    .onHover { isApplyButtonHovered = $0 }
 
-                TinkerbleTweakApplyButtonView(
-                    tweakID: tweak.id,
-                    tweakName: tweak.name,
-                    isRowHovered: isHovered,
-                    isEnabled: canApplyToSource,
-                    isApplying: isApplyingToSource,
-                    wasRecentlyApplied: wasRecentlyAppliedToSource,
-                    apply: applyToSource
-                )
+                    control
+                        .onHover { isControlHovered = $0 }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .font(.callout)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onHover { isHovered = $0 }
+            .contentShape(.rect)
+            .onHover { isRowHovered = $0 }
         }
+    }
+
+    private var isHovered: Bool {
+        Self.isHovered(
+            isRowHovered: isRowHovered,
+            isApplyButtonHovered: isApplyButtonHovered,
+            isControlHovered: isControlHovered
+        )
+    }
+
+    static func isHovered(
+        isRowHovered: Bool,
+        isApplyButtonHovered: Bool,
+        isControlHovered: Bool
+    ) -> Bool {
+        isRowHovered || isApplyButtonHovered || isControlHovered
     }
 
     private var actionButton: some View {

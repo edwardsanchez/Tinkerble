@@ -5,6 +5,8 @@ import Tinkerble
 @Observable
 @MainActor
 public final class TinkerbleCompanionStore {
+    public nonisolated static let defaultAutoApplyDelay: Duration = .seconds(2)
+
     public private(set) var connectionStatus: TinkerbleConnectionStatus = .disconnected
     public private(set) var tweaks: [TinkerbleTweak] = []
     public private(set) var selectedScreen = TinkerbleTweak.defaultScreenName
@@ -17,6 +19,8 @@ public final class TinkerbleCompanionStore {
     public private(set) var recentlyAppliedTweakIDs: Set<String> = []
     public private(set) var sourceEditAlert: TinkerbleSourceEditAlert?
     public private(set) var isReconcilingAppliedDefaults = false
+    public private(set) var isAutoApplyEnabled = false
+    public private(set) var hasLiveConnection = false
 
     @ObservationIgnored
     private let versionRepository: any TinkerbleVersionRepository
@@ -28,6 +32,8 @@ public final class TinkerbleCompanionStore {
     private let sourceProjectRoot: URL?
     @ObservationIgnored
     private let sourceProjectID: String?
+    @ObservationIgnored
+    private let autoApplyPreference: (any TinkerbleAutoApplyPreference)?
     @ObservationIgnored
     private var server: TinkerbleSocketCompanionServer?
     @ObservationIgnored
@@ -50,6 +56,12 @@ public final class TinkerbleCompanionStore {
     private var appliedDefaultResolutionsByID: [String: TinkerbleAppliedDefaultResolution] = [:]
     @ObservationIgnored
     private var appliedDefaultReconciliationGeneration = 0
+    @ObservationIgnored
+    private let autoApplyDelay: Duration
+    @ObservationIgnored
+    private var autoApplyTasksByTweakID: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored
+    private var pendingAutoApplyValuesByTweakID: [String: TinkerbleValue] = [:]
 
     public convenience init() {
         self.init(versionRepository: TinkerbleInMemoryVersionRepository())
@@ -60,13 +72,18 @@ public final class TinkerbleCompanionStore {
         sourceEditor: (any TinkerbleSourceEditing)? = nil,
         appliedDefaultRepository: any TinkerbleAppliedDefaultRepository = TinkerbleInMemoryAppliedDefaultRepository(),
         sourceProjectRoot: URL? = nil,
-        sourceProjectID: String? = nil
+        sourceProjectID: String? = nil,
+        autoApplyPreference: (any TinkerbleAutoApplyPreference)? = nil,
+        autoApplyDelay: Duration = TinkerbleCompanionStore.defaultAutoApplyDelay
     ) {
         self.versionRepository = versionRepository
         self.sourceEditor = sourceEditor
         self.appliedDefaultRepository = appliedDefaultRepository
         self.sourceProjectRoot = sourceProjectRoot?.resolvingSymlinksInPath().standardizedFileURL
         self.sourceProjectID = sourceProjectID
+        self.autoApplyPreference = autoApplyPreference
+        self.autoApplyDelay = autoApplyDelay
+        isAutoApplyEnabled = autoApplyPreference?.isEnabled ?? false
     }
 
     public var groupedTweaks: [TinkerbleTweakGroup] {
@@ -190,9 +207,14 @@ public final class TinkerbleCompanionStore {
                     self?.handle(message, outboundChannel: outboundChannel)
                 }
             },
+            onConnectionClosed: { [weak self] outboundChannel in
+                Task { @MainActor in
+                    self?.handleConnectionClosed(outboundChannel)
+                }
+            },
             onStatusChange: { [weak self] status in
                 Task { @MainActor in
-                    self?.connectionStatus = status
+                    self?.handleConnectionStatusChange(status)
                 }
             }
         )
@@ -205,7 +227,20 @@ public final class TinkerbleCompanionStore {
         server = nil
         outboundChannel = nil
         connectionStatus = .disconnected
+        hasLiveConnection = false
+        cancelPendingAutoApplies()
         clearUndoHistory()
+    }
+
+    public func setAutoApplyEnabled(_ isEnabled: Bool) {
+        guard isAutoApplyEnabled != isEnabled else { return }
+        isAutoApplyEnabled = isEnabled
+        autoApplyPreference?.isEnabled = isEnabled
+        if isEnabled {
+            scheduleOutstandingAutoApplies()
+        } else {
+            cancelPendingAutoApplies()
+        }
     }
 
     public func updateTweak(id: String, value: TinkerbleValue) {
@@ -218,10 +253,12 @@ public final class TinkerbleCompanionStore {
         saveCurrentVersionValue(id: id, value: value)
         send(.update(id: id, value: value))
         updateUndoAvailability()
+        scheduleAutoApplyAfterDirectUpdate(id: id, value: value)
     }
 
     public func beginCoalescedTweakUpdate(id: String) {
         guard coalescedUndoStartValues[id] == nil, let currentValue = tweaksByID[id]?.value else { return }
+        cancelPendingAutoApply(for: id)
         coalescedUndoStartValues[id] = currentValue
     }
 
@@ -246,6 +283,7 @@ public final class TinkerbleCompanionStore {
         )
         redoStack.removeAll()
         updateUndoAvailability()
+        requestAutoApplyNow(id: id, expectedValue: currentValue)
     }
 
     public func triggerTweak(id: String) {
@@ -278,6 +316,7 @@ public final class TinkerbleCompanionStore {
     }
 
     public func applyTweakToSource(id: String) {
+        cancelPendingAutoApply(for: id)
         guard let tweak = tweaksByID[id], canApplyTweakToSource(id) else { return }
         applyTweaksToSource([tweak])
     }
@@ -285,6 +324,9 @@ public final class TinkerbleCompanionStore {
     public func applyCategoryToSource(_ category: String) {
         let tweaks = categoryTweaks(category).filter { canApplyTweakToSource($0.id) }
         guard !tweaks.isEmpty else { return }
+        for tweak in tweaks {
+            cancelPendingAutoApply(for: tweak.id)
+        }
         applyTweaksToSource(tweaks)
     }
 
@@ -405,6 +447,7 @@ public final class TinkerbleCompanionStore {
             }
         }
         recentlyAppliedTweakIDs.formUnion(editedIDs)
+        resumePendingAutoApplies()
         guard !editedIDs.isEmpty else { return }
         Task { [weak self] in
             do {
@@ -435,6 +478,7 @@ public final class TinkerbleCompanionStore {
         } else {
             sourceEditAlert = .init(title: title, message: error.localizedDescription)
         }
+        resumePendingAutoApplies()
     }
 
     public func undo() {
@@ -476,10 +520,12 @@ public final class TinkerbleCompanionStore {
         case let .hello(_, _, project):
             projectIdentity = project ?? .fallback
             connectionStatus = .connected("iOS app connected")
+            hasLiveConnection = true
             reloadVersionsForSelectedScreen()
             applySelectedVersion()
             reconcileAppliedDefaults()
         case let .snapshot(tweaks):
+            cancelPendingAutoApplies()
             tweaksByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0) })
             compiledDefaultValuesByID = Dictionary(uniqueKeysWithValues: tweaks.map { ($0.id, $0.codeDefaultValue) })
             effectiveDefaultValuesByID = compiledDefaultValuesByID
@@ -497,6 +543,7 @@ public final class TinkerbleCompanionStore {
             applySelectedVersion()
             reconcileAppliedDefaults()
         case let .unregister(id):
+            cancelPendingAutoApply(for: id)
             tweaksByID.removeValue(forKey: id)
             compiledDefaultValuesByID.removeValue(forKey: id)
             effectiveDefaultValuesByID.removeValue(forKey: id)
@@ -510,6 +557,26 @@ public final class TinkerbleCompanionStore {
         case let .log(entry):
             logs.append(entry)
         }
+    }
+
+    private func handleConnectionStatusChange(_ status: TinkerbleConnectionStatus) {
+        connectionStatus = status
+        switch status {
+        case .disconnected:
+            outboundChannel = nil
+            hasLiveConnection = false
+            cancelPendingAutoApplies()
+        case .connecting, .connected, .failed:
+            break
+        }
+    }
+
+    func handleConnectionClosed(_ closedChannel: TinkerbleCompanionOutboundChannel) {
+        guard outboundChannel === closedChannel else { return }
+        outboundChannel = nil
+        connectionStatus = .disconnected
+        hasLiveConnection = false
+        cancelPendingAutoApplies()
     }
 
     @discardableResult
@@ -528,7 +595,11 @@ public final class TinkerbleCompanionStore {
     }
 
     private func reconcileAppliedDefaults() {
-        guard let sourceProjectRoot, !tweaksByID.isEmpty else { return }
+        guard !tweaksByID.isEmpty else { return }
+        guard let sourceProjectRoot else {
+            scheduleOutstandingAutoApplies()
+            return
+        }
         appliedDefaultReconciliationGeneration += 1
         isReconcilingAppliedDefaults = true
         let generation = appliedDefaultReconciliationGeneration
@@ -551,6 +622,8 @@ public final class TinkerbleCompanionStore {
                 self.isReconcilingAppliedDefaults = false
                 self.applySelectedVersion()
                 self.publishTweaks()
+                self.scheduleOutstandingAutoApplies()
+                self.resumePendingAutoApplies()
             } catch {
                 guard generation == self.appliedDefaultReconciliationGeneration else { return }
                 self.isReconcilingAppliedDefaults = false
@@ -560,8 +633,84 @@ public final class TinkerbleCompanionStore {
                         value: "Applied-default cache could not be loaded: \(error.localizedDescription)"
                     )
                 )
+                self.scheduleOutstandingAutoApplies()
+                self.resumePendingAutoApplies()
             }
         }
+    }
+
+    private func scheduleAutoApplyAfterDirectUpdate(id: String, value: TinkerbleValue) {
+        guard isAutoApplyEnabled else { return }
+        cancelPendingAutoApply(for: id)
+
+        switch value.kind {
+        case .bool, .enumeration:
+            requestAutoApplyNow(id: id, expectedValue: value)
+        case .string, .color, .number, .date:
+            let delay = autoApplyDelay
+            autoApplyTasksByTweakID[id] = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    return
+                }
+                guard let self else { return }
+                autoApplyTasksByTweakID.removeValue(forKey: id)
+                requestAutoApplyNow(id: id, expectedValue: value)
+            }
+        case .action:
+            break
+        }
+    }
+
+    private func scheduleOutstandingAutoApplies() {
+        for tweak in tweaksByID.values where effectiveDefaultValuesByID[tweak.id] != tweak.value {
+            scheduleAutoApplyAfterDirectUpdate(id: tweak.id, value: tweak.value)
+        }
+    }
+
+    private func requestAutoApplyNow(id: String, expectedValue: TinkerbleValue) {
+        guard isAutoApplyEnabled,
+              let tweak = tweaksByID[id],
+              tweak.value == expectedValue,
+              effectiveDefaultValuesByID[id] != expectedValue
+        else {
+            pendingAutoApplyValuesByTweakID.removeValue(forKey: id)
+            return
+        }
+
+        guard !isReconcilingAppliedDefaults, !sourceEditingTweakIDs.contains(id) else {
+            pendingAutoApplyValuesByTweakID[id] = expectedValue
+            return
+        }
+
+        pendingAutoApplyValuesByTweakID.removeValue(forKey: id)
+        applyTweaksToSource([tweak])
+    }
+
+    private func resumePendingAutoApplies() {
+        guard isAutoApplyEnabled else {
+            pendingAutoApplyValuesByTweakID.removeAll()
+            return
+        }
+
+        let pendingValues = pendingAutoApplyValuesByTweakID
+        for (id, value) in pendingValues {
+            requestAutoApplyNow(id: id, expectedValue: value)
+        }
+    }
+
+    private func cancelPendingAutoApply(for id: String) {
+        autoApplyTasksByTweakID.removeValue(forKey: id)?.cancel()
+        pendingAutoApplyValuesByTweakID.removeValue(forKey: id)
+    }
+
+    private func cancelPendingAutoApplies() {
+        for task in autoApplyTasksByTweakID.values {
+            task.cancel()
+        }
+        autoApplyTasksByTweakID.removeAll()
+        pendingAutoApplyValuesByTweakID.removeAll()
     }
 
     private func removeUndoHistory(for id: String) {

@@ -31,14 +31,7 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
                 remoteTitle = newValue
             }
         )
-        let opacityToken = client.register(
-            id: "Layout/Opacity",
-            category: "Layout",
-            name: "Opacity",
-            value: 0.5,
-            control: .slider(0...1),
-            applyRemoteValue: { _ in }
-        )
+        let opacityToken = registerOpacity(on: client)
 
         client.connect(host: "127.0.0.1", port: port)
         client.log("Integration", value: "Integration log")
@@ -68,6 +61,31 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
             companion.tweaks.map(\.id) == ["Title"]
         }
         XCTAssertTrue(removedUnregisteredTweak, "Companion did not remove unregistered tweak")
+#endif
+    }
+
+    func testLiveConnectionTracksAppHandshakeAndDisconnect() async throws {
+#if !DEBUG
+        throw XCTSkip("Socket transport is intentionally disabled in Release builds.")
+#else
+        let port = 7878
+        let companion = TinkerbleCompanionStore()
+        companion.start(port: port)
+        addTeardownBlock { @MainActor in companion.stop() }
+
+        let companionStarted = await waitUntil { companion.connectionStatus.isConnected }
+        XCTAssertTrue(companionStarted)
+        XCTAssertFalse(companion.hasLiveConnection)
+
+        let client = Tinkerble(transport: TinkerbleSocketClientTransport())
+        client.connect(host: "127.0.0.1", port: port)
+        addTeardownBlock { @MainActor in client.disconnect() }
+
+        let liveConnectionStarted = await waitUntil { companion.hasLiveConnection }
+        XCTAssertTrue(liveConnectionStarted)
+        client.disconnect()
+        let liveConnectionEnded = await waitUntil { !companion.hasLiveConnection }
+        XCTAssertTrue(liveConnectionEnded)
 #endif
     }
 
@@ -121,6 +139,17 @@ final class TinkerbleSocketIntegrationTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(50))
         }
         return condition()
+    }
+
+    private func registerOpacity(on client: Tinkerble) -> TinkerbleRegistrationToken {
+        client.register(
+            id: "Layout/Opacity",
+            category: "Layout",
+            name: "Opacity",
+            value: 0.5,
+            control: .slider(0...1),
+            applyRemoteValue: { _ in }
+        )
     }
 }
 
