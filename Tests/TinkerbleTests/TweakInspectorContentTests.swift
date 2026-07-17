@@ -137,6 +137,40 @@ final class TweakInspectorContentTests: XCTestCase {
         XCTAssertEqual(TinkerbleNumberFieldView.number(from: "1.57", configuration: configuration), 1.57)
         XCTAssertNil(TinkerbleNumberFieldView.number(from: "1.57º", configuration: configuration))
     }
+
+    func testApplyButtonRevealsOnHoverEvenWhenTheValueCannotCurrentlyBeApplied() {
+        XCTAssertTrue(
+            TinkerbleTweakApplyButtonView.isVisible(
+                isRowHovered: true,
+                isFocused: false,
+                isApplying: false,
+                wasRecentlyApplied: false,
+                isAutoApplyEnabled: false
+            )
+        )
+    }
+
+    func testApplyButtonStaysHiddenDuringAutoApply() {
+        XCTAssertFalse(
+            TinkerbleTweakApplyButtonView.isVisible(
+                isRowHovered: true,
+                isFocused: true,
+                isApplying: true,
+                wasRecentlyApplied: true,
+                isAutoApplyEnabled: true
+            )
+        )
+    }
+
+    func testControlHoverKeepsTheApplyButtonRevealActiveAcrossNativeControls() {
+        XCTAssertTrue(
+            TweakRow.isHovered(
+                isRowHovered: false,
+                isApplyButtonHovered: false,
+                isControlHovered: true
+            )
+        )
+    }
 }
 
 private extension NSView {

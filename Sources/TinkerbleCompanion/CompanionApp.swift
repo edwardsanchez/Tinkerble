@@ -23,7 +23,8 @@ struct TinkerbleCompanionApp: App {
             sourceEditor: TinkerbleSourceEditingService(),
             appliedDefaultRepository: TinkerbleJSONAppliedDefaultRepository(),
             sourceProjectRoot: launchConfiguration.projectRoot,
-            sourceProjectID: launchConfiguration.projectID
+            sourceProjectID: launchConfiguration.projectID,
+            autoApplyPreference: TinkerbleUserDefaultsAutoApplyPreference()
         )
         _store = State(wrappedValue: store)
         launchMode = launchConfiguration.mode
