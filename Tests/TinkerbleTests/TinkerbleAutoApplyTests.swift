@@ -124,6 +124,28 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         XCTAssertEqual(appliedValues, [.number(0.8)])
     }
 
+    func testNoOpSliderDragRestoresPendingAutoApplyAtInteractionEnd() async {
+        let sourceEditor = RecordingAutoApplySourceEditor()
+        let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(60))
+        let tweak = makeTweak(
+            name: "Opacity",
+            value: .number(0.5),
+            sourceValueType: .double,
+            control: .slider(.init(minimum: 0, maximum: 1, step: 0.01, decimalPlaces: 2))
+        )
+        store.handle(.register(tweak), outboundChannel: nil)
+        await waitForReconciliation(in: store)
+
+        store.updateTweak(id: tweak.id, value: .number(0.8))
+        store.setAutoApplyEnabled(true)
+        store.beginCoalescedTweakUpdate(id: tweak.id)
+        store.endCoalescedTweakUpdate(id: tweak.id)
+        await waitForApplyCount(1, sourceEditor: sourceEditor)
+
+        let appliedValues = await sourceEditor.appliedValues
+        XCTAssertEqual(appliedValues, [.number(0.8)])
+    }
+
     func testCoalescedTextChangesWaitForDelayAfterLastEditAcrossCheckpoints() async {
         let sourceEditor = RecordingAutoApplySourceEditor()
         let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(60))
@@ -151,6 +173,27 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         let appliedValues = await sourceEditor.appliedValues
         XCTAssertEqual(applyCount, 1)
         XCTAssertEqual(appliedValues, [.string("Edited")])
+    }
+
+    func testSelectingSavedVersionAutoAppliesItsValue() async throws {
+        let sourceEditor = RecordingAutoApplySourceEditor()
+        let store = makeStore(sourceEditor: sourceEditor)
+        let tweak = makeTweak(name: "Enabled", value: .bool(true), sourceValueType: .bool)
+        store.handle(.register(tweak), outboundChannel: nil)
+        await waitForReconciliation(in: store)
+        let versionOneID = try XCTUnwrap(store.selectedVersionID)
+
+        store.updateTweak(id: tweak.id, value: .bool(false))
+        store.createVersion()
+        store.updateTweak(id: tweak.id, value: .bool(true))
+        store.setAutoApplyEnabled(true)
+
+        store.selectVersion(versionOneID)
+        await waitForApplyCount(1, sourceEditor: sourceEditor)
+        await waitForSourceEditingToFinish(in: store)
+
+        let appliedValues = await sourceEditor.appliedValues
+        XCTAssertEqual(appliedValues, [.bool(false)])
     }
 
     func testTurningAutoApplyOffCancelsDelayedNumberWrite() async {

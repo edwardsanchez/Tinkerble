@@ -136,14 +136,14 @@ public final class TinkerbleCompanionStore {
         selectedScreen = screen
         clearUndoHistory()
         reloadVersionsForSelectedScreen()
-        applySelectedVersion()
+        applySelectedVersion(schedulesAutoApply: true)
     }
 
     public func selectVersion(_ id: UUID) {
         guard versions.contains(where: { $0.id == id }) else { return }
         selectedVersionID = id
         clearUndoHistory()
-        applySelectedVersion()
+        applySelectedVersion(schedulesAutoApply: true)
     }
 
     public func createVersion() {
@@ -171,7 +171,7 @@ public final class TinkerbleCompanionStore {
             )
             selectedVersionID = versions.last { $0.ordinal < selectedVersion.ordinal }?.id ?? versions.first?.id
             clearUndoHistory()
-            applySelectedVersion()
+            applySelectedVersion(schedulesAutoApply: true)
         } catch {
             recordVersionPersistenceError(error)
         }
@@ -186,7 +186,7 @@ public final class TinkerbleCompanionStore {
                 versionID: selectedVersion.id
             )
             clearUndoHistory()
-            applySelectedVersion()
+            applySelectedVersion(schedulesAutoApply: true)
         } catch {
             recordVersionPersistenceError(error)
         }
@@ -276,10 +276,16 @@ public final class TinkerbleCompanionStore {
 
     public func endCoalescedTweakUpdate(id: String) {
         guard let previousValue = coalescedUndoStartValues.removeValue(forKey: id),
-              let currentValue = tweaksByID[id]?.value,
-              previousValue != currentValue
+              let currentValue = tweaksByID[id]?.value
         else {
             updateUndoAvailability()
+            return
+        }
+        guard previousValue != currentValue else {
+            updateUndoAvailability()
+            if autoAppliesCoalescedUpdateAtInteractionEnd(id: id) {
+                requestAutoApplyNow(id: id, expectedValue: currentValue)
+            }
             return
         }
 
@@ -768,18 +774,18 @@ public final class TinkerbleCompanionStore {
         }
     }
 
-    private func applySelectedVersion() {
+    private func applySelectedVersion(schedulesAutoApply: Bool = false) {
         guard selectedVersionID != nil else {
             reloadVersionsForSelectedScreen()
             return
         }
 
         for tweak in versionedVisibleTweaks {
-            applySelectedVersionValueIfNeeded(id: tweak.id)
+            applySelectedVersionValueIfNeeded(id: tweak.id, schedulesAutoApply: schedulesAutoApply)
         }
     }
 
-    private func applySelectedVersionValueIfNeeded(id: String) {
+    private func applySelectedVersionValueIfNeeded(id: String, schedulesAutoApply: Bool) {
         guard let selectedVersionID,
               let tweak = tweaksByID[id],
               tweak.screen == selectedScreen,
@@ -802,6 +808,9 @@ public final class TinkerbleCompanionStore {
             }
             updateStoredTweak(id: id, value: targetValue)
             send(.update(id: id, value: targetValue))
+            if schedulesAutoApply {
+                scheduleAutoApplyAfterDirectUpdate(id: id, value: targetValue)
+            }
         } catch {
             recordVersionPersistenceError(error)
         }
