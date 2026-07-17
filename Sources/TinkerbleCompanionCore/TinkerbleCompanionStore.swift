@@ -258,7 +258,9 @@ public final class TinkerbleCompanionStore {
 
     public func beginCoalescedTweakUpdate(id: String) {
         guard coalescedUndoStartValues[id] == nil, let currentValue = tweaksByID[id]?.value else { return }
-        cancelPendingAutoApply(for: id)
+        if autoAppliesCoalescedUpdateAtInteractionEnd(id: id) {
+            cancelPendingAutoApply(for: id)
+        }
         coalescedUndoStartValues[id] = currentValue
     }
 
@@ -267,6 +269,9 @@ public final class TinkerbleCompanionStore {
         updateStoredTweak(id: id, value: value)
         saveCurrentVersionValue(id: id, value: value)
         send(.update(id: id, value: value))
+        if !autoAppliesCoalescedUpdateAtInteractionEnd(id: id) {
+            scheduleAutoApplyAfterDirectUpdate(id: id, value: value)
+        }
     }
 
     public func endCoalescedTweakUpdate(id: String) {
@@ -283,7 +288,9 @@ public final class TinkerbleCompanionStore {
         )
         redoStack.removeAll()
         updateUndoAvailability()
-        requestAutoApplyNow(id: id, expectedValue: currentValue)
+        if autoAppliesCoalescedUpdateAtInteractionEnd(id: id) {
+            requestAutoApplyNow(id: id, expectedValue: currentValue)
+        }
     }
 
     public func triggerTweak(id: String) {
@@ -661,6 +668,14 @@ public final class TinkerbleCompanionStore {
         case .action:
             break
         }
+    }
+
+    private func autoAppliesCoalescedUpdateAtInteractionEnd(id: String) -> Bool {
+        guard let tweak = tweaksByID[id] else { return false }
+        if case .slider = tweak.control {
+            return true
+        }
+        return false
     }
 
     private func scheduleOutstandingAutoApplies() {

@@ -100,6 +100,35 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         XCTAssertEqual(appliedValues, [.number(0.8)])
     }
 
+    func testCoalescedTextChangesWaitForDelayAfterLastEditAcrossCheckpoints() async {
+        let sourceEditor = RecordingAutoApplySourceEditor()
+        let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(60))
+        let tweak = makeTweak(name: "Title", value: .string("Initial"), sourceValueType: .string)
+        store.handle(.register(tweak), outboundChannel: nil)
+        await waitForReconciliation(in: store)
+        store.setAutoApplyEnabled(true)
+
+        store.beginCoalescedTweakUpdate(id: tweak.id)
+        store.updateCoalescedTweak(id: tweak.id, value: .string("E"))
+        try? await Task.sleep(for: .milliseconds(40))
+
+        store.endCoalescedTweakUpdate(id: tweak.id)
+        store.beginCoalescedTweakUpdate(id: tweak.id)
+        store.updateCoalescedTweak(id: tweak.id, value: .string("Edited"))
+        store.endCoalescedTweakUpdate(id: tweak.id)
+        try? await Task.sleep(for: .milliseconds(40))
+
+        var applyCount = await sourceEditor.applyCount
+        XCTAssertEqual(applyCount, 0)
+
+        await waitForApplyCount(1, sourceEditor: sourceEditor)
+
+        applyCount = await sourceEditor.applyCount
+        let appliedValues = await sourceEditor.appliedValues
+        XCTAssertEqual(applyCount, 1)
+        XCTAssertEqual(appliedValues, [.string("Edited")])
+    }
+
     func testTurningAutoApplyOffCancelsDelayedNumberWrite() async {
         let sourceEditor = RecordingAutoApplySourceEditor()
         let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(50))
