@@ -71,6 +71,24 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         XCTAssertEqual(appliedValues, [.bool(false), .bool(true), .bool(false)])
     }
 
+    func testInboundAppUpdateAutoAppliesWithoutSendingAnEcho() async {
+        let sourceEditor = RecordingAutoApplySourceEditor()
+        let store = makeStore(sourceEditor: sourceEditor)
+        let outbound = RecordingInboundUpdateOutboundChannel()
+        let tweak = makeTweak(name: "Enabled", value: .bool(true), sourceValueType: .bool)
+        store.handle(.register(tweak), outboundChannel: nil)
+        await waitForReconciliation(in: store)
+        store.setAutoApplyEnabled(true)
+
+        store.handle(.update(id: tweak.id, value: .bool(false)), outboundChannel: outbound)
+        await waitForApplyCount(1, sourceEditor: sourceEditor)
+        await waitForSourceEditingToFinish(in: store)
+
+        let appliedValues = await sourceEditor.appliedValues
+        XCTAssertEqual(appliedValues, [.bool(false)])
+        XCTAssertTrue(outbound.messages.isEmpty)
+    }
+
     func testNumberChangesWaitForDelayAndCoalesceToLatestValue() async {
         let sourceEditor = RecordingAutoApplySourceEditor()
         let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(60))
@@ -404,4 +422,14 @@ private actor RecordingAutoApplySourceEditor: TinkerbleSourceEditing {
             }
         )
     }
+}
+
+private final class RecordingInboundUpdateOutboundChannel: TinkerbleCompanionOutboundChannel {
+    private(set) var messages: [TinkerbleWireMessage] = []
+
+    func send(_ message: TinkerbleWireMessage) {
+        messages.append(message)
+    }
+
+    func close() {}
 }

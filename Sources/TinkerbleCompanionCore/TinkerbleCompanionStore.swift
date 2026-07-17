@@ -566,7 +566,9 @@ public final class TinkerbleCompanionStore {
             removeUndoHistory(for: id)
             publishTweaks()
         case let .update(id, value):
-            updateStoredTweak(id: id, value: value)
+            if updateStoredTweak(id: id, value: value) {
+                scheduleAutoApplyAfterDirectUpdate(id: id, value: value)
+            }
         case .trigger:
             break
         case let .log(entry):
