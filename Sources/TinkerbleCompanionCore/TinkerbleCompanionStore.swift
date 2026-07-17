@@ -228,6 +228,7 @@ public final class TinkerbleCompanionStore {
         outboundChannel = nil
         connectionStatus = .disconnected
         hasLiveConnection = false
+        invalidateAppliedDefaultReconciliation()
         cancelPendingAutoApplies()
         clearUndoHistory()
     }
@@ -582,6 +583,7 @@ public final class TinkerbleCompanionStore {
         case .disconnected:
             outboundChannel = nil
             hasLiveConnection = false
+            invalidateAppliedDefaultReconciliation()
             cancelPendingAutoApplies()
         case .connecting, .connected, .failed:
             break
@@ -593,6 +595,7 @@ public final class TinkerbleCompanionStore {
         outboundChannel = nil
         connectionStatus = .disconnected
         hasLiveConnection = false
+        invalidateAppliedDefaultReconciliation()
         cancelPendingAutoApplies()
     }
 
@@ -654,6 +657,11 @@ public final class TinkerbleCompanionStore {
                 self.resumePendingAutoApplies()
             }
         }
+    }
+
+    private func invalidateAppliedDefaultReconciliation() {
+        appliedDefaultReconciliationGeneration += 1
+        isReconcilingAppliedDefaults = false
     }
 
     private func scheduleAutoApplyAfterDirectUpdate(id: String, value: TinkerbleValue) {

@@ -89,6 +89,37 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         XCTAssertTrue(outbound.messages.isEmpty)
     }
 
+    func testDisconnectInvalidatesReconciliationBeforeItCanRestartAutoApply() async {
+        let sourceEditor = RecordingAutoApplySourceEditor()
+        let appliedDefaults = SuspendedAutoApplyAppliedDefaultRepository()
+        let outbound = RecordingInboundUpdateOutboundChannel()
+        let store = TinkerbleCompanionStore(
+            versionRepository: TinkerbleInMemoryVersionRepository(),
+            sourceEditor: sourceEditor,
+            appliedDefaultRepository: appliedDefaults,
+            sourceProjectRoot: URL(fileURLWithPath: "/tmp/TinkerbleAutoApplyTests"),
+            sourceProjectID: "app.test"
+        )
+        store.handle(
+            .hello(role: .iOSApp, version: "test", project: .init(id: "app.test", displayName: "Test")),
+            outboundChannel: outbound
+        )
+        let tweak = makeTweak(name: "Enabled", value: .bool(true), sourceValueType: .bool)
+        store.handle(.register(tweak), outboundChannel: outbound)
+        await waitForReconciliationToStart(in: appliedDefaults)
+        store.setAutoApplyEnabled(true)
+        store.updateTweak(id: tweak.id, value: .bool(false))
+
+        store.handleConnectionClosed(outbound)
+        await appliedDefaults.finishReconciliation()
+        await waitForReconciliationToFinish(in: appliedDefaults)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertFalse(store.hasLiveConnection)
+        let applyCount = await sourceEditor.applyCount
+        XCTAssertEqual(applyCount, 0)
+    }
+
     func testNumberChangesWaitForDelayAndCoalesceToLatestValue() async {
         let sourceEditor = RecordingAutoApplySourceEditor()
         let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(60))
@@ -367,6 +398,30 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         XCTFail("Timed out waiting for applied-default reconciliation")
     }
 
+    private func waitForReconciliationToStart(
+        in repository: SuspendedAutoApplyAppliedDefaultRepository
+    ) async {
+        for _ in 0 ..< 1000 {
+            if await repository.reconciliationStarted {
+                return
+            }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for applied-default reconciliation to start")
+    }
+
+    private func waitForReconciliationToFinish(
+        in repository: SuspendedAutoApplyAppliedDefaultRepository
+    ) async {
+        for _ in 0 ..< 1000 {
+            if await repository.reconciliationFinished {
+                return
+            }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for applied-default reconciliation to finish")
+    }
+
     private func waitForApplyCount(
         _ expectedCount: Int,
         sourceEditor: RecordingAutoApplySourceEditor
@@ -432,4 +487,36 @@ private final class RecordingInboundUpdateOutboundChannel: TinkerbleCompanionOut
     }
 
     func close() {}
+}
+
+private actor SuspendedAutoApplyAppliedDefaultRepository: TinkerbleAppliedDefaultRepository {
+    private(set) var reconciliationStarted = false
+    private(set) var reconciliationFinished = false
+    private var continuation: CheckedContinuation<[TinkerbleAppliedDefaultRecord], Never>?
+
+    func record(for key: TinkerbleAppliedDefaultKey) async throws -> TinkerbleAppliedDefaultRecord? {
+        nil
+    }
+
+    func records(
+        projectID: String,
+        canonicalProjectRoot: String
+    ) async throws -> [TinkerbleAppliedDefaultRecord] {
+        reconciliationStarted = true
+        let records = await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+        reconciliationFinished = true
+        return records
+    }
+
+    func update(
+        _ records: [TinkerbleAppliedDefaultRecord],
+        removing keys: [TinkerbleAppliedDefaultKey]
+    ) async throws {}
+
+    func finishReconciliation() {
+        continuation?.resume(returning: [])
+        continuation = nil
+    }
 }
