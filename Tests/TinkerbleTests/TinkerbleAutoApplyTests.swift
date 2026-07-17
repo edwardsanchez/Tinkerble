@@ -47,6 +47,30 @@ final class TinkerbleAutoApplyTests: XCTestCase {
         XCTAssertEqual(appliedValues, [.bool(false), .enumCase("celebratory")])
     }
 
+    func testUndoAndRedoAutoApplyRestoredValues() async {
+        let sourceEditor = RecordingAutoApplySourceEditor()
+        let store = makeStore(sourceEditor: sourceEditor)
+        let tweak = makeTweak(name: "Enabled", value: .bool(true), sourceValueType: .bool)
+        store.handle(.register(tweak), outboundChannel: nil)
+        await waitForReconciliation(in: store)
+        store.setAutoApplyEnabled(true)
+
+        store.updateTweak(id: tweak.id, value: .bool(false))
+        await waitForApplyCount(1, sourceEditor: sourceEditor)
+        await waitForSourceEditingToFinish(in: store)
+
+        store.undo()
+        await waitForApplyCount(2, sourceEditor: sourceEditor)
+        await waitForSourceEditingToFinish(in: store)
+
+        store.redo()
+        await waitForApplyCount(3, sourceEditor: sourceEditor)
+        await waitForSourceEditingToFinish(in: store)
+
+        let appliedValues = await sourceEditor.appliedValues
+        XCTAssertEqual(appliedValues, [.bool(false), .bool(true), .bool(false)])
+    }
+
     func testNumberChangesWaitForDelayAndCoalesceToLatestValue() async {
         let sourceEditor = RecordingAutoApplySourceEditor()
         let store = makeStore(sourceEditor: sourceEditor, autoApplyDelay: .milliseconds(60))
@@ -293,6 +317,16 @@ final class TinkerbleAutoApplyTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(1))
         }
         XCTFail("Timed out waiting for \(expectedCount) source applies")
+    }
+
+    private func waitForSourceEditingToFinish(in store: TinkerbleCompanionStore) async {
+        for _ in 0 ..< 1000 {
+            if store.sourceEditingTweakIDs.isEmpty {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        XCTFail("Timed out waiting for source editing to finish")
     }
 
     private func waitForSource(_ expectedSource: String, at url: URL) async {

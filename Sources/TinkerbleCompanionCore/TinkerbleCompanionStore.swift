@@ -494,6 +494,7 @@ public final class TinkerbleCompanionStore {
                 guard updateStoredTweak(id: change.id, value: change.previousValue) else { return false }
                 saveCurrentVersionValue(id: change.id, value: change.previousValue)
                 send(.update(id: change.id, value: change.previousValue))
+                scheduleAutoApplyAfterDirectUpdate(id: change.id, value: change.previousValue)
                 return true
             }
             guard !appliedChanges.isEmpty else { continue }
@@ -509,6 +510,7 @@ public final class TinkerbleCompanionStore {
                 guard updateStoredTweak(id: change.id, value: change.nextValue) else { return false }
                 saveCurrentVersionValue(id: change.id, value: change.nextValue)
                 send(.update(id: change.id, value: change.nextValue))
+                scheduleAutoApplyAfterDirectUpdate(id: change.id, value: change.nextValue)
                 return true
             }
             guard !appliedChanges.isEmpty else { continue }
