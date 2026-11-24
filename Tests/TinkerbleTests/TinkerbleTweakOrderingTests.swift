@@ -342,6 +342,10 @@ private final class DeclarationOrderActionsFixture {
     @TinkerbleAction("Alpha Deal", screen: "Ordering")
     func deal() {}
 }
+
+#Preview("Declaration Order Fixture") {
+    DeclarationOrderFixtureView()
+}
 #endif
 
 private final class OrderingRecordingTransport: TinkerbleClientTransport {
