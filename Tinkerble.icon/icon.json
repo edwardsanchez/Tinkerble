@@ -73,8 +73,8 @@
         "strength" : -0.6020703125
       },
       "shadow" : {
-        "kind" : "layer-color",
-        "opacity" : 4
+        "kind" : "neutral",
+        "opacity" : 1
       },
       "translucency" : {
         "enabled" : true,
