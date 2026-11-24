@@ -3,5 +3,6 @@ public extension Tinkerble {
     enum MacroRuntime {
         public typealias State<Value: TinkerbleValueConvertible> = TinkerbleState<Value>
         public typealias SourceAnchor = TinkerbleSourceAnchor
+        public typealias SourceLocation = TinkerbleSourceLocation
     }
 }

@@ -854,25 +854,7 @@ public final class TinkerbleCompanionStore {
 
     private func publishTweaks() {
         let previousSelectedScreen = selectedScreen
-        tweaks = tweaksByID.values.sorted { left, right in
-            if left.screen != right.screen {
-                return left.screen.localizedCaseInsensitiveCompare(right.screen) == .orderedAscending
-            }
-
-            switch (left.category, right.category) {
-            case (nil, nil):
-                return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
-            case (nil, _?):
-                return true
-            case (_?, nil):
-                return false
-            case let (leftCategory?, rightCategory?):
-                if leftCategory == rightCategory {
-                    return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
-                }
-                return leftCategory.localizedCaseInsensitiveCompare(rightCategory) == .orderedAscending
-            }
-        }
+        tweaks = TinkerbleTweakOrdering.sorted(tweaksByID.values)
         if let firstScreen = screens.first, !screens.contains(selectedScreen) {
             selectedScreen = firstScreen
         } else if screens.isEmpty {

@@ -27,6 +27,13 @@ public struct TinkerbleSourceAnchor: Codable, Equatable, Hashable, Sendable {
         self.schemaVersion = schemaVersion
     }
 
+    /// Where the declaration sits in its file. Ordering only; it is not part of `stableID`.
+    public var location: TinkerbleSourceLocation {
+        .init(filePath: filePath, line: line, column: column)
+    }
+
+    /// Identity used for applied defaults and source edits. Built from the file, enclosing
+    /// types and property name, so moving a declaration to another line keeps its identity.
     public var stableID: String {
         let canonicalPath = URL(fileURLWithPath: filePath).standardizedFileURL.path
         return Self.lengthPrefixed(

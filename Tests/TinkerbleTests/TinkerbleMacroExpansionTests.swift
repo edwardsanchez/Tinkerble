@@ -375,12 +375,54 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         category: "Animation",
                         perform: { owner in
                             owner.toggleFan()
-                        }
+                        },
+                        _declarationLocation: Tinkerble.MacroRuntime.SourceLocation(filePath: "test.swift", line: 3, column: 5)
                     )
                 }
             }
             """,
             macros: testMacros
+        )
+    }
+
+    func testTinkerbleActionsMacroOmitsDeclarationLocationOutsideDebug() {
+        assertMacroExpansion(
+            """
+            @TinkerbleActions
+            final class Model {
+                @TinkerbleAction("Toggle Fan")
+                func toggleFan() {
+                }
+            }
+            """,
+            expandedSource:
+            """
+            final class Model {
+                func toggleFan() {
+                }
+
+                @ObservationIgnored
+                private let _tinkerbleAction_toggleFanRegistration = TinkerbleActionRegistration()
+
+                func activateTinkerbleActions() {
+                    _tinkerbleAction_toggleFanRegistration.activate(
+                        owner: self,
+                        name: "Toggle Fan",
+                        screen: nil,
+                        category: nil,
+                        perform: { owner in
+                            owner.toggleFan()
+                        },
+                        _declarationLocation: nil
+                    )
+                }
+            }
+            """,
+            macros: testMacros,
+            buildConfiguration: StaticBuildConfiguration(
+                languageVersion: VersionTuple(6),
+                compilerVersion: VersionTuple(6, 4)
+            )
         )
     }
 
@@ -420,7 +462,8 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         category: "Animation",
                         perform: { owner in
                             owner.toggleFan()
-                        }
+                        },
+                        _declarationLocation: Tinkerble.MacroRuntime.SourceLocation(filePath: "test.swift", line: 3, column: 5)
                     )
 
                     _tinkerbleAction_resetDeckRegistration.activate(
@@ -430,7 +473,8 @@ final class TinkerbleMacroExpansionTests: XCTestCase {
                         category: nil,
                         perform: { owner in
                             owner.resetDeck()
-                        }
+                        },
+                        _declarationLocation: Tinkerble.MacroRuntime.SourceLocation(filePath: "test.swift", line: 7, column: 5)
                     )
                 }
             }

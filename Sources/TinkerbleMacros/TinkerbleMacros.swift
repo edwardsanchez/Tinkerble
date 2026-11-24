@@ -181,7 +181,7 @@ public struct TinkerbleActionsMacro: MemberMacro {
             guard function.signature.parameterClause.parameters.isEmpty else {
                 return nil
             }
-            return ObservableActionMethod(function: function, attribute: attribute)
+            return ObservableActionMethod(function: function, attribute: attribute, context: context)
         }
 
         guard !actions.isEmpty else { return [] }
@@ -218,6 +218,7 @@ struct TinkerbleMacrosPlugin: CompilerPlugin {
 private struct ObservableActionMethod {
     let function: FunctionDeclSyntax
     let attribute: AttributeSyntax
+    let context: MacroExpansionContext
 
     var methodName: String {
         function.name.text
@@ -245,7 +246,8 @@ private struct ObservableActionMethod {
             category: \(arguments.category),
             perform: { owner in
                 owner.\(methodName)()
-            }
+            },
+            _declarationLocation: \(tinkerbleSourceLocationExpression(of: function, context: context))
         )
         """
     }

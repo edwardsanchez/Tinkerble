@@ -2,26 +2,24 @@ import Foundation
 import Tinkerble
 
 public enum TinkerbleTweakGrouping {
+    /// Groups tweaks into the uncategorized group followed by one group per category.
+    /// Order comes from `TinkerbleTweakOrdering`: categories by their first declared control.
     public static func groupedTweaks(from tweaks: [TinkerbleTweak]) -> [TinkerbleTweakGroup] {
-        let uncategorized = tweaks.filter { $0.category == nil }
-        let categorized = Dictionary(grouping: tweaks.filter { $0.category != nil }, by: \.category)
+        let orderedTweaks = TinkerbleTweakOrdering.sorted(tweaks)
+        let uncategorized = orderedTweaks.filter { $0.category == nil }
 
-        var groups: [TinkerbleTweakGroup] = []
-        if !uncategorized.isEmpty {
-            groups.append(.init(category: nil, tweaks: uncategorized))
+        var categorizedGroups: [TinkerbleTweakGroup] = []
+        var groupIndexByCategory: [String: Int] = [:]
+        for tweak in orderedTweaks {
+            guard let category = tweak.category else { continue }
+            if let index = groupIndexByCategory[category] {
+                categorizedGroups[index].tweaks.append(tweak)
+            } else {
+                groupIndexByCategory[category] = categorizedGroups.count
+                categorizedGroups.append(.init(category: category, tweaks: [tweak]))
+            }
         }
 
-        groups.append(
-            contentsOf: categorized.keys.compactMap { category -> TinkerbleTweakGroup? in
-                guard let category else { return nil }
-                return TinkerbleTweakGroup(
-                    category: category,
-                    tweaks: categorized[category] ?? []
-                )
-            }
-            .sorted { $0.category ?? "" < $1.category ?? "" }
-        )
-
-        return groups
+        return (uncategorized.isEmpty ? [] : [.init(category: nil, tweaks: uncategorized)]) + categorizedGroups
     }
 }

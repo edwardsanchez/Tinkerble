@@ -24,6 +24,12 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable, Sendab
     public var enumOptions: [TinkerbleEnumOption]
     public var sourceValueType: TinkerbleSourceValueType?
     public var sourceAnchors: [TinkerbleSourceAnchor]
+    /// Where a control that has no source anchor, such as an action, is declared.
+    ///
+    /// Used only to order controls. It is kept apart from `sourceAnchors` so the companion
+    /// never treats an action as an editable source value. Optional on the wire, so tweaks
+    /// from older Tinkerble builds decode with `nil`.
+    public var declarationLocation: TinkerbleSourceLocation?
 
     public init(
         id: String,
@@ -36,7 +42,8 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable, Sendab
         control: TinkerbleControlDescriptor,
         enumOptions: [TinkerbleEnumOption] = [],
         sourceValueType: TinkerbleSourceValueType? = nil,
-        sourceAnchors: [TinkerbleSourceAnchor] = []
+        sourceAnchors: [TinkerbleSourceAnchor] = [],
+        declarationLocation: TinkerbleSourceLocation? = nil
     ) {
         self.id = id
         self.screen = Self.normalizedScreen(screen)
@@ -49,6 +56,7 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable, Sendab
         self.enumOptions = enumOptions
         self.sourceValueType = sourceValueType
         self.sourceAnchors = sourceAnchors
+        self.declarationLocation = declarationLocation
     }
 
     public static func normalizedScreen(_ screen: String?) -> String {
@@ -89,6 +97,7 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable, Sendab
         case enumOptions
         case sourceValueType
         case sourceAnchors
+        case declarationLocation
     }
 
     public init(from decoder: Decoder) throws {
@@ -104,6 +113,7 @@ public struct TinkerbleTweak: Codable, Equatable, Hashable, Identifiable, Sendab
         enumOptions = try container.decodeIfPresent([TinkerbleEnumOption].self, forKey: .enumOptions) ?? []
         sourceValueType = try container.decodeIfPresent(TinkerbleSourceValueType.self, forKey: .sourceValueType)
         sourceAnchors = try container.decodeIfPresent([TinkerbleSourceAnchor].self, forKey: .sourceAnchors) ?? []
+        declarationLocation = try container.decodeIfPresent(TinkerbleSourceLocation.self, forKey: .declarationLocation)
     }
 }
 
