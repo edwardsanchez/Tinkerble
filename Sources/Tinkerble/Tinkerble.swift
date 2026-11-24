@@ -143,6 +143,7 @@ public final class Tinkerble {
         screen: String? = nil,
         category: String?,
         name: String,
+        declarationLocation: TinkerbleSourceLocation? = nil,
         perform: @escaping () -> Void
     ) -> TinkerbleRegistrationToken {
 #if DEBUG
@@ -153,19 +154,29 @@ public final class Tinkerble {
             name: name,
             value: .action,
             valueKind: .action,
-            control: .automatic
+            control: .automatic,
+            declarationLocation: declarationLocation
         )
         let token = TinkerbleRegistrationToken(tweakID: id)
 
         if var liveRegistration = liveRegistrationsByID[id] {
             liveRegistration.actionHandlers[token.instanceID] = perform
+            if let declarationLocation {
+                liveRegistration.declarationLocationsByInstance[token.instanceID] = declarationLocation
+            }
+            let declarationLocationChanged = liveRegistration.refreshDeclarationLocation()
             liveRegistrationsByID[id] = liveRegistration
+            if declarationLocationChanged {
+                publishTweaks()
+                transport.send(.register(liveRegistration.tweak))
+            }
             return token
         }
 
         liveRegistrationsByID[id] = LiveTweakRegistration(
             tweak: tweak,
-            actionHandlers: [token.instanceID: perform]
+            actionHandlers: [token.instanceID: perform],
+            declarationLocationsByInstance: declarationLocation.map { [token.instanceID: $0] } ?? [:]
         )
         publishTweaks()
         transport.send(.register(tweak))
@@ -174,6 +185,7 @@ public final class Tinkerble {
         _ = screen
         _ = category
         _ = name
+        _ = declarationLocation
         _ = perform
         return TinkerbleRegistrationToken(tweakID: id)
 #endif
@@ -200,7 +212,9 @@ public final class Tinkerble {
         liveRegistration.remoteAppliers.removeValue(forKey: token.instanceID)
         liveRegistration.actionHandlers.removeValue(forKey: token.instanceID)
         liveRegistration.sourceAnchorsByInstance.removeValue(forKey: token.instanceID)
+        liveRegistration.declarationLocationsByInstance.removeValue(forKey: token.instanceID)
         guard liveRegistration.remoteAppliers.isEmpty, liveRegistration.actionHandlers.isEmpty else {
+            let declarationLocationChanged = liveRegistration.refreshDeclarationLocation()
             let remainingAnchors = Array(liveRegistration.sourceAnchorsByInstance.values)
             let previousAnchors = liveRegistration.tweak.sourceAnchors
             liveRegistration.tweak.sourceAnchors = previousAnchors.compactMap { previousAnchor in
@@ -208,7 +222,7 @@ public final class Tinkerble {
                     ?? remainingAnchors.first(where: { $0.stableID == previousAnchor.stableID })
             }
             liveRegistrationsByID[token.tweakID] = liveRegistration
-            if liveRegistration.tweak.sourceAnchors != previousAnchors {
+            if liveRegistration.tweak.sourceAnchors != previousAnchors || declarationLocationChanged {
                 publishTweaks()
                 transport.send(.register(liveRegistration.tweak))
             }
@@ -332,25 +346,7 @@ public final class Tinkerble {
     }
 
     private func sortedTweaks() -> [TinkerbleTweak] {
-        liveRegistrationsByID.values.map(\.tweak).sorted { left, right in
-            if left.screen != right.screen {
-                return left.screen.localizedCaseInsensitiveCompare(right.screen) == .orderedAscending
-            }
-
-            switch (left.category, right.category) {
-            case (nil, nil):
-                return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
-            case (nil, _?):
-                return true
-            case (_?, nil):
-                return false
-            case let (leftCategory?, rightCategory?):
-                if leftCategory == rightCategory {
-                    return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
-                }
-                return leftCategory.localizedCaseInsensitiveCompare(rightCategory) == .orderedAscending
-            }
-        }
+        TinkerbleTweakOrdering.sorted(liveRegistrationsByID.values.map(\.tweak))
     }
 
     private func normalizedCategory(_ category: String?) -> String? {
@@ -367,6 +363,16 @@ public final class Tinkerble {
         var remoteAppliers: [UUID: (TinkerbleValue) -> Void] = [:]
         var actionHandlers: [UUID: () -> Void] = [:]
         var sourceAnchorsByInstance: [UUID: TinkerbleSourceAnchor] = [:]
+        var declarationLocationsByInstance: [UUID: TinkerbleSourceLocation] = [:]
+
+        /// Keeps an action's declaration location at the earliest live call site.
+        /// Returns `true` when the location changed.
+        mutating func refreshDeclarationLocation() -> Bool {
+            let earliest = declarationLocationsByInstance.values.min()
+            guard earliest != tweak.declarationLocation else { return false }
+            tweak.declarationLocation = earliest
+            return true
+        }
     }
 #endif
 }

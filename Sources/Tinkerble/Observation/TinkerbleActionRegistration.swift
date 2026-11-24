@@ -24,7 +24,8 @@ public final class TinkerbleActionRegistration {
         name: String,
         screen: String? = nil,
         category: String? = nil,
-        perform: @escaping (Owner) -> Void
+        perform: @escaping (Owner) -> Void,
+        _declarationLocation: TinkerbleSourceLocation? = nil
     ) {
 #if DEBUG
         guard !isRegistered else { return }
@@ -35,6 +36,7 @@ public final class TinkerbleActionRegistration {
             screen: screen,
             category: category,
             name: name,
+            declarationLocation: _declarationLocation,
             perform: { [weak owner] in
                 guard let owner else { return }
                 perform(owner)
@@ -46,6 +48,7 @@ public final class TinkerbleActionRegistration {
         _ = screen
         _ = category
         _ = perform
+        _ = _declarationLocation
 #endif
     }
 

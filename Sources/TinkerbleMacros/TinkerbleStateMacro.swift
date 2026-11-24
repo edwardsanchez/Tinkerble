@@ -390,6 +390,28 @@ func tinkerbleSourceAnchorExpression(
     """
 }
 
+/// The declaration's file, line and column, used only to order controls. Outside DEBUG it
+/// expands to `nil` so release builds carry no call-site metadata.
+func tinkerbleSourceLocationExpression(
+    of declaration: some SyntaxProtocol,
+    context: some MacroExpansionContext
+) -> String {
+    if let buildConfiguration = context.buildConfiguration,
+       (try? buildConfiguration.isCustomConditionSet(name: "DEBUG")) == false {
+        return "nil"
+    }
+
+    guard let location = context.location(
+        of: declaration,
+        at: .afterLeadingTrivia,
+        filePathMode: .filePath
+    ) else {
+        return "nil"
+    }
+
+    return "Tinkerble.MacroRuntime.SourceLocation(filePath: \(location.file), line: \(location.line), column: \(location.column))"
+}
+
 func tinkerbleEnclosingTypeNames(_ syntax: Syntax) -> [String] {
     if let declaration = syntax.as(StructDeclSyntax.self) {
         return [declaration.name.text]

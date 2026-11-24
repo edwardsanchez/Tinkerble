@@ -12,7 +12,7 @@ The package is intentionally small and modular:
 1. The macOS companion advertises `_tinkerble._tcp` with Bonjour.
 2. The app discovers the companion and connects over a length-prefixed JSON socket.
 3. `@TinkerbleState`, `.tinkerbleAction`, `@TinkerbleObservableState`, and `@TinkerbleAction` register tweakable values and actions.
-4. The companion displays tweaks by screen, with uncategorized values first, then grouped categories.
+4. The companion displays tweaks by screen, with uncategorized values first, then grouped categories, in the order they are declared in source. See [Control Order](#control-order).
 5. Editing a companion control sends an update back to the app.
 6. Tapping an action button sends a trigger back to the app.
 7. The app applies value updates or runs the registered action closure.
@@ -179,7 +179,7 @@ private var isEnabled = true
 private var accent = Color.blue
 ```
 
-`@TinkerbleState` is an attached macro that captures the declaration's source location for Debug tooling. The display name remains an explicit first argument so the companion does not have to turn a code identifier into user-facing copy. `screen` and `category` are optional and always labeled. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups. Older `name:` and category-first spellings are deprecated; replace `@TinkerbleState(category: "Layout", name: "Opacity")` with `@TinkerbleState("Opacity", category: "Layout")`.
+`@TinkerbleState` is an attached macro that captures the declaration's source location for Debug tooling. The display name remains an explicit first argument so the companion does not have to turn a code identifier into user-facing copy. `screen` and `category` are optional and always labeled. Omit `screen` for the default screen, and use it when one app view registers a distinct group of controls. Values without a category appear above categorized groups, and controls follow their declaration order; see [Control Order](#control-order). Older `name:` and category-first spellings are deprecated; replace `@TinkerbleState(category: "Layout", name: "Opacity")` with `@TinkerbleState("Opacity", category: "Layout")`.
 
 Use `@TinkerbleObservableState` for normal stored properties inside `@Observable` classes. Add `@TinkerbleObservable` to the class and keep using normal Observation and `@Bindable` bindings from SwiftUI:
 
@@ -254,6 +254,21 @@ final class Model {
 ```
 
 `@TinkerbleAction` methods must not take parameters. Pass a custom display name as the first argument and keep `screen` and `category` labeled. If the name is omitted, Tinkerble uses the method name.
+
+### Control Order
+
+The companion lists a screen's controls in the order you declare them, so reordering controls means moving lines in your source:
+
+1. Controls without a category come first.
+2. Controls are ordered by where they are declared: by file path, then line, then column.
+3. Categories are ordered by their first declared control, not by name. Inside a category, controls follow rule 2.
+4. `.tinkerbleAction` is placed where the modifier is called, so an action called in `body` lands after the properties declared above it in the same file. `@TinkerbleAction` is placed where its method is declared.
+5. A control registered from several places uses its earliest location.
+6. A control with no known location goes after those that have one, in name order.
+
+Screens stay in name order, with the default screen first. There is no order parameter; declaration order is the only mechanism. Moving a declaration does not change its identity: saved versions are keyed by tweak ID, and applied defaults by file, enclosing type and property name, so neither depends on the line.
+
+`.tinkerbleAction` captures its call site with `#filePath`, `#line` and `#column` default arguments. Those parameters exist only in Debug builds, so release builds carry no call-site metadata. If an app built against an older Tinkerble connects to a newer companion, its actions have no location and sort after the located controls; a newer app connected to an older companion shows the older name order.
 
 Basic enums use `TinkerbleEnum`:
 ```swift
