@@ -29,9 +29,25 @@ struct TinkerbleScreenSegmentedControlView: NSViewRepresentable {
             for (index, screen) in screens.enumerated() {
                 segmentedControl.setLabel(screen, forSegment: index)
             }
+            segmentedControl.invalidateIntrinsicContentSize()
         }
 
         segmentedControl.selectedSegment = screens.firstIndex(of: selectedScreen) ?? -1
+    }
+
+    /// Takes the offered width but always keeps the control's natural height.
+    ///
+    /// Without this, SwiftUI's default sizing could collapse the control to zero height. It
+    /// still drew, but AppKit hit-tests against the frame, so clicks fell through to the
+    /// container behind it and the screen never switched.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView segmentedControl: FillingSegmentedControl,
+        context: Context
+    ) -> CGSize? {
+        let naturalSize = segmentedControl.naturalSize
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? naturalSize.width
+        return CGSize(width: width, height: naturalSize.height)
     }
 
     final class Coordinator: NSObject {
