@@ -190,6 +190,7 @@ tinkerble install --project MyApp.xcodeproj --target MyApp --scheme "MyApp Dev"
 ```
 
 Use `tinkerble install --dry-run` to inspect planned project and scheme changes before writing files. When macro trust behavior matters for the install flow, use `--enable-macro-trust` or `--skip-macro-trust` explicitly instead of relying on prompts.
+For bootstrap CLI installs, `curl -fsSL https://raw.githubusercontent.com/edwardsanchez/Tinkerble/main/install.sh | sh` honors `TINKERBLE_REPO_URL` and `TINKERBLE_INSTALL_DIR` when you need to test another checkout source or install location.
 
 All builds should be warning-free. Fix compiler warnings before marking work complete. Common warnings to watch for:
 
@@ -217,11 +218,25 @@ For companion/demo workflows, prefer the maintained helpers:
 - `make demo-simulator-ci` launches the demo on the first available iPhone Simulator without prompts.
 - `make demo-device-build` builds the demo for a generic physical iOS device.
 
+The maintained `make demo-build`, `make demo-device-build`, and `Scripts/run-tinkerble-demo.sh` paths already pass `-skipMacroValidation`; prefer those helpers over ad hoc demo `xcodebuild` invocations when macro fingerprint prompts would otherwise interrupt validation.
+`Scripts/verify-macos-companion-package.sh` is the concrete proof path for companion packaging: it checks the packaged app name and plist values, confirms the compiled `Assets.car` and resource bundles are present, rejects legacy `.icns` sidecars, and finishes with `codesign --verify`.
+
 `Scripts/run-tinkerble-demo.sh` uses `TINKERBLE_DEMO_PACKAGE_CACHE` to override its cloned package cache path and `TINKERBLE_SIMULATOR_UDID` to skip simulator selection.
+For `make demo-build` and `make demo-device-build`, override the cloned package cache with the Make variable instead: `make demo-build DEMO_PACKAGE_CACHE=/path/to/package-cache` (default: `.build-demo-validation`).
+Set `TINKERBLE_INTERACTIVE=0` when you want the helper itself to pick the first available iPhone Simulator without prompts, or use `make demo-simulator-ci` for that maintained path.
+Set `TINKERBLE_DEMO_SOURCE_EDIT_VALIDATION=1` when you need the demo helper to launch with the source-edit validation flag.
+
+`Scripts/ensure-macos-companion-running.sh` accepts `--restart`, `--project-root`, and `--project-id`; setting either scoped source-edit flag forces a restart before relaunch, and `TINKERBLE_COMPANION_PROCESS_NAME` / `TINKERBLE_COMPANION_WAIT_TIMEOUT` tune how the helper waits for the packaged app to exit and start listening.
+Use `Scripts/launch-macos-companion.sh` when you want the maintained manual relaunch path; it forwards to the same helper with `--restart`.
 
 The shared `+ Tinkerble` run scheme also honors `TINKERBLE_COMPANION_AUTOLAUNCH=0` to skip companion launch, `TINKERBLE_PACKAGE_DIR` or `TINKERBLE_SOURCE_PACKAGES_DIR` to force package-checkout discovery, and `TINKERBLE_COMPANION_SCRATCH_PATH` to override the companion packaging scratch directory.
 
+When companion packaging needs customization, `Scripts/package-macos-companion.sh` also honors `TINKERBLE_COMPANION_APP_NAME`, `TINKERBLE_COMPANION_BUNDLE_ID`, `TINKERBLE_COMPANION_VERSION`, `TINKERBLE_COMPANION_BUILD`, `TINKERBLE_ICON_SOURCE`, `TINKERBLE_ICON_ASSET_NAME`, `TINKERBLE_SIGN_IDENTITY`, and `TINKERBLE_SWIFT_EXECUTABLE`.
+Set `CONFIGURATION=release` when packaging or verifying the macOS companion with release build settings instead of the default debug configuration.
+
 For release prep, use the repo-backed targets instead of ad hoc git/GitHub commands:
+
+Set `REMOTE=<name>` when tagging or verifying against a non-`origin` remote; the Makefile defaults `REMOTE` to `origin`.
 
 - `make release-check` runs `make verify`, `git diff --check`, and `git status --short`.
 - `make release-tag VERSION=v1.2.3` creates the local annotated tag.
