@@ -38,6 +38,10 @@ struct TweakInspectorView: View {
                 recentlyAppliedTweakIDs: store.recentlyAppliedTweakIDs,
                 isAutoApplyEnabled: store.isAutoApplyEnabled
             )
+            // A vertical scroll view takes its content's width, so pin the content to the
+            // scroll view's width. Otherwise one wide row widens the whole column, and the
+            // column changes width as screens are switched.
+            .containerRelativeFrame(.horizontal)
         }
         .background {
             TweakInspectorContent(
@@ -293,13 +297,13 @@ struct TweakRow: View {
         if case .action = tweak.value {
             actionButton
         } else {
-            HStack(alignment: .top, spacing: 14) {
+            TweakRowLayout {
                 Text(tweak.name)
                     .font(.callout)
                     .bold()
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                    .frame(width: 116, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack {
                     TinkerbleTweakApplyButtonView(
